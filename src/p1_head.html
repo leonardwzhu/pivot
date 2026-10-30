@@ -1,28 +1,18 @@
 <title>Pivot</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:ital,wght@0,400..700;1,400..700&display=swap">
 <style>
-/* Layout: draft-room console — sticky pick clock bar, big board left, war-room rail right, player lab drawer from the right */
-:root{
-  --bg:#f5f6f8; --panel:#ffffff; --ink:#15192a; --muted:#5d6478; --line:#dfe2ea; --soft:#eef0f5; --grid:#e8eaf0;
-  --accent:#e2621b; --accent-ink:#ffffff; --accent-soft:#fde9dc; --band:rgba(226,98,27,.16);
-  --ok:#1f8a5b; --warn:#b7791f; --bad:#c53030; --ok-soft:#e3f4ec; --warn-soft:#fbf0d9; --bad-soft:#fbe4e4;
-  --mine:#2b59c3; --mine-soft:#e3eafb; --scrim:rgba(15,18,32,.38);
-  --display:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
-  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0f1220; --panel:#171b2c; --ink:#e8eaf2; --muted:#9aa1b8; --line:#2a3048; --soft:#1e2337; --grid:#252b42;
-  --accent:#f0813f; --accent-ink:#1a0d04; --accent-soft:#3a2416; --band:rgba(240,129,63,.22);
-  --ok:#4cc38a; --warn:#e0a84a; --bad:#f07171; --ok-soft:#14301f; --warn-soft:#352812; --bad-soft:#3a1a1c;
-  --mine:#7aa2ff; --mine-soft:#1c2850; --scrim:rgba(0,0,0,.55); color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0f1220; --panel:#171b2c; --ink:#e8eaf2; --muted:#9aa1b8; --line:#2a3048; --soft:#1e2337; --grid:#252b42;
-  --accent:#f0813f; --accent-ink:#1a0d04; --accent-soft:#3a2416; --band:rgba(240,129,63,.22);
-  --ok:#4cc38a; --warn:#e0a84a; --bad:#f07171; --ok-soft:#14301f; --warn-soft:#352812; --bad-soft:#3a1a1c;
-  --mine:#7aa2ff; --mine-soft:#1c2850; --scrim:rgba(0,0,0,.55); color-scheme:dark}
+/* Layout: draft-room console (sticky pick bar, big board left, war-room rail right, player lab drawer from the right).
+   Look: hardwood. Maple floor, navy court lines, painted-key blue, basketball orange; Caslon serif with italics kept for emphasis. */
+:root{--bg:#E8D7B9;--panel:#FBF5EA;--ink:#17202E;--muted:#6A5E4B;--line:#D8C39C;--soft:#F3E8D4;--grid:#E6D5B5;
+ --accent:#1E5AA8;--accent-ink:#FFFFFF;--accent-soft:#DCE6F4;--band:rgba(30,90,168,.16);--ball:#E06A1B;
+ --ok:#2F7D4F;--warn:#A86A12;--bad:#B3261E;--ok-soft:#E1EEDD;--warn-soft:#F6E6C4;--bad-soft:#F6DCD6;--mine:#B34A12;--mine-soft:#F7E1CF;--scrim:rgba(23,32,46,.4);--display:"Libre Caslon Text","Big Caslon",Georgia,serif;--body:"Source Sans 3",system-ui,sans-serif;--mono:"Source Sans 3",system-ui,sans-serif;
+ }
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#B3A188;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
+ --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#B3A188;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
+ --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
@@ -245,6 +235,29 @@ textarea{width:100%;min-height:140px;background:var(--soft);border:1px solid var
 .tip{position:fixed;z-index:40;pointer-events:none;background:var(--ink);color:var(--panel);font-size:12px;padding:6px 8px;border-radius:5px;max-width:240px;line-height:1.35}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:6px;font-size:13px;z-index:45}
 @media (prefers-reduced-motion:no-preference){tbody tr{transition:background .12s}}
+/* hardwood + Caslon: serif headings, italics only for the brand o, pick number, active tab, tiers, headline numbers and notes */
+body{background:var(--bg) repeating-linear-gradient(90deg,transparent 0 88px,rgba(120,80,30,.05) 88px 90px)}
+
+body{background:var(--bg) repeating-linear-gradient(90deg,transparent 0 120px,rgba(120,80,30,.04) 120px 121px)}
+header.bar{border-bottom:2px solid var(--ink)}
+.brand h1{font-family:var(--display);text-transform:none;font-weight:700;font-size:38px;letter-spacing:-.01em;line-height:.9}
+.brand h1 span{font-style:italic;color:var(--ball);font-weight:600}
+.clock{font-family:var(--body)}.clock .num{font-family:var(--display);font-style:italic;font-weight:400;font-size:40px}
+.clock .lab{font-family:var(--body);font-size:10px;letter-spacing:.14em}
+.tabs{border-bottom:1px solid var(--ink)}
+.tabs button{font-family:var(--display);text-transform:none;font-size:19px;font-weight:500;letter-spacing:0;padding:8px 13px}
+.tabs button[aria-selected=true]{font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
+.card h2,.chart-card h4{font-family:var(--display);text-transform:none;font-size:22px;font-weight:700;letter-spacing:0}
+.chart-card h4{font-size:19px}
+.card h2 small,.chart-card .eq,.mix-note,.empty,.chart-card p,.sug .why{font-style:italic}
+.kpi .v{font-family:var(--display);font-style:italic;font-weight:600}
+.kpi .k,.sug .lab,th,.seg-lab,.settings label{font-family:var(--body);letter-spacing:.1em}
+.tier{font-family:var(--display);font-style:italic}
+.dr-head h2{font-family:var(--display);text-transform:none;font-weight:700}
+.prose h3,.models h3,.news-sec h3,.dr-sec h3{font-family:var(--display);text-transform:none;font-style:italic;font-weight:600;letter-spacing:0;font-size:21px}
+.pname{font-weight:600}
+td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:var(--body);font-variant-numeric:tabular-nums lining-nums}
+.tabs button{font-size:18px;padding:8px 10px}
 </style>
 
 <header class="bar">
