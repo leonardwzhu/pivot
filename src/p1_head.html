@@ -337,7 +337,8 @@ html{scrollbar-gutter:stable}
 .dr-id{display:flex;gap:14px;align-items:flex-start;min-width:0}
 .dr-id>div{min-width:0}
 .jersey{flex:none;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
-@media (max-width:480px){.jersey{width:58px;height:64px}}
+.jersey.pixel{image-rendering:pixelated;filter:drop-shadow(0 0 0 var(--ink))}
+@media (max-width:480px){.jersey:not(.pixel){width:58px;height:64px}}
 .dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
 .dtabs button{border:0;background:none;padding:7px 12px;font-family:var(--display);font-size:17px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .dtabs button[aria-selected=true]{color:var(--ink);font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
@@ -442,6 +443,7 @@ html{scrollbar-gutter:stable}
       <p><b>Walk-forward tuning.</b> Every season from 2019-20 through 2025-26 is predicted using only the seasons before it. Before each season, every setting is re-tuned on the seasons already played: how much each of the last three seasons counts, how many comps to use, the comps weight, the minutes-model weight and the team-fit strengths. Older seasons count less when tuning, and that decay is chosen the same way. The tuned settings are then scored on the season they never saw, and the final 2026-27 settings are tuned on all seven seasons. The Validation section on the Models tab shows what each season chose and how it scored.</p>
       <h3>About the data</h3>
       <p>Season stats for 2016-17 through 2026-27 (so far) come from Basketball Reference's per-game, per-36, per-100 and advanced tables, refreshed daily (see the date in the header): 1,526 players and every season they played. Fantasy points use real field-goal and free-throw attempts. Board ranks, ESPN rank tags, injury notes and news were compiled from reports. College lines for rookies are compiled too, because Basketball Reference doesn't cover college. Game-by-game logs aren't used because Basketball Reference asks automated tools not to fetch them.</p>
+      <p><b>Jersey art.</b> The pixel jerseys on player profiles are the teams' current home (icon edition) uniforms drawn by <a href="https://commons.wikimedia.org/wiki/Category:Basketball_kit_templates" target="_blank" rel="noopener">Wikimedia Commons</a> contributors, used under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>. Backgrounds were made transparent and each player's number was added in the same pixel style. Team names and marks belong to the NBA and its teams.</p>
       <h3>League scoring</h3>
       <p>How ESPN H2H Points works: each day your 10 starters earn points for what they do on the court. Each matchup week, your starters' points are added up and compared with your opponent's, and the higher total wins the week. Your regular-season record decides the 4 playoff spots. The values below are ESPN's defaults for H2H Points. If your league changed any of them, edit them here, so every projection, backtest, simulation and Pick Advisor suggestion uses your league's scoring.</p>
       <div id="scoringBox"></div>

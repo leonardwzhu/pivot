@@ -889,7 +889,17 @@ document.addEventListener("input",e=>{if(e.target.id!=="plQ")return;S.pl.q=e.tar
 // a drawn jersey in his team's colors with his number: no logos or photos, just the team's colors and nickname
 const lum=h=>{const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]},
   contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
-function jerseySvg(p,size=78){const J=typeof TEAM_JERSEY!=="undefined"&&TEAM_JERSEY[p.team],id="j"+p.id,num=p.jersey||"",c=h=>"#"+h;
+// pixel-art jersey: the team's Wikimedia Commons icon kit with his number drawn in the same pixel grid (5x7 digits, bolded, outlined)
+const DIGITS=["01110100011001110101110011000101110","00100011000010000100001000010001110","01110100010000100010001000100011111","11110000010000101110000010000111110","00010001100101010010111110001000010","11111100001111000001000011000101110","00110010001000011110100011000101110","11111000010001000100010000100001000","01110100011000101110100011000101110","01110100011000101111000010001001100"];
+// rows where the number starts: below the chest wordmark for most kits; inside the Pacers ring; below the Warriors ring and the Suns sash
+const KIT_NUM_Y={GSW:44,IND:25,PHO:46,SAC:34};
+function pixelJersey(p,size=76){const src=KITS[p.team],J=TEAM_JERSEY&&TEAM_JERSEY[p.team]||{},num=String(p.jersey||""),fill=J.nf?"#"+J.nf:"#fff",line=J.no?"#"+J.no:J.b?"#"+J.b:"#000";
+  let on=new Set(),W=0;[...num].forEach((d,i)=>{const g=DIGITS[+d];if(!g)return;const ox=i*7;for(let y=0;y<7;y++)for(let x=0;x<5;x++)if(g[y*5+x]==="1"){on.add((ox+x)+","+y);on.add((ox+x+1)+","+y)}W=ox+6});
+  const x0=Math.round((38-W)/2),y0=KIT_NUM_Y[p.team]??31,edge=new Set();on.forEach(k=>{const [x,y]=k.split(",").map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const q=(x+dx)+","+(y+dy);if(!on.has(q))edge.add(q)}});
+  const px=(set,col)=>[...set].map(k=>{const [x,y]=k.split(",").map(Number);return `<rect x="${x0+x}" y="${y0+y}" width="1" height="1" fill="${col}"/>`}).join("");
+  return `<svg class="jersey pixel" width="${size}" height="${Math.round(size*59/38)}" viewBox="0 0 38 59" shape-rendering="crispEdges" role="img" aria-label="${esc(TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team)} home jersey${num?", number "+esc(num):""}"><title>Jersey art: Wikimedia Commons contributors, CC BY-SA 4.0 (number added)</title>
+    <image href="${src}" width="38" height="59" style="image-rendering:pixelated"/>${num?px(edge,line)+px(on,fill):""}</svg>`}
+function jerseySvg(p,size=78){if(typeof KITS!=="undefined"&&KITS[p.team])return pixelJersey(p);const J=typeof TEAM_JERSEY!=="undefined"&&TEAM_JERSEY[p.team],id="j"+p.id,num=p.jersey||"",c=h=>"#"+h;
   if(!J)return `<svg class="jersey" width="${size}" height="${Math.round(size*1.1)}" viewBox="0 0 100 110" role="img" aria-label="No team jersey"><path d="${JERSEY_BODY}" fill="var(--soft)" stroke="var(--line)" stroke-width="1.5"/>${num?`<text x="50" y="90" text-anchor="middle" style="font-family:'Saira Condensed',sans-serif;font-weight:800;font-size:44px;fill:var(--muted)">${esc(num)}</text>`:""}</svg>`;
   const block=J.f!=="college",ff=block?"'Saira Condensed','Arial Narrow',sans-serif":"Graduate,Rockwell,'Courier New',serif",fw=block?800:400,
     widths=[[4],[6,2.6],[8,4.6,2]][J.t.length-1],ws=J.w.length,wsz=Math.min(block?13:11,58/(ws*(block?.5:.68))),fit=false,
