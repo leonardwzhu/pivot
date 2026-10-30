@@ -894,20 +894,25 @@ function jerseySvg(p,size=78){const J=typeof TEAM_JERSEY!=="undefined"&&TEAM_JER
   const block=J.f!=="college",ff=block?"'Saira Condensed','Arial Narrow',sans-serif":"Graduate,Rockwell,'Courier New',serif",fw=block?800:400,
     widths=[[4],[6,2.6],[8,4.6,2]][J.t.length-1],ws=J.w.length,wsz=Math.min(block?13:11,58/(ws*(block?.5:.68))),fit=false,
     nsz=block?(num.length>=2?46:50):(num.length>=2?36:40),word=`style="font-family:${ff};font-weight:${fw};font-size:${wsz.toFixed(1)}px;letter-spacing:${block?.4:.2}px;fill:${c(J.wf)}${J.wo?`;stroke:${c(J.wo)};stroke-width:1.3px;paint-order:stroke`:""}"${fit?' textLength="58" lengthAdjust="spacingAndGlyphs"':""}`,
-    ntxt=(fill,stroke,w)=>`<text x="50" y="${block?96:93}" text-anchor="middle" style="font-family:${ff};font-weight:${fw};font-size:${nsz}px;fill:${fill}${stroke?`;stroke:${stroke};stroke-width:${w}px;stroke-linejoin:round;paint-order:stroke`:""}">${esc(num)}</text>`;
+    ntxt=(fill,stroke,w)=>`<text x="${J.sw?66:50}" y="${J.sw?101:block?96:93}" text-anchor="middle" style="font-family:${ff};font-weight:${fw};font-size:${J.sw?Math.round(nsz*.66):nsz}px;fill:${fill}${stroke?`;stroke:${stroke};stroke-width:${w}px;stroke-linejoin:round;paint-order:stroke`:""}">${esc(num)}</text>`;
   return `<svg class="jersey" width="${size}" height="${Math.round(size*1.1)}" viewBox="0 0 100 110" role="img" aria-label="${esc(TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team)} home jersey${num?", number "+esc(num):""}">
     <defs><clipPath id="${id}c"><path d="${JERSEY_BODY}"/></clipPath>
       <linearGradient id="${id}s" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".28"/><stop offset=".22" stop-color="#000" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".1"/><stop offset=".78" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></linearGradient>
       <linearGradient id="${id}v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient>
       ${J.pin?`<pattern id="${id}p" width="4.2" height="10" patternUnits="userSpaceOnUse"><rect x="0" width=".55" height="10" fill="${c(J.pin)}" opacity=".45"/></pattern>`:""}
-      ${J.a?`<path id="${id}a" d="M19 48 Q50 33 81 48"/>`:""}</defs>
+      ${J.a?`<path id="${id}a" d="M19 48 Q50 33 81 48"/>`:""}${J.glow?`<linearGradient id="${id}g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c(J.glow)}" stop-opacity=".9"/><stop offset="1" stop-color="${c(J.glow)}" stop-opacity="0"/></linearGradient>`:""}</defs>
     <g clip-path="url(#${id}c)"><rect width="100" height="110" fill="${c(J.b)}"/>${J.pin?`<rect width="100" height="110" fill="url(#${id}p)"/>`:""}
-      ${J.sp?`<rect x="8" y="30" width="6" height="80" fill="${c(J.sp)}"/><rect x="86" y="30" width="6" height="80" fill="${c(J.sp)}"/>`:""}
+      ${J.top?`<rect width="100" height="58" fill="${c(J.top[0])}"/><rect y="56" width="100" height="5" fill="${c(J.top[1])}"/>`:""}
+      ${J.glow?`<rect width="100" height="70" fill="url(#${id}g)"/>`:""}
+      ${J.sash?(J.sw?`<path d="M0 74L100 38V56L0 92Z" fill="${c(J.sash[0])}"/><path d="M0 94L100 58V62L0 98Z" fill="${c(J.sash[1])}"/>`:J.sd?`<path d="M0 64L100 98V110L0 76Z" fill="${c(J.sash[0])}"/><path d="M0 79L100 113V118L0 84Z" fill="${c(J.sash[1])}"/>`:`<path d="M0 104L100 64V82L0 122Z" fill="${c(J.sash[0])}"/><path d="M0 124L100 84V89L0 129Z" fill="${c(J.sash[1])}"/>`):""}
+      ${J.sp?`<rect x="8" y="30" width="5" height="80" fill="${c(J.sp)}"/><rect x="87" y="30" width="5" height="80" fill="${c(J.sp)}"/>`:""}
+      ${J.dash?[0,1,2,3,4].map(k=>`<rect x="9" y="${60+k*8}" width="4" height="4" fill="${c(J.dash)}"/><rect x="87" y="${60+k*8}" width="4" height="4" fill="${c(J.dash)}"/>`).join(""):""}
+      ${J.ring?`<circle cx="50" cy="70" r="27" fill="none" stroke="${c(J.ring)}" stroke-width="2.4" opacity=".9"/>`:""}
       ${J.t.map((col,i)=>`<path d="${JERSEY_TRIM}" fill="none" stroke="${c(col)}" stroke-width="${widths[i]}" stroke-linecap="round"/>`).join("")}
       <rect width="100" height="110" fill="url(#${id}s)"/><rect width="100" height="110" fill="url(#${id}v)"/>
       <rect x="14" y="97" width="9" height="5" rx="1" fill="#f2f2f2" opacity=".85"/></g>
     <path d="${JERSEY_BODY}" fill="none" stroke="var(--ink)" stroke-opacity=".35" stroke-width="1"/>
-    ${J.a?`<text text-anchor="middle" ${word}><textPath href="#${id}a" startOffset="50%">${esc(J.w)}</textPath></text>`:`<text x="50" y="47" text-anchor="middle" ${word}>${esc(J.w)}</text>`}
+    ${J.sw?`<text x="50" y="69" text-anchor="middle" transform="rotate(-19.8 50 65)" ${word.replace(/font-size:[\d.]+px/,"font-size:15px")}>${esc(J.w)}</text>`:J.a?`<text text-anchor="middle" ${word}><textPath href="#${id}a" startOffset="50%">${esc(J.w)}</textPath></text>`:`<text x="50" y="47" text-anchor="middle" ${word}>${esc(J.w)}</text>`}
     ${num?(J.no2?ntxt(c(J.no2),c(J.no2),6.5):"")+ntxt(c(J.nf),J.no?c(J.no):"",J.no2?3:2.4):""}</svg>`}
 // NBA cut: deep armholes, scooped neck; the trim path follows the neck and both armholes
 const JERSEY_BODY="M24 3H37C40 15 60 15 63 3H76C76 19 82 28 92 31V106Q50 109 8 106V31C18 28 24 19 24 3Z",JERSEY_TRIM="M37 3C40 15 60 15 63 3M24 3C24 19 18 28 8 31M76 3C76 19 82 28 92 31";
