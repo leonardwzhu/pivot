@@ -8,8 +8,8 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const mean=a=>a.reduce((s,x)=>s+x,0)/(a.length||1);
 const quant=(a,q)=>{const s=[...a].sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.floor(q*s.length))]};
 function rec(pid,y){const r=DB[pid]&&DB[pid].s[y];if(!r)return null;
-  const [age,team,gp,min,pts,reb,ast,stl,blk,tpm,tov,fgm,fga,ftm,fta,usg,splits]=r;
-  return {y,age,team,gp,min,pts,reb,ast,stl,blk,tpm,tov,fgm,fga,ftm,fta,usg,splits,fg:fga?fgm/fga:0,ft:fta?ftm/fta:0}}
+  const [age,team,gp,min,pts,reb,ast,stl,blk,tpm,tov,fgm,fga,ftm,fta,usg,splits,ts,bpm,tpa]=r;
+  return {y,age,team,gp,min,pts,reb,ast,stl,blk,tpm,tov,fgm,fga,ftm,fta,usg,splits,ts,bpm,tpa,fg:fga?fgm/fga:0,ft:fta?ftm/fta:0}}
 // games each team played per season (shortened 2020 and 2021 seasons)
 const GMS={};YEARS.forEach(y=>{let m=0;for(const pid in DB){const r=DB[pid].s[y];if(r&&r[2]>m)m=r[2]}GMS[y]=m});
 const REMAIN=82-GMS[CUR];

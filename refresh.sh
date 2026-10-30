@@ -44,16 +44,20 @@ if [ "$c" = 200 ] && python3 -P tools/build_league.py "$MY_TEAM"; then cp work/l
 c1=$(fetch "$ESPN?view=proTeamSchedules_wl" work/sched.json); c2=$(fetch "$ESPN" work/season.json)
 if [ "$c1$c2" = 200200 ] && python3 -P tools/build_sched.py; then STATUS+=("schedule: fresh"); else use_last p2_sched.js "schedule"; STATUS+=("schedule: last good"); fi
 
+# 4c) Recent games: every player's last 10 games in one request, matched to dates and opponents
+c=$(fetch "$ESPN/segments/0/leaguedefaults/3?view=kona_player_info" work/games.json -H 'X-Fantasy-Filter: {"players":{"limit":1200,"sortDraftRanks":{"sortPriority":100,"sortAsc":true,"value":"STANDARD"},"filterStatsForTopScoringPeriodIds":{"value":10,"additionalValue":["002027"]}}}')
+if [ "$c" = 200 ] && python3 -P tools/build_games.py; then STATUS+=("recent games: fresh"); else [ -f last/p2_games.js ] || echo "const GAMES={};" > last/p2_games.js; use_last p2_games.js "recent games"; STATUS+=("recent games: last good"); fi
+
 # 5) FantasyPros expert consensus (robots.txt asks for 5 seconds between requests)
 c=$(fetch "https://www.fantasypros.com/nba/rankings/overall.php" work/fp.html)
 if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: fresh"); else use_last p2_fp.js "FantasyPros"; STATUS+=("FantasyPros: last good"); fi
 
-assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
+assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
 
 # 6) Assemble and smoke-test; if today's data breaks the page, fall back to the last good data set
 assemble work
 if node tools/smoke_test.js "$(pwd)/build/draft-room.html"; then
-  cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js last/ 2>/dev/null; cp work/contracts.json last/ 2>/dev/null
+  cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js last/ 2>/dev/null; cp work/contracts.json last/ 2>/dev/null
   echo "BUILD OK: ${STATUS[*]}"; exit 0
 fi
 echo "WARN today's data failed the smoke test; rebuilding with the last good data"

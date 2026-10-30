@@ -330,6 +330,18 @@ html{scrollbar-gutter:stable}
 .sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:8px}
 .sum-grid h5{margin:0 0 6px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
 .sum-grid .heads{margin:0}
+
+/* player profile: section tabs inside the panel, schedule tiles */
+.dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
+.dtabs button{border:0;background:none;padding:7px 12px;font-family:var(--display);font-size:17px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.dtabs button[aria-selected=true]{color:var(--ink);font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
+@media (max-width:480px){.dtabs button{padding:7px 8px;font-size:16px}}
+.wkrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:6px}
+.wk{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--panel)}
+.wk .k{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.wk .v{font-family:var(--display);font-style:italic;font-size:24px;line-height:1.1}
+.wk .d{font-size:11px;color:var(--muted)}
+.wk-ok{border-color:var(--ok);background:var(--ok-soft)}.wk-high{border-color:var(--bad);background:var(--bad-soft)}
 </style>
 
 <header class="bar">

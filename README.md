@@ -32,6 +32,7 @@ Sources:
 | Basketball Reference | season tables (per game, per 36, per 100, advanced) and contracts | 4 s between requests (robots.txt asks 3+) |
 | ESPN Fantasy API | player pool, projections, ranks, positions, NBA schedule | |
 | ESPN Fantasy API | your league, public read | teams, picks, rosters, records, matchups |
+| ESPN Fantasy API | every player's last 10 games | one request; `static/games_2026.json` dates last season's games |
 | ESPN site API | injuries and news | |
 | FantasyPros | expert consensus ranks | |
 
@@ -48,6 +49,7 @@ bash refresh.sh                      # builds build/draft-room.html and runs the
 node tests/tabs.js                   # nothing moves on tab clicks or picks; draft sidebar throughout Draft Day only
 node tests/league_season.js          # league sync and My Team: before the draft, after a simulated draft, mid-season
 node tests/modes.js                  # Draft Day / Season: which mode opens, which tabs show, last tab remembered
+node tests/profile.js                # player profile: every section, recent games, advanced stats, comparisons, phone
 ```
 
 ## Publishing

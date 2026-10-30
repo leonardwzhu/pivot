@@ -10,8 +10,8 @@ for y in sorted(S):
         if not l['gp']:continue
         sp=[t for t in l['teams'] if t[1]];team=sp[-1][0] if sp else (l['teams'][-1][0] if l['teams'] else None)
         splits=",".join(f"{t}:{int(g)}" for t,g in sp) if len(sp)>1 else ""
-        rec=[l['age'] and int(l['age']),team,int(l['gp']),r1(l['mp']),r1(l['pts']),r1(l['reb']),r1(l['ast']),r1(l['stl']),r1(l['blk']),r1(l['tpm']),r1(l['tov']),r1(l['fgm']),r1(l['fga']),r1(l['ftm']),r1(l['fta']),r1(l['usg']),splits]
-        DB.setdefault(pid,{'n':l['name'],'s':{}})['s'][y]=[0 if v is None else v for v in rec]
+        rec=[l['age'] and int(l['age']),team,int(l['gp']),r1(l['mp']),r1(l['pts']),r1(l['reb']),r1(l['ast']),r1(l['stl']),r1(l['blk']),r1(l['tpm']),r1(l['tov']),r1(l['fgm']),r1(l['fga']),r1(l['ftm']),r1(l['fta']),r1(l['usg']),splits,None if l.get('ts') is None else round(l['ts'],3),r1(l.get('bpm')),r1(l.get('tpa'))]
+        DB.setdefault(pid,{'n':l['name'],'s':{}})['s'][y]=[0 if v is None and i<16 else v for i,v in enumerate(rec)]
 # player ids for last season's rookies (used by the college-to-NBA translation in the model)
 COLL=["Cooper Flagg","Kon Knueppel","Ace Bailey","Dylan Harper","Khaman Maluach"]
 idx={}
@@ -27,6 +27,6 @@ for y in ('2026','2027'):
         p48=l['pts']*100/l['poss_pts']/l['mp']*48;t=l['teams'][0][0];w=l['mp']*l['gp'];a=acc.setdefault(t,[0,0]);a[0]+=p48*w;a[1]+=w
     pace.append(f"const PACE{y[2:]}="+json.dumps({t:round(a[0]/a[1],1) for t,a in sorted(acc.items())})+";")
 with open('work/p2_data.js','w',encoding='utf-8') as f:
-    f.write("// Basketball Reference season tables, 2016-17 through 2026-27 (so far)\n// DB[pid] = {n: name, s: {season_end_year: [age, team, gp, mpg, pts, reb, ast, stl, blk, 3pm, tov, fgm, fga, ftm, fta, usg%, team splits]}}\n")
+    f.write("// Basketball Reference season tables, 2016-17 through 2026-27 (so far)\n// DB[pid] = {n: name, s: {season_end_year: [age, team, gp, mpg, pts, reb, ast, stl, blk, 3pm, tov, fgm, fga, ftm, fta, usg%, team splits, ts%, bpm, 3pa]}}\n")
     f.write("const DB="+json.dumps(DB,separators=(',',':'),ensure_ascii=False)+";\nconst PID="+json.dumps(PID,ensure_ascii=False)+";\nconst EXTRA=[];\n// Team pace (possessions per 48)\n"+"\n".join(pace)+"\n")
 print('DB players',len(DB),'2026-27 players',len(cur))

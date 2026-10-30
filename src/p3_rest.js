@@ -753,7 +753,7 @@ function teamSection(p){
   return `<p class="empty" style="margin:0 0 8px">${esc(minNote(p))} ${esc(fitNote(p))}</p><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected minutes on ${p.team}">${g}</svg><p class="empty" style="margin-top:6px">Projected minutes per game for everyone who has played for ${p.team} this season, plus injured board players. Bars are after the 240-minute cap.</p>`;
 }
 function espnSection(p){const e=p.espnProj,l=p.proj.line,row=(lab,x)=>x?`<tr><td class="l">${lab}</td>${["gp","min","pts","reb","ast","stl","blk","tpm","tov"].map(k=>`<td class="num">${k==="gp"?Math.round(x[k]||0):f1(x[k]||0)}</td>`).join("")}<td class="num fp">${f1(fpOf(x))}</td></tr>`:"";
-  return `${p.inj?`<p style="margin:0 0 8px"><span class="chip ${p.inj.status==="Out"?"out":"dtd"}">${esc(p.inj.status)}</span> ${esc(p.inj.short)} ${p.inj.ret?`<span class="mut">Expected back about ${new Date(p.inj.ret+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})} (~${p.gamesOut} games).</span>`:""}</p>`:""}
+  return `${p.inj?`<p style="margin:0 0 8px"><span class="chip ${p.inj.status==="Out"?"out":"dtd"}">${esc(p.inj.status)}</span> ${esc(p.inj.short)} ${`<span class="mut">${retText(p.inj.ret,p.inj.fs,"Expected back about ").replace(/^o/,"O").replace(/^n/,"N")}${p.gamesOut?` (~${p.gamesOut} games)`:""}.</span>`}</p>`:""}
   <div class="tablebox"><table><thead><tr><th class="l"></th><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>3PM</th><th>TO</th><th>FP/G</th></tr></thead><tbody>
   ${row("ESPN projection",e)}${row("This model",{...l,gp:p.projGP+(82-REMAIN)*p.rate,min:p.projMpg})}${p.now?row("2026-27 so far",p.now):""}</tbody></table></div>
   <div class="pgrid" style="margin-top:10px"><div class="kpi"><div class="k">ADP</div><div class="v">${p.adp?f1(p.adp):"–"}</div><div class="d">average ESPN draft spot</div></div>
@@ -766,8 +766,98 @@ function rookieSection(p){const b=ROOK.band(p.draft.pick);
     <div class="kpi"><div class="k">ESPN projection</div><div class="v">${p.rookEspnFp!=null?f1(p.rookEspnFp):"–"}</div><div class="d">ESPN over-projected 2025-26 rookies by 1.6 on average</div></div>
     <div class="kpi"><div class="k">Rookies at picks ${b.lo}–${b.hi}</div><div class="v">${pc(b.played)}</div><div class="d">played 20+ games · median ${f1(b.med)} FP/G (middle half ${f1(b.q25)}–${f1(b.q75)})</div></div></div>
     <p class="empty" style="margin-top:6px">His starting point is ${Math.round(ROOK_W*100)}% the draft-position model and ${Math.round((1-ROOK_W)*100)}% ESPN, the mix that best predicted last year's rookies. His 2026-27 games then move it, and his games-played rate starts from how often rookies at this pick actually played (${pc(b.gpr)} of games).</p></div>`}
+// ================= PLAYER PROFILE: recent games, insights, schedule, news, advanced profile, comparisons =================
+const GAMES_=typeof GAMES!=="undefined"?GAMES:{};
+// recent games as stat lines with fantasy points (newest first); a row with only date and opponent is a game he missed
+function gamesOf(p){return (GAMES_[p.espnId]||[]).map(r=>{const [date,opp,min,pts,reb,ast,stl,blk,tpm,tov,fgm,fga,ftm,fta]=r;
+  if(r.length<3)return {date,opp,dnp:true};const l={pts,reb,ast,stl,blk,tpm,tov,fgm,fga,ftm,fta};return {date,opp,min,...l,fp:fpOf(l)}})}
+const gDate=d=>new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
+const SEASON_END=WEEKS[WEEKS.length-1].e,retText=(ret,fs,pre="back ~")=>fs==="OFS"||(ret&&ret>SEASON_END)?"out for the season":ret&&ret>=FETCHED?pre+gDate(ret):"no return date yet";
+const retLabel=p=>p.inj?retText(p.inj.ret,p.inj.fs,"expected back about "):"no return date yet";
+// this season's games only: form and minutes insights shouldn't mix in last April
+const SEASON_GAMES=p=>gamesOf(p).filter(g=>!g.dnp&&g.date>=PERIOD0);
+// the most recent season with enough games to describe him: this season once he has 10 games, otherwise last season
+function baseSeason(p){if(p.now&&p.now.gp>=10)return p.now;for(let i=p.seasons.length-1;i>=0;i--){const s=p.seasons[i];if(s&&s.gp>=10)return s}return p.now&&p.now.gp?p.now:null}
+function recentSection(p){const G=gamesOf(p);if(!G.length)return '<p class="empty">No NBA games on record yet.</p>';
+  const played=G.filter(g=>!g.dnp),last5=played.slice(0,5),avg5=last5.length?mean(last5.map(g=>g.fp)):null,base=baseSeason(p),bfp=base?fpOf(base):null;
+  const W=560,H=170,L=34,R=8,T=12,B=26,ord=[...G].reverse(),n=ord.length,bw=(W-L-R)/n,mx=Math.max(10,...played.map(g=>g.fp),p.proj.fp,bfp||0)*1.1,Y=v=>T+(H-T-B)*(1-Math.max(0,v)/mx);
+  const ticks=[0,mx/2,mx].map(v=>Math.round(v/5)*5);
+  let g=ticks.map(v=>`<line class="gr" x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L-6}" y="${Y(v)+3}" text-anchor="end">${v}</text>`).join("");
+  ord.forEach((x,i)=>{const cx=L+i*bw+bw/2;g+=x.dnp?`<text x="${cx}" y="${H-B-4}" text-anchor="middle">DNP</text>`:`<rect class="${x.date<"2026-10-01"?"bar2":"bar"}" x="${cx-bw*.32}" width="${bw*.64}" y="${Y(x.fp)}" height="${Y(0)-Y(x.fp)}" rx="2" data-tip="${gDate(x.date)} ${x.opp}: ${f1(x.fp)} FP in ${Math.round(x.min)} min"/>`;
+    g+=`<text x="${cx}" y="${H-8}" text-anchor="middle">${gDate(x.date)}</text>`});
+  g+=`<line class="ln proj" x1="${L}" x2="${W-R}" y1="${Y(p.proj.fp)}" y2="${Y(p.proj.fp)}"/><text class="lbl" x="${W-R}" y="${Y(p.proj.fp)-4}" text-anchor="end">projection ${f1(p.proj.fp)}</text>`;
+  const row=x=>x.dnp?`<tr class="mut"><td class="l">${gDate(x.date)}</td><td class="l">${x.opp}</td><td class="l" colspan="9">Did not play</td></tr>`:`<tr><td class="l">${gDate(x.date)}</td><td class="l">${x.opp}</td><td class="num">${Math.round(x.min)}</td><td class="num">${x.pts}</td><td class="num">${x.reb}</td><td class="num">${x.ast}</td><td class="num">${x.stl}</td><td class="num">${x.blk}</td><td class="num">${x.tpm}</td><td class="num">${x.fgm}-${x.fga}</td><td class="num fp">${f1(x.fp)}</td></tr>`;
+  const split=G.some(x=>x.date<"2026-10-01")&&G.some(x=>x.date>="2026-10-01");
+  return `<div class="pgrid"><div class="kpi"><div class="k">Last ${last5.length} games</div><div class="v">${avg5!=null?f1(avg5):"–"}</div><div class="d">FP/G${avg5!=null?` · ${avg5>=p.proj.fp?"+":"−"}${f1(Math.abs(avg5-p.proj.fp))} vs projection`:""}</div></div>
+    <div class="kpi"><div class="k">${base?SEASON_LONG(base.y):"Season"}</div><div class="v">${bfp!=null?f1(bfp):"–"}</div><div class="d">FP/G in ${base?base.gp:0} games</div></div>
+    <div class="kpi"><div class="k">Minutes, last 5</div><div class="v">${last5.length?f1(mean(last5.map(x=>x.min))):"–"}</div><div class="d">${base?`${f1(base.min)} in ${SEASON_LONG(base.y)}`:""}</div></div></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fantasy points in each of his last ${n} team games" style="margin-top:10px">${g}</svg>
+    <p class="empty">${split?"Darker bars are this season, lighter bars last season. ":""}Fantasy points in each of his team's last ${n} games, oldest on the left.</p>
+    <div class="tablebox" style="margin-top:8px"><table><thead><tr><th class="l">Date</th><th class="l">Opp</th><th>Min</th><th>Pts</th><th>Reb</th><th>Ast</th><th>Stl</th><th>Blk</th><th>3PM</th><th>FG</th><th>FP</th></tr></thead><tbody>${G.map(row).join("")}</tbody></table></div>`}
+// short, ranked observations; each is only shown when the gap is big enough to matter
+function insightsOf(p){const out=[],add=(w,k,t)=>out.push({w:Math.min(w,9),k,t}),G=p.out?[]:SEASON_GAMES(p).slice(0,5),base=baseSeason(p),prev=p.seasons.filter(s=>s&&s.gp>=20).slice(-2);
+  const rl=retLabel(p),gone=p.out&&rl==="out for the season";
+  if(p.out||p.dtd)out.push({w:10,k:"warn",t:`<b>${gone?"Out for the season":`${p.out?"Out":"Day-to-day"}, ${rl}`}.</b> ${p.inj?esc(p.inj.short):""}${p.out&&!gone&&p.teamLeft-p.avail>0?` That's about ${p.teamLeft-p.avail} games missed.`:""}`});
+  if(G.length>=3){const a=mean(G.map(g=>g.fp)),d=a/p.proj.fp-1;if(Math.abs(d)>=.15)add(6+Math.abs(d)*10,d>0?"good":"warn",`<b>${d>0?"Running hot":"Running cold"}:</b> ${f1(a)} FP/G over his last ${G.length} games this season, ${pc(Math.abs(d))} ${d>0?"above":"below"} his ${f1(p.proj.fp)} projection.${d>0?" Hot streaks usually cool off, so the projection only moves part of the way.":" Slumps usually recover unless his role changed."}`)}
+  if(G.length>=3&&base&&base.min){const m=mean(G.map(g=>g.min)),d=m-base.min;if(Math.abs(d)>=3)add(5+Math.abs(d)/2,d>0?"good":"warn",`<b>Minutes ${d>0?"up":"down"}:</b> ${f1(m)} a game this season against ${f1(base.min)} in ${SEASON_LONG(base.y)}. Minutes drive fantasy points more than anything else.`)}
+  if(p.adp&&p.modelRank){const d=p.adp-p.modelRank;if(Math.abs(d)>=12)add(4+Math.abs(d)/10,d>0?"good":"",`<b>${d>0?"Value pick":"Priced high"}:</b> the model ranks him #${p.modelRank}, but ESPN drafters take him around pick ${f0(p.adp)}.`)}
+  if(p.espnFp!=null&&Math.abs(p.fitFp-p.espnFp)>=3)add(3.5,"",`<b>Model and ESPN disagree:</b> the model's own projection is ${f1(p.fitFp)} FP/G, ESPN's is ${f1(p.espnFp)}. Your mix card sets how much each counts.`);
+  if(p.brk!=null&&p.brk>=.25)add(4+p.brk*5,"good",`<b>Breakout candidate:</b> ${pc(p.brk)} of his closest historical comparisons jumped 6+ FP/G the next season.`);
+  if(p.proj.fp>0&&(p.hi-p.lo)/p.proj.fp>=.5)add(3,"",`<b>Wide range:</b> his 80% range runs ${f1(p.lo)} to ${f1(p.hi)} FP/G, so he's a bigger bet than his average suggests.`);
+  const poAvg=PO_AVG();if(Math.abs(p.poGames-poAvg)>=2)add(3,p.poGames>poAvg?"good":"warn",`<b>Playoff schedule:</b> ${p.poGames} games in your fantasy playoffs (Mar 15–Apr 11), against ${f1(poAvg)} for a typical player.`);
+  const l=p.proj.line,st=(l.stl*SC.stl+l.blk*SC.blk)/Math.max(1,p.proj.fp);if(st>=.2)add(2.5,"good",`<b>Defensive points:</b> steals and blocks make up ${pc(st)} of his fantasy points. They're worth 4 each, so this is a steady source.`);
+  const sh=full(l),eff=sh.fgm*SC.fgm+sh.fga*SC.fga+sh.ftm*SC.ftm+sh.fta*SC.fta;if(eff<=-3)add(2.5,"warn",`<b>Inefficient shooting costs him</b> about ${f1(-eff)} FP/G: misses count against you in points leagues.`);
+  if(prev.length===2&&prev[0].usg&&prev[1].usg&&Math.abs(prev[1].usg-prev[0].usg)>=3)add(2,"",`<b>Role ${prev[1].usg>prev[0].usg?"grew":"shrank"}:</b> usage (the share of team plays he finishes while on the floor) went from ${f1(prev[0].usg)}% to ${f1(prev[1].usg)}% in ${SEASON_LONG(prev[1].y)}.`);
+  if(p.age>=33)add(2,"warn",`<b>Age ${p.age}:</b> the age curve starts taking points off at this stage; it's already in his projection.`);
+  return gone?out.filter(x=>x.w===10):out.sort((a,b)=>b.w-a.w).slice(0,6)}
+let PO_AVG_=null;const PO_AVG=()=>PO_AVG_??(PO_AVG_=mean(players.filter(q=>q.projTot>0).map(q=>q.poGames)));
+// games per matchup week for the next few weeks and the playoffs, against the league's typical count
+function scheduleSection(p){const w0=Math.max(0,CUR_WEEK),ws=WEEKS.map((w,i)=>i).filter(i=>i>=w0&&!WEEKS[i].po).slice(0,5),teams=Object.keys(SCHED);
+  const avg=i=>mean(teams.map(t=>SCHED[t].filter(q=>q>=Math.max(WEEKS[i].p[0],CUR_PERIOD)&&q<=WEEKS[i].p[1]).length));
+  const cell=i=>{const g=weekGames(p,i),a=avg(i),k=g>=a+.6?"ok":g<=a-.6?"high":"";const w=WEEKS[i];return `<div class="wk ${k?"wk-"+k:""}"><div class="k">${w.po?"Playoffs":"Week "+w.i}</div><div class="v">${g}</div><div class="d">${gDate(w.s)}–${gDate(w.e).replace(/^[A-Za-z]+ /,"")} · avg ${f1(a)}</div></div>`};
+  return `<div class="wkrow">${ws.map(cell).join("")}<div class="wk ${p.poGames>=PO_AVG()+1?"wk-ok":p.poGames<=PO_AVG()-1?"wk-high":""}"><div class="k">Fantasy playoffs</div><div class="v">${p.poGames}</div><div class="d">Mar 15–Apr 11 · avg ${f1(PO_AVG())}</div></div></div>
+    <p class="empty">Games he's expected to play in each matchup week (injuries included). Green is more than a typical player, red is fewer.</p>`}
+function newsSection(p){const N=ESPN_NEWS.filter(a=>a.tags.includes(p.name)).sort((a,b)=>String(b.p).localeCompare(String(a.p))).slice(0,5);
+  return `${p.inj?`<p style="margin:0 0 8px"><span class="chip ${p.inj.status==="Out"?"out":"dtd"}">${esc(p.inj.status)}</span> ${esc(p.inj.short)}</p>`:""}
+    ${N.length?`<div class="news">${N.map(a=>`<div class="item"><div class="h">${esc(a.h)}</div><p>${esc(a.d)}</p><div class="src"><span class="mut">${gDate(String(a.p).slice(0,10))}</span> · <a href="${a.u}" target="_blank" rel="noopener">ESPN ↗</a></div></div>`).join("")}</div>`:`<p class="empty">No headlines about him in today's ESPN feed.</p>`}
+    ${p.outlook?`<p style="margin:10px 0 0"><b>ESPN outlook.</b> ${esc(p.outlook)}</p>`:""}
+    <p class="src" style="margin-top:8px;font-size:12px"><a href="https://www.espn.com/nba/player/_/id/${p.espnId}" target="_blank" rel="noopener">Full ESPN player page ↗</a></p>`}
+// advanced profile: percentiles against players at his position (guards, forwards or centers) with 15+ games and 15+ minutes
+const ADV=[["usg","Usage rate","share of team plays he finishes",s=>s.usg],["ts","True shooting","scoring efficiency, free throws and threes included",s=>s.ts!=null?s.ts*100:null],["bpm","Box plus-minus","points per 100 possessions added vs an average player",s=>s.bpm],
+  ["p36","Points per 36 min","",s=>s.pts/s.min*36],["r36","Rebounds per 36","",s=>s.reb/s.min*36],["a36","Assists per 36","",s=>s.ast/s.min*36],["d36","Steals + blocks per 36","",s=>(s.stl+s.blk)/s.min*36],
+  ["t36","3-point attempts per 36","",s=>s.tpa!=null?s.tpa/s.min*36:null],["to36","Turnovers per 36","lower is better",s=>s.tov/s.min*36,1],["fpm","Fantasy points per minute","",s=>fpOf(s)/s.min],["min","Minutes per game","",s=>s.min]];
+const posGroup=p=>p.dp===5?"C":p.dp>=3?"F":"G",GROUP_NAME={G:"guards",F:"forwards",C:"centers"};let ADV_POP=null;
+function advPop(){if(ADV_POP)return ADV_POP;ADV_POP={G:{},F:{},C:{}};players.forEach(q=>{const s=baseSeason(q);if(!s||s.gp<15||s.min<15)return;const g=posGroup(q);ADV.forEach(([k,,,f])=>{const v=f(s);if(v!=null&&isFinite(v))(ADV_POP[g][k]=ADV_POP[g][k]||[]).push(v)})});
+  Object.values(ADV_POP).forEach(o=>Object.values(o).forEach(a=>a.sort((x,y)=>x-y)));return ADV_POP}
+function advSection(p){const s=baseSeason(p);if(!s||!s.min)return '<p class="empty">Not enough NBA minutes yet for an advanced profile.</p>';
+  const pop=advPop()[posGroup(p)],rows=ADV.map(([k,lab,sub,f,inv])=>{const v=f(s),a=pop[k];if(v==null||!isFinite(v)||!a||!a.length)return "";let lo=0;while(lo<a.length&&a[lo]<v)lo++;let pr=lo/a.length;if(inv)pr=1-pr;const P=Math.round(pr*100),c=P>=70?"var(--ok)":P<=30?"var(--bad)":"var(--accent)";
+    return `<div class="wf-row"><span>${lab}${sub?`<br><span class="mut" style="font-size:11px">${sub}</span>`:""}</span><div class="wf-track" data-tip="${P}th percentile among ${GROUP_NAME[posGroup(p)]}"><span style="left:0;width:${Math.max(2,P)}%;background:${c};opacity:.85"></span><span style="left:50%;width:1px;background:var(--muted)"></span></div><span class="amt">${k==="ts"||k==="usg"?f1(v)+"%":k==="fpm"?v.toFixed(2):f1(v)} <span class="mut">${P}</span></span></div>`}).join("");
+  return `<div class="wf">${rows}</div><p class="empty">${SEASON_LONG(s.y)}, ${s.gp} games. Bars show his percentile among ${GROUP_NAME[posGroup(p)]} with 15+ games and 15+ minutes (right-hand number); the middle line is average. Usage, true shooting and box plus-minus come from Basketball Reference.</p>`}
+// where his projected fantasy points come from, per game
+function sourcesSection(p){const l=full(p.proj.line),S0=[["Points",l.pts*SC.pts],["Rebounds",l.reb*SC.reb],["Assists",l.ast*SC.ast],["Steals",l.stl*SC.stl],["Blocks",l.blk*SC.blk],["Threes",l.tpm*SC.tpm],["Shooting (makes − misses)",l.fgm*SC.fgm+l.fga*SC.fga+l.ftm*SC.ftm+l.fta*SC.fta],["Turnovers",l.tov*SC.tov]],mx=Math.max(1,...S0.map(x=>Math.abs(x[1])));
+  return `<div class="wf">${S0.map(([lab,v])=>`<div class="wf-row"><span>${lab}</span><div class="wf-track"><span style="left:${v>=0?50:50-Math.abs(v)/mx*50}%;width:${Math.abs(v)/mx*50}%;background:${v>=0?"var(--ok)":"var(--bad)"}"></span><span style="left:50%;width:1px;background:var(--muted)"></span></div><span class="amt">${v>=0?"+":"−"}${f1(Math.abs(v))}</span></div>`).join("")}</div>
+    <p class="empty">Projected fantasy points per game from each stat, using your league's scoring. They add up to ${f1(fpOf(l))}.</p>`}
+// comparisons: side by side with any player, plus the closest alternatives at his positions right now
+let CMP={};
+function similarTo(p,n=5){return players.filter(q=>q!==p&&q.pos.some(x=>p.pos.includes(x))).map(q=>({q,d:Math.abs(q.proj.fp-p.proj.fp)/3+Math.abs(q.age-p.age)/6+Math.abs(Math.log((q.projGP+1)/(p.projGP+1)))*2})).sort((a,b)=>a.d-b.d).slice(0,n).map(x=>x.q)}
+function compareSection(p){const q=players[CMP[p.id]]||similarTo(p,1)[0];if(!q)return "";const A=gamesOf(p).filter(g=>!g.dnp).slice(0,5),B=gamesOf(q).filter(g=>!g.dnp).slice(0,5),sa=baseSeason(p),sb=baseSeason(q);
+  const rows=[["Projected FP/G",p.proj.fp,q.proj.fp,f1],["80% range",p.lo,q.lo,(v,x)=>`${f1(v)}–${f1(x===p?p.hi:q.hi)}`,0,1],["Projected games",p.projGP,q.projGP,v=>Math.round(v)],["Projected season FP",p.projTot,q.projTot,f0],["Top-50 odds",p.pTop50,q.pTop50,pc],
+    ["Last 5 games FP/G",A.length?mean(A.map(g=>g.fp)):null,B.length?mean(B.map(g=>g.fp)):null,f1],["Minutes (last season or this)",sa&&sa.min,sb&&sb.min,f1],["Usage rate",sa&&sa.usg,sb&&sb.usg,v=>f1(v)+"%"],["True shooting",sa&&sa.ts!=null?sa.ts*100:null,sb&&sb.ts!=null?sb.ts*100:null,v=>f1(v)+"%"],
+    ["Playoff-week games",p.poGames,q.poGames,v=>String(v)],["Breakout odds",p.brk,q.brk,pc],["ESPN ADP",p.adp,q.adp,f1,1],["Age",p.age,q.age,v=>String(v),1]];
+  const cell=(v,o,fmt,lower,noWin,who)=>v==null||!isFinite(v)?'<td class="num mut">–</td>':`<td class="num"${!noWin&&o!=null&&isFinite(o)&&(lower?v<o:v>o)?' style="font-weight:700;color:var(--ok)"':""}>${fmt(v,who)}</td>`;
+  return `<div class="row-btns" style="align-items:center"><label class="chk" for="cmpPick">Compare with</label><input id="cmpPick" list="cmpList" placeholder="Type a player's name" value="${esc(q.name)}" style="flex:1;min-width:0;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:6px 8px">
+    <datalist id="cmpList">${players.filter(x=>x!==p).sort((a,b)=>a.rank-b.rank).slice(0,300).map(x=>`<option value="${esc(x.name)}"></option>`).join("")}</datalist></div>
+    <div class="tablebox" style="margin-top:10px"><table class="cmp-wide"><thead><tr><th class="l"></th><th>${esc(p.name)}</th><th>${pBtn(q)}</th></tr></thead><tbody>
+    ${rows.map(([lab,a,b,fmt,lower,noWin])=>`<tr><td class="l">${lab}</td>${cell(a,b,fmt,lower,noWin,p)}${cell(b,a,fmt,lower,noWin,q)}</tr>`).join("")}</tbody></table></div>
+    <p class="empty">Green marks the better number in each row. Lower is better for ADP (taken earlier) and age.</p>
+    <h3 style="margin-top:14px">Closest alternatives</h3><p class="empty" style="margin-top:0">Same position, similar projection, age and games.</p>
+    <ol class="ba" style="margin-top:6px">${similarTo(p).map(x=>`<li><span class="rk">${x.disp??x.rank}</span><span class="nm">${pBtn(x)}<br><span class="sub">${x.team} · ${x.pos.join("/")} · ${f1(x.proj.fp)} FP/G · ${Math.round(x.projGP)} games${pickOf(x.id)?" · drafted":""}</span></span><button class="btn" data-cmp="${x.id}">Compare</button></li>`).join("")}</ol>`}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-cmp],[data-dtab]");if(!b||openId==null)return;
+  if(b.dataset.cmp){CMP[openId]=+b.dataset.cmp;S.drTab="compare"}else S.drTab=b.dataset.dtab;openPlayer(openId)});
+document.addEventListener("change",e=>{if(e.target.id!=="cmpPick"||openId==null)return;const q=byName[e.target.value];if(!q){toast("Pick a player from the list");return}CMP[openId]=q.id;openPlayer(openId)});
+const DTABS=[["overview","Overview"],["stats","Stats"],["proj","Projection"],["compare","Compare"]];
 function openPlayer(id){
-  openId=id;const p=players[id],pk=pickOf(id),l=p.proj.line;computeDisp();
+  const same=openId===id,scroll=$("drawer").scrollTop;openId=id;const tab=S.drTab||"overview";const p=players[id],pk=pickOf(id),l=p.proj.line;computeDisp();
   const chips=[p.out?`<span class="chip out">Out${p.gamesOut>=2?` ~${p.gamesOut}g`:""}</span>`:"",p.dtd?'<span class="chip dtd">GTD</span>':"",p.rook?'<span class="chip rook">Rookie</span>':"",p.hot?'<span class="chip hot">Hot</span>':""].join("");
   $("drawer").innerHTML=`
   <div class="dr-head"><div><h2 id="drName">${esc(p.name)}</h2><div class="dr-sub">${p.team} · ${p.pos.join("/")} · age ${p.age} ${chips}</div>
@@ -782,21 +872,34 @@ function openPlayer(id){
     <div class="kpi"><div class="k">Season FP</div><div class="v">${f0(p.q.p50)}</div><div class="d">P10 ${f0(p.q.p10)} · P90 ${f0(p.q.p90)}</div></div>
     <div class="kpi"><div class="k">Top-12 odds</div><div class="v">${pc(p.pTop12)}</div><div class="d">Top-50 ${pc(p.pTop50)} · Top-100 ${pc(p.pTop100)}</div></div>
   </div>
+  <div class="dtabs" role="tablist" aria-label="Player sections">${DTABS.map(([k,lab])=>`<button role="tab" data-dtab="${k}" aria-selected="${k===tab}"><span class="tl" data-label="${lab}">${lab}</span></button>`).join("")}</div>
+  ${tab==="overview"?`
+  <div class="dr-sec"><h3>Insights</h3>${(()=>{const I=insightsOf(p);return I.length?`<ul class="heads">${I.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing stands out: his recent games, minutes and schedule are in line with his projection.</p>'})()}</div>
+  <div class="dr-sec"><h3>Recent games</h3>${recentSection(p)}</div>
+  <div class="dr-sec"><h3>Schedule</h3>${scheduleSection(p)}</div>
+  <div class="dr-sec"><h3>News</h3>${newsSection(p)}</div>`
+  :tab==="stats"?`
+  <div class="dr-sec"><h3>Advanced profile</h3>${advSection(p)}</div>
+  <div class="dr-sec"><h3>Where his points come from</h3>${sourcesSection(p)}</div>
+  <div class="dr-sec"><h3>Fantasy points per game by season</h3>${seriesChart(p)}<p class="empty">The shaded band is the model's 80% range for 2026-27.${p.rook?" Rookies start from a blend of ESPN's projection and what past rookies at his draft pick produced, then move with his 2026-27 games.":""}</p></div>
+  <div class="dr-sec"><h3>Category trends → 2026-27</h3><div class="mini-grid">${[["pts","PTS"],["reb","REB"],["ast","AST"],["stl","STL"],["blk","BLK"],["tpm","3PM"]].map(([k,lb])=>catMini(p,k,lb)).join("")}</div>
+    <p class="empty" style="margin-top:8px">Projected line: ${f1(l.pts)} pts · ${f1(l.reb)} reb · ${f1(l.ast)} ast · ${f1(l.stl)} stl · ${f1(l.blk)} blk · ${f1(l.tpm)} 3pm · ${f1(l.tov)} to · ${pct(l.fg)} FG · ${pct(l.ft)} FT. Best 8-cat categories: ${Object.entries(p.z).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c])=>CAT_LABEL[c]).join(", ")}.</p></div>
+  <div class="dr-sec"><h3>Minutes &amp; per-minute production</h3>${minutesSection(p)}</div>
+  <div class="dr-sec"><h3>Games played</h3>${gpChart(p)}</div>`
+  :tab==="compare"?`<div class="dr-sec"><h3>Compare</h3>${compareSection(p)}</div>`
+  :`
   <div class="dr-sec"><h3>Your take</h3><div class="row-btns" role="group" aria-label="Adjust projection">${[-.2,-.1,-.05,0,.05,.1,.2].map(m=>`<button class="btn${(p.adj&&p.adj.o==null&&Math.abs(p.adj.m-m)<1e-9)||(!p.adj&&m===0)?" primary":""}" data-adj="${m}" data-pid="${p.espnId}">${m===0?"None":(m>0?"+":"")+Math.round(m*100)+"%"}</button>`).join("")}</div>
     <div class="row-btns" style="margin-top:8px;align-items:center"><label class="chk" for="ovr">Or set FP/G</label><input type="number" id="ovr" step="0.5" min="0" max="90" style="width:90px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:5px 8px" value="${p.adj&&p.adj.o!=null?p.adj.o:""}" placeholder="${f1(p.proj.fp)}"><button class="btn" data-ovr="${p.espnId}">Set</button></div>
     <p class="empty" style="margin-top:6px">Your take changes his projection everywhere: ranks, simulations and the Pick Advisor. Sources: model ${f1(p.fitFp)}${p.espnFp!=null?` · ESPN ${f1(p.espnFp)}`:""}${p.nowFp!=null?` · this season ${f1(p.nowFp)} in ${p.now.gp} g`:""}${p.fproFp!=null?` · FantasyPros #${p.fpro[0]} ≈ ${f1(p.fproFp)}`:""} FP/G.</p></div>
   ${p.draft?rookieSection(p):""}
-  <div class="dr-sec"><h3>Fantasy points per game by season</h3>${seriesChart(p)}<p class="empty">The shaded band is the model's 80% range for 2026-27.${p.rook?" Rookies start from a blend of ESPN's projection and what past rookies at his draft pick produced, then move with his 2026-27 games.":""}</p></div>
-  <div class="dr-sec"><h3>Games played</h3>${gpChart(p)}</div>
-  <div class="dr-sec"><h3>Minutes &amp; per-minute production</h3>${minutesSection(p)}</div>
   <div class="dr-sec"><h3>How the projection is built</h3>${waterfall(p)}</div>
   <div class="dr-sec"><h3>Breakout comps</h3>${compsSection(p)}</div>
   <div class="dr-sec"><h3>Team fit · ${p.team} 2026-27</h3>${teamSection(p)}</div>
-  <div class="dr-sec"><h3>Category trends → 2026-27</h3><div class="mini-grid">${[["pts","PTS"],["reb","REB"],["ast","AST"],["stl","STL"],["blk","BLK"],["tpm","3PM"]].map(([k,lb])=>catMini(p,k,lb)).join("")}</div>
-    <p class="empty" style="margin-top:8px">Projected line: ${f1(l.pts)} pts · ${f1(l.reb)} reb · ${f1(l.ast)} ast · ${f1(l.stl)} stl · ${f1(l.blk)} blk · ${f1(l.tpm)} 3pm · ${f1(l.tov)} to · ${pct(l.fg)} FG · ${pct(l.ft)} FT. Best 8-cat categories: ${Object.entries(p.z).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c])=>CAT_LABEL[c]).join(", ")}.</p></div>
   <div class="dr-sec"><h3>Season outcome simulation</h3>${histChart(p)}<p class="empty">${NSIM.toLocaleString()} simulated seasons of per-game level × availability, starting from today.</p></div>
-  <div class="dr-sec"><h3>ESPN</h3>${espnSection(p)}</div>`;
-  $("drawer").hidden=false;$("scrim").hidden=false;$("drClose").onclick=closePlayer;$("drClose").focus();
+  <div class="dr-sec"><h3>ESPN</h3>${espnSection(p)}</div>`}`;
+  $("drawer").hidden=false;$("scrim").hidden=false;$("drClose").onclick=closePlayer;
+  // switching sections keeps your place; opening a different player starts at the top
+  if(same)$("drawer").scrollTop=scroll;else{$("drawer").scrollTop=0;$("drClose").focus()}
 }
 function closePlayer(){openId=null;$("drawer").hidden=true;$("scrim").hidden=true}
 $("scrim").onclick=closePlayer;document.addEventListener("keydown",e=>{if(e.key==="Escape"&&openId!==null)closePlayer()});
@@ -974,7 +1077,7 @@ function newsFocus(){const my=myRoster(),season=S.mode==="season"&&my.length;
   if(season)return {season,label:"your roster",head:"Injured on your roster",set:new Set(my.map(p=>p.id)),list:my};
   const D=draftState(),near=D.nx?D.av.filter(p=>{const a=availAt(p,D.nx);return a>=.2&&a<=.95&&p.rank<=D.nx+30}):[],top=D.av.filter(p=>p.rank<=40);
   const list=[...new Set([...near,...top])];return {season,label:D.nx?`players near your pick #${D.nx} or high on the board`:"players high on the board",head:D.nx?`Injured near your pick #${D.nx} or high on the board`:"Injured high on the board",set:new Set(list.map(p=>p.id)),list,near:new Set(near.map(p=>p.id)),nx:D.nx}}
-function newsSummary(){const F=newsFocus(),back=p=>p.inj&&p.inj.ret?`back ~${new Date(p.inj.ret+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}`:"no return date",
+function newsSummary(){const F=newsFocus(),back=p=>p.inj?retText(p.inj.ret,p.inj.fs):"no return date yet",
   missed=p=>Math.max(0,p.teamLeft-p.avail),hurt=F.list.filter(p=>p.out||p.dtd).sort((a,b)=>(b.out-a.out)||b.projTot-a.projTot),
   fresh=[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p))),mine=fresh.filter(a=>a.tags.some(t=>byName[t]&&F.set.has(byName[t].id))).slice(0,4),
   allOut=ESPN_INJ.filter(i=>byName[i.n]).length,since=fresh.length?Math.round((Date.parse(FETCHED+"T12:00:00")-Date.parse(fresh[fresh.length-1].p))/864e5):0;
@@ -1004,7 +1107,7 @@ function renderNews(){
   const moves=players.filter(p=>p.prevTeam&&p.prevTeam!==p.team).sort((a,b)=>a.rank-b.rank);
   const pb=n=>{const p=byName[n];return p?`<button class="expander" data-open="${p.id}"><b>${esc(n)}</b></button>`:`<b>${esc(n)}</b>`};
   $("newsCount").textContent=ESPN_NEWS.length;
-  $("newsList").innerHTML=newsSummary()+`<div class="news-sec"><h3>Injury report · drafted-range players (${inj.length})</h3><div class="news">${inj.map(i=>`<div class="item ${i.status==="Out"?"out":"dtd"}"><div class="h">${pb(i.n)} <span class="mut">· ${esc(i.team)}</span> <span class="chip ${i.status==="Out"?"out":"dtd"}">${esc(i.status)}</span>${i.ret?` <span class="mut">back ~${new Date(i.ret+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span>`:""}</div><p>${esc(i.short)}</p></div>`).join("")}</div></div>
+  $("newsList").innerHTML=newsSummary()+`<div class="news-sec"><h3>Injury report · drafted-range players (${inj.length})</h3><div class="news">${inj.map(i=>`<div class="item ${i.status==="Out"?"out":"dtd"}"><div class="h">${pb(i.n)} <span class="mut">· ${esc(i.team)}</span> <span class="chip ${i.status==="Out"?"out":"dtd"}">${esc(i.status)}</span>${` <span class="mut">${retText(i.ret,i.fs)}</span>`}</div><p>${esc(i.short)}</p></div>`).join("")}</div></div>
   <div class="news-sec"><h3>Latest NBA news</h3><div class="news">${[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p))).map(a=>`<div class="item"><div class="h">${esc(a.h)}</div><p>${esc(a.d)}</p><div class="src"><span class="mut">${fmt(a.p)}</span> · <a href="${a.u}" target="_blank" rel="noopener">ESPN ↗</a>${a.tags.filter(t=>poolNames.has(t)).map(t=>` · ${pb(t)}`).join("")}</div></div>`).join("")}</div></div>
   <div class="news-sec"><h3>New teams since last season (${moves.length})</h3><div class="news">${moves.map(p=>`<div class="item move"><div class="h">${pb(p.name)} <span class="mut">${p.prevTeam} → ${p.team}</span></div></div>`).join("")}</div></div>
   <p class="empty" style="margin-top:14px">ESPN news and injury report fetched ${FETCHED}; team changes from Basketball Reference and ESPN rosters.</p>`;
