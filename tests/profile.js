@@ -14,6 +14,9 @@ const star=await pg.evaluate(id=>{S.drTab='overview';openPlayer(id);const t=docu
 check(star.games,'top player has recent games');check(star.adv,'advanced profile shows true shooting and box plus-minus');check(star.cmp>=3,'closest alternatives listed');
 const ofs=await pg.evaluate(()=>{const p=players.find(p=>p.inj&&p.inj.fs==='OFS');if(!p)return null;return insightsOf(p).map(x=>x.t).join(' ')});
 if(ofs!==null)check(/Out for the season/.test(ofs)&&!/Priced high|Value pick/.test(ofs),'season-ending injury reads "Out for the season" with nothing else');
+const nx=await pg.evaluate(id=>{S.drTab='overview';openPlayer(id);const h=[...document.querySelectorAll('#drawer h4')].find(h=>/Next games/.test(h.textContent));const inj=players.find(p=>p.out&&p.inj&&p.inj.ret>FETCHED&&SCHED[p.team]);
+  return {rows:h?h.nextElementSibling.querySelectorAll('tbody tr').length:0,out:inj?nextGames(inj).filter(g=>g.date<inj.inj.ret).every(g=>g.out):true}},ids[0]);
+check(nx.rows>=3,'next games table with model predictions');check(nx.out,'games before an injury return read as expected out');
 const kits=await pg.evaluate(()=>{const T=[...new Set(players.map(p=>p.team))].filter(t=>t!=='FA');return T.filter(t=>!(KITS[t]&&KIT_NUM[t]))});
 check(!kits.length,'every team has pixel jersey art and number settings'+(kits.length?' (missing: '+kits.join(', ')+')':''));
 await pg.setViewportSize({width:390,height:800});await pg.evaluate(id=>{S.drTab='overview';openPlayer(id)},ids[0]);await pg.waitForTimeout(200);

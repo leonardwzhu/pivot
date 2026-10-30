@@ -52,7 +52,7 @@ if [ "$c" = 200 ] && python3 -P tools/build_games.py; then STATUS+=("recent game
 c=$(fetch "https://www.fantasypros.com/nba/rankings/overall.php" work/fp.html)
 if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: fresh"); else use_last p2_fp.js "FantasyPros"; STATUS+=("FantasyPros: last good"); fi
 
-assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
+assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
 
 # 6) Assemble and smoke-test; if today's data breaks the page, fall back to the last good data set
 assemble work

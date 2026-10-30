@@ -1,0 +1,87 @@
+# Per-game model: recent form, opponent defense by position, home court, back-to-backs. Fit walk-forward on the 2024-25 and
+# 2025-26 ESPN game logs (every prediction uses only earlier dates), then writes static/p2_matchup.js: the weights, the
+# backtest, each defense's carry-over into this season, and each player's record against each team (shown, not used: it hurt).
+# Usage: python3 -P tools/build_matchup.py [--tune]   (fetches the raw logs into work/hist/ once, 2 s apart)
+import json,sys,os,subprocess,time,itertools,datetime as D
+from collections import defaultdict
+os.makedirs('work/hist',exist_ok=True);E='https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/'
+for s in (2025,2026):
+  for f,u,h in ((f'sched_{s}',f'{E}{s}?view=proTeamSchedules_wl',[]),(f'logs_{s}',f'{E}{s}/segments/0/leaguedefaults/3?view=kona_player_info',['-H','X-Fantasy-Filter: {"players":{"limit":650,"sortDraftRanks":{"sortPriority":100,"sortAsc":true,"value":"STANDARD"},"filterStatsForTopScoringPeriodIds":{"value":200,"additionalValue":["00%d"]}}}'%s])):
+    if not os.path.exists(f'work/hist/{f}.json'):subprocess.run(['curl','-sSf','-m','120','-o',f'work/hist/{f}.json',u]+h,check=True);time.sleep(2)
+MAP={"NY":"NYK","UTAH":"UTA","WSH":"WAS","SA":"SAS","NO":"NOP","GS":"GSW","BKN":"BRK","PHX":"PHO","CHA":"CHO"}
+SC=dict(pts=1,reb=1,ast=2,stl=4,blk=4,tpm=1,tov=-2,fgm=2,fga=-1,ftm=1,fta=-1)
+K=dict(pts='0',reb='6',ast='3',stl='2',blk='1',tpm='17',tov='11',fgm='13',fga='14',ftm='15',fta='16')
+rows=[]
+for s in (2025,2026):
+  T=json.load(open(f'work/hist/sched_{s}.json'))['settings']['proTeams'];ab={t['id']:MAP.get(t['abbrev'].upper(),t['abbrev'].upper()) for t in T};G={}
+  for t in T:
+    for gs in (t.get('proGamesByScoringPeriod') or {}).values():
+      for g in gs:G[str(g['id'])]=((D.datetime.fromtimestamp(g['date']/1000,D.UTC)-D.timedelta(hours=5)).date().isoformat(),g['homeProTeamId'],g['awayProTeamId'])
+  for x in json.load(open(f'work/hist/logs_{s}.json'))['players']:
+    p=x['player'];grp={1:'G',2:'G',3:'F',4:'F',5:'C'}.get(p.get('defaultPositionId'),'F')
+    for st in p.get('stats',[]):
+      if st.get('statSplitTypeId')!=5 or st.get('statSourceId')!=0 or not st.get('stats'):continue
+      g=G.get(st['externalId']);v=st['stats']
+      if not g or v.get('40',0)<=0:continue
+      date,h,a=g;home=st['proTeamId']==h
+      rows.append((s,date,p['id'],ab[st['proTeamId']],ab[a if home else h],home,grp,sum(SC[k]*v.get(i,0) for k,i in K.items())))
+rows.sort(key=lambda r:(r[1],r[2]))
+acc=defaultdict(list)
+for r in rows:
+  if r[0]==2025:acc[r[2]].append(r[7])
+prior={p:sum(v)/len(v) for p,v in acc.items() if len(v)>=10}  # backtest stand-in for the preseason projection: last season's average
+by=defaultdict(list)
+for r in rows:by[r[1]].append(r)
+def run(h=10,K=3,Kd=200,a=1,c=.25,hm=.01,b2=.04,b=0,Kh=15,flat=False):
+  pl={};de=defaultdict(lambda:[0.,0.,0]);hi=defaultdict(lambda:[0.,0.,0]);last={};out=[];season=None;dec=.5**(1/h)
+  for date in sorted(by):
+    R=by[date]
+    if R[0][0]!=season:  # new season: keep a fraction of last season's defensive record
+      season=R[0][0];pl={};de=defaultdict(lambda:[0.,0.,0],{k:[v[0]*c,v[1]*c,v[2]*c] for k,v in de.items()})
+    pend=[]
+    for r in R:
+      s,_,p,tm,opp,home,grp,fp=r;st=pl.get(p);pr=prior.get(p) if s==2026 else None
+      if flat:base=st[2]/st[3] if st else pr
+      elif st:base=(st[0]+K*pr)/(st[1]+K) if pr is not None else st[0]/st[1]
+      else:base=pr
+      pred=None
+      if base is not None:
+        d=de[(opp,grp)];f=1+((d[0]/d[1]-1)*d[2]/(d[2]+Kd) if d[1] else 0)
+        q=hi[(p,opp)];g=1+((q[0]/q[1]-1)*q[2]/(q[2]+Kh) if q[1] else 0)
+        btb=tm in last and (D.date.fromisoformat(date)-D.date.fromisoformat(last[tm])).days==1
+        pred=base*max(.5,f)**a*max(.5,g)**b*(1+hm if home else 1-hm)*(1-b2 if btb else 1)
+      out.append((r,pred,base));pend.append((r,base))
+    for r,base in pend:
+      s,_,p,tm,opp,home,grp,fp=r;st=pl.setdefault(p,[0.,0.,0.,0])
+      st[0]=st[0]*dec+fp;st[1]=st[1]*dec+1;st[2]+=fp;st[3]+=1
+      if base and base>5:
+        for k,M in (((opp,grp),de),((p,opp),hi)):M[k][0]+=fp;M[k][1]+=base;M[k][2]+=1
+    for r in R:last[r[3]]=date
+  return out,de,hi
+def score(out,lo,hi_):
+  e=[r[7]-pr for r,pr,b in out if pr is not None and lo<=r[1]<hi_]
+  return round(sum(map(abs,e))/len(e),2),len(e)
+EA,TR,TE=('2025-10-01','2025-11-20'),('2025-11-20','2026-02-01'),('2026-02-01','2026-05-01')
+P=dict(h=10,K=3,Kd=200,a=1,c=.25,hm=.01,b2=.04)  # tuned on TR with --tune; TE is never used for tuning
+if '--tune' in sys.argv:
+  for k,vals in (('h',[5,10,20,40]),('K',[0,3,6,12]),('a',[0,.5,1,1.5]),('Kd',[50,100,200,400]),('c',[0,.25,.5,1]),('hm',[0,.01,.02]),('b2',[0,.02,.04,.06])):
+    res=[(score(run(**{**P,k:v})[0],*TR)[0],v) for v in vals];P[k]=min(res)[1];print(k,res)
+  print('player vs team weight:',[(b,score(run(**P,b=b)[0],*TR)[0]) for b in (0,.5,1)])
+out,de,hi=run(**P)
+bt=[]
+for nm,pp in (('Season average so far',dict(flat=True,a=0,hm=0,b2=0)),('Recent form, weighted',dict(**{**P,'a':0,'hm':0,'b2':0})),('+ opponent defense',{**P,'hm':0,'b2':0}),('+ home and back-to-backs',P),('+ record vs that team',{**P,'b':.5})):
+  o=run(**pp)[0];bt.append([nm,score(o,*EA)[0],score(o,*TE)[0]])
+n=score(out,*TE)[1];print(bt,n)
+ratio=sorted(r[7]/pr for r,pr,b in out if pr and pr>=15 and TE[0]<=r[1]<TE[1])
+q=[round(ratio[int(len(ratio)*x)],2) for x in (.1,.9)]
+DEF={}
+for (t,g),v in de.items():DEF.setdefault(t,{})[g]=[round(v[0]*P['c']),round(v[1]*P['c']),round(v[2]*P['c'],1)]
+VS=defaultdict(dict)
+for (p,t),v in hi.items():
+  if v[2]>=2 and v[1]:VS[p][t]=[v[2],round(100*v[0]/v[1])]
+spread={t:{g:round(x[0]/x[1],3) for g,x in d.items()} for t,d in DEF.items()}
+print('quantiles',q,'defense range',min(min(d.values()) for d in spread.values()),max(max(d.values()) for d in spread.values()))
+open('static/p2_matchup.js','w').write('// Per-game model fit on 2024-25 and 2025-26 ESPN game logs (tools/build_matchup.py). P = weights; BT = backtest MAE [early season, Feb-Apr 2026 holdout];\n'
+  '// Q = 10th/90th percentile of actual/predicted; DEF = each defense\'s carried-over record vs guards/forwards/centers [FP allowed, FP expected, games];\n'
+  '// VS = player record vs each team over two seasons [games, FP as % of what was expected]\nconst MATCHUP='+json.dumps(dict(P=P,BT=bt,N=n,Q=q,DEF=DEF,VS=VS),separators=(',',':'))+';\n')
+print('wrote',os.path.getsize('static/p2_matchup.js'),'bytes')
