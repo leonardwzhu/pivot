@@ -543,6 +543,13 @@ const CUR_WEEK=Math.max(0,WEEKS.findIndex(w=>CUR_PERIOD>=w.p[0]&&CUR_PERIOD<=w.p
 function leagueRosters(){if(S.league)return S.league;const L={};for(let t=1;t<=S.teams;t++)L[t]=[];if(!MOCK())S.picks.forEach(x=>L[teamAt(x.o)].push(x.id));return L}
 const rosterOf=t=>(leagueRosters()[t]||[]).map(id=>players[id]).filter(Boolean);
 const myRoster=()=>rosterOf(S.slot);
+// injury fallout: regulars who are out right now, and the teammates the model expects to gain in his absence
+function falloutCard(){const d=PDATE(CUR_PERIOD),own=new Set(Object.values(leagueRosters()).flat()),mine=new Set(myRoster().map(p=>p.id));
+  const outs=players.filter(p=>p.out&&regMin(p)>=20).sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,8).map(a=>({a,g:players.filter(q=>q.team===a.team&&q!==a&&!q.out).map(q=>({q,m:mateAdj(q,d,formBase(q)).list.find(m=>m.q===a)})).filter(x=>x.m&&x.m.dl>=1).sort((x,y)=>y.m.dl-x.m.dl).slice(0,3)})).filter(x=>x.g.length);
+  if(!outs.length)return "";
+  const tag=q=>!own.size?"":mine.has(q.id)?'<span class="chip">yours</span>':own.has(q.id)?'<span class="mut">rostered</span>':'<span class="chip hot">free agent</span>';
+  return `<div class="chart-card"><h4 style="margin:0 0 4px">Injury fallout</h4><p class="empty" style="margin:0 0 8px">Regulars who are out now, and who the model expects to pick up the slack: fantasy points per game added while he sits, from his production, their roles and how they've actually done without him.</p>
+    <div class="tablebox"><table><thead><tr><th class="l">Out</th><th class="l">Who gains (FP/G while he's out)</th></tr></thead><tbody>${outs.map(({a,g})=>`<tr><td class="l">${pBtn(a)} <span class="mut">${a.team} · ${retText(a.inj&&a.inj.ret,a.inj&&a.inj.fs)}</span></td><td class="l">${g.map(({q,m})=>`${pBtn(q)} <b class="zpos">+${f1(m.dl)}</b>${m.nO?` <span class="mut">(${m.nO}g without)</span>`:""} ${tag(q)}`).join("<br>")}</td></tr>`).join("")}</tbody></table></div></div>`}
 function freeAgents(){const own=new Set(Object.values(leagueRosters()).flat());return players.filter(p=>!own.has(p.id))}
 function weekDays(w){const wk=WEEKS[w],out=[];for(let q=Math.max(wk.p[0],CUR_PERIOD);q<=wk.p[1];q++)out.push(q);return out}
 // expected lineup for one day: the best 10 of your players with a game, by expected points, respecting positions
@@ -566,7 +573,7 @@ function seasonGate(view){const has=myRoster().length;if(has)return "";
 function startSeasonFromDraft(){const L={};for(let t=1;t<=S.teams;t++)L[t]=[];S.picks.forEach(x=>L[teamAt(x.o)].push(x.id));S.league=L;save();toast("Season started: rosters copied from your draft");renderSeason("season")}
 function renderSeason(view){const v=$("view-"+view);if(!v)return;
   if(view==="rosters"){v.innerHTML=rostersView();hookSeason();return}
-  const g=seasonGate(view);if(g){v.innerHTML=g;hookSeason();return}
+  const g=seasonGate(view);if(g){v.innerHTML=(view==="waivers"?falloutCard():"")+g;hookSeason();return}  // injury fallout needs no roster
   v.innerHTML=view==="season"?seasonView():view==="waivers"?waiversView():tradesView();hookSeason()}
 function weekSelect(id,sel){return `<select id="${id}">${WEEKS.map((w,i)=>i<CUR_WEEK?"":`<option value="${i}" ${i===sel?"selected":""}>Week ${w.i}${w.po?" (playoffs)":""} · ${new Date(w.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(w.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</option>`).join("")}</select>`}
 function seasonView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),opp=S.seasonOpp||leagueOpp(w)||Object.keys(leagueRosters()).map(Number).find(t=>t!==S.slot),O=rosterOf(opp),P=weekProj(my,w),days=weekDays(w);
@@ -592,7 +599,7 @@ function waiversView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),fa=freeAgent
   const seen=new Set(),rows=cands.filter(p=>!seen.has(p.id)&&seen.add(p.id)).map(p=>{const R=full?my.filter(x=>x!==drop).concat([p]):my.concat([p]);
     return {p,wk:weekProj(R,w).pts-base,ros:(h2hValue(R).total-baseRos)/wks,g:weekGames(p,w),g2:weekGames(p,Math.min(WEEKS.length-1,w+1))}});
   const sortK=S.wSort||"wk";rows.sort((a,b)=>b[sortK]-a[sortK]);
-  return `<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Waiver wire · ${fa.length} free agents on standard contracts</h4><div class="row-btns">${weekSelect("seasonWeek",w)}
+  return `${falloutCard()}<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Waiver wire · ${fa.length} free agents on standard contracts</h4><div class="row-btns">${weekSelect("seasonWeek",w)}
       ${full?`<label class="chk" for="wDrop">Drop</label><select id="wDrop">${dropC.map(p=>`<option value="${p.id}" ${p===drop?"selected":""}>${esc(p.name)} (${f1(p.proj.fp)})</option>`).join("")}</select>`:""}
       <select id="wSort"><option value="wk" ${sortK==="wk"?"selected":""}>Sort: points this week (streaming)</option><option value="ros" ${sortK==="ros"?"selected":""}>Sort: rest-of-season value</option></select></div></div>
     <p class="empty" style="margin-top:6px">${full?`Your roster is full, so each pickup is scored as replacing ${esc(drop.name)} (your lowest rest-of-season value; change it above).`:`You have ${13-my.length} open roster spot${13-my.length===1?"":"s"}, so pickups are scored as adds.`} "This week" is the change in your projected starter points for week ${WEEKS[w].i}, after daily lineup limits. "Rest of season" is the change per week from now on, playoff weeks weighted as in your mix card.</p>
@@ -775,7 +782,8 @@ const gDate=d=>new Date(d+"T12:00:00").toLocaleDateString(undefined,{month:"shor
 const SEASON_END=WEEKS[WEEKS.length-1].e,retText=(ret,fs,pre="back ~")=>fs==="OFS"||(ret&&ret>SEASON_END)?"out for the season":ret&&ret>=FETCHED?pre+gDate(ret):"no return date yet";
 const retLabel=p=>p.inj?retText(p.inj.ret,p.inj.fs,"expected back about "):"no return date yet";
 // this season's games only: form and minutes insights shouldn't mix in last April
-const SEASON_GAMES=p=>gamesOf(p).filter(g=>!g.dnp&&g.date>=PERIOD0);
+// ASOF: the scorecard replays predictions as of an earlier date (tools/log_preds.js); null in the app
+let ASOF=null;const SEASON_GAMES=p=>gamesOf(p).filter(g=>!g.dnp&&g.date>=PERIOD0&&(!ASOF||g.date<ASOF));
 // the most recent season with enough games to describe him: this season once he has 10 games, otherwise last season
 function baseSeason(p){if(p.now&&p.now.gp>=10)return p.now;for(let i=p.seasons.length-1;i>=0;i--){const s=p.seasons[i];if(s&&s.gp>=10)return s}return p.now&&p.now.gp?p.now:null}
 function recentSection(p){const G=gamesOf(p);if(!G.length)return '<p class="empty">No NBA games on record yet.</p>';
@@ -819,9 +827,18 @@ function scheduleSection(p){const w0=Math.max(0,CUR_WEEK),ws=WEEKS.map((w,i)=>i)
     <p class="empty">Games he's expected to play in each matchup week (injuries included). Green is more than a typical player, red is fewer.</p>${nextSection(p)}`}
 function nextSection(p){const N=nextGames(p,5),grp=GROUP_NAME[posGroup(p)];if(!N.length)return "";
   const vs=g=>g.vs?`${g.vs[1]>=100?"+":"−"}${Math.abs(g.vs[1]-100)}% <span class="mut">(${g.vs[0]}g)</span>`:'<span class="mut">—</span>';
-  return `<h4 style="margin:14px 0 6px">Next games</h4><div style="overflow-x:auto"><table style="min-width:440px"><thead><tr><th>Date</th><th>Opp</th><th title="Recent form: his games this season, latest counting most, pulled toward his preseason projection">Form</th><th title="How this defense treats ${grp}: fantasy points allowed vs what those players usually score">Defense</th><th>Expected</th><th title="8 in 10 games land in this range">Range</th><th title="His games against this team over the last two seasons, vs what he was expected to score. Shown for reference only">Vs them</th></tr></thead>
-    <tbody>${N.map(g=>`<tr><td>${gDate(g.date)}</td><td>${g.o}${g.b2b?' <span class="zneg" title="Second night of a back-to-back">b2b</span>':""}</td><td>${f1(g.base)}</td><td>${pctTag(g.f)}</td>${g.out?'<td colspan="2" class="zneg">expected out</td>':`<td><b>${f1(g.fp)}</b></td><td class="mut">${f0(g.lo)}–${f0(g.hi)}</td>`}<td>${vs(g)}</td></tr>`).join("")}</tbody></table></div>
-    <p class="empty">Expected = form × how this defense treats ${grp} × home court (±${Math.round(MP.hm*100)}%, @ = away) × back-to-back (b2b, −${Math.round(MP.b2*100)}%). Vs them is his record against that team over two seasons compared with what he was expected to score. It is shown but not used: across two seasons it made predictions worse, because a handful of games against one team is mostly noise.</p>`}
+  return `<h4 style="margin:14px 0 6px">Next games</h4><div style="overflow-x:auto"><table style="min-width:440px"><thead><tr><th>Date</th><th>Opp</th><th title="Recent form: his games this season, latest counting most, pulled toward his preseason projection">Form</th><th title="Change from teammates who are out (or back) for that game, beyond what his recent form already includes">Teammates</th><th title="How this defense treats ${grp}: fantasy points allowed vs what those players usually score">Defense</th><th>Expected</th><th title="8 in 10 games land in this range">Range</th><th title="His games against this team over the last two seasons, vs what he was expected to score. Shown for reference only">Vs them</th></tr></thead>
+    <tbody>${N.map(g=>`<tr><td>${gDate(g.date)}</td><td>${g.o}${g.b2b?' <span class="zneg" title="Second night of a back-to-back">b2b</span>':""}</td><td>${f1(g.base)}</td><td>${Math.abs(g.mate.adj)>=.3?`<span class="${g.mate.adj>0?"zpos":"zneg"}" title="${esc(g.mate.list.filter(m=>Math.abs(m.x)>=.3).map(m=>`${m.q.name} ${m.out?"out":"playing"}: ${m.x>0?"+":"−"}${f1(Math.abs(m.x))}`).join("; "))}">${g.mate.adj>0?"+":"−"}${f1(Math.abs(g.mate.adj))}</span>`:'<span class="mut">—</span>'}</td><td>${pctTag(g.f)}</td>${g.out?'<td colspan="2" class="zneg">expected out</td>':`<td><b>${f1(g.fp)}</b></td><td class="mut">${f0(g.lo)}–${f0(g.hi)}</td>`}<td>${vs(g)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="empty">Expected = (form + teammates) × how this defense treats ${grp} × home court (±${Math.round(MP.hm*100)}%, @ = away) × back-to-back (b2b, −${Math.round(MP.b2*100)}%). Vs them is his record against that team over two seasons compared with what he was expected to score. It is shown but not used: across two seasons it didn't make predictions better, because a handful of games against one team is mostly noise.</p>`}
+// with and without teammates: his own splits, and who gains when he sits
+function matesSection(p){const d=PDATE(CUR_PERIOD),me=mateAdj(p,d,formBase(p)).list.filter(m=>m.nO>=1||m.out).sort((a,b)=>b.dl-a.dl);
+  const gain=players.filter(q=>q.team===p.team&&q!==p).map(q=>({q,m:mateAdj(q,d,formBase(q)).list.find(m=>m.q===p)})).filter(x=>x.m).sort((a,b)=>b.m.dl-a.m.dl).slice(0,6);
+  const row=(who,m)=>`<tr><td class="l">${pBtn(who)}${m.out?' <span class="chip out">out</span>':""}</td><td>${m.nW}</td><td>${m.fW!=null?f1(m.fW):dash}</td><td>${m.nO}</td><td>${m.fO!=null?f1(m.fO):dash}</td><td class="mut">${m.mW!=null&&m.mO!=null?cpos(m.mO-m.mW):dash}</td><td><b>${cpos(m.dl)}</b></td></tr>`;
+  const head=`<thead><tr><th class="l">Teammate</th><th title="Games with him, this season and last (when they were teammates)">With</th><th>FP/G</th><th>Without</th><th>FP/G</th><th title="Minutes per game without him minus with him, this season">Min</th><th title="Expected change in fantasy points per game while he sits: the redistribution rule, moved toward the actual split as games pile up">Model</th></tr></thead>`;
+  if(!me.length&&!gain.length)return '<p class="empty">No regular teammate has missed games with him yet.</p>';
+  return `${me.length?`<h4 style="margin:0 0 6px">When a teammate sits</h4><div style="overflow-x:auto"><table style="min-width:420px">${head}<tbody>${me.slice(0,6).map(m=>row(m.q,m)).join("")}</tbody></table></div>`:""}
+    ${gain.length?`<h4 style="margin:14px 0 6px">When he sits, who gains</h4><div style="overflow-x:auto"><table style="min-width:420px">${head.replace(">Teammate<",">Player<").replace(/with him/g,"with "+esc(p.name.split(" ").pop())).replace(/he sits/g,"he sits")}<tbody>${gain.map(x=>row(x.q,x.m)).join("")}</tbody></table></div>`:""}
+    <p class="empty">Raw splits swing a lot on a few games, so the model starts from a rule (about ${Math.round(MP.beta*100)}% of a missing regular's production goes to teammates, in proportion to their roles) and moves toward the actual split as games pile up: ${MP.Km} games without him would count as much as the rule.</p>`}
 function newsSection(p){const N=ESPN_NEWS.filter(a=>a.tags.includes(p.name)).sort((a,b)=>String(b.p).localeCompare(String(a.p))).slice(0,5);
   return `${p.inj?`<p style="margin:0 0 8px"><span class="chip ${p.inj.status==="Out"?"out":"dtd"}">${esc(p.inj.status)}</span> ${esc(p.inj.short)}</p>`:""}
     ${N.length?`<div class="news">${N.map(a=>`<div class="item"><div class="h">${esc(a.h)}</div><p>${esc(a.d)}</p><div class="src"><span class="mut">${gDate(String(a.p).slice(0,10))}</span> · <a href="${a.u}" target="_blank" rel="noopener">ESPN ↗</a></div></div>`).join("")}</div>`:`<p class="empty">No headlines about him in today's ESPN feed.</p>`}
@@ -888,7 +905,18 @@ function signals(p){const G=SEASON_GAMES(p).slice(0,5),prev=p.seasons.filter(s=>
 // next-game model (tools/build_matchup.py, fit walk-forward on two seasons of games): recent form with a 10-game half-life, pulled
 // toward the preseason projection, times the opponent's defense against his position group, home court and back-to-backs
 const MP=MATCHUP.P,PDATE=q=>{const d=new Date(PERIOD0+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+q);return d.toISOString().slice(0,10)};
-function formBase(p){const dec=.5**(1/MP.h);let s=0,w=0;SEASON_GAMES(p).slice().reverse().forEach(g=>{s=s*dec+g.fp;w=w*dec+1});return (s+MP.K*p.baseProj.fp)/(w+MP.K)}
+const FB=new Map();
+function formBase(p){if(FB.has(p.id))return FB.get(p.id);const dec=.5**(1/MP.h);let s=0,w=0;SEASON_GAMES(p).slice().reverse().forEach(g=>{s=s*dec+g.fp;w=w*dec+1});const v=(s+MP.K*p.baseProj.fp)/(w+MP.K);FB.set(p.id,v);return v}
+const isOut=(p,date)=>!!(p.out&&p.inj&&(p.inj.fs==="OFS"||!p.inj.ret||date<p.inj.ret));
+const regMin=p=>{const s=p.now&&p.now.gp>=3?p.now:p.seasons.filter(s=>s&&s.gp>=10).pop();return s?s.min:0};
+// teammates who are out: a regular's absence hands MP.beta of his form to the others in proportion to theirs, moved toward what this
+// player actually did without him (MP.Km games of weight on that rule); only the part not already in his recent form counts
+function mateAdj(p,date,base){const L=(typeof MATES!=="undefined"&&MATES[p.espnId])||[];if(!L.length)return {adj:0,list:[]};
+  const act=players.filter(q=>q.team===p.team&&regMin(q)>=10),list=[];let adj=0;
+  L.forEach(([e,nW,fW,nO,fO,mW,mO,sh])=>{const q=players[BY_ESPN.get(e)];if(!q||q.team!==p.team||regMin(q)<20)return;
+    const S=act.filter(x=>x!==q).reduce((a,x)=>a+formBase(x),0)||1,pri=MP.beta*formBase(q)*base/S,dl=nW>=3&&nO?(nO*(fO-fW)+MP.Km*pri)/(nO+MP.Km):pri,out=isOut(q,date),x=dl*((out?1:0)-sh);
+    adj+=x;list.push({q,out,dl,x,sh,nW,nO,fW,fO,mW,mO,pri})});
+  return {adj:Math.max(-base,Math.min(base,adj)),list}}
 let DEF_NOW=null;
 // each defense: last season's record (a quarter weight) plus this season's games, as FP allowed vs what those players were expected to score
 function defNow(){if(DEF_NOW)return DEF_NOW;const D={},dec=.5**(1/MP.h);Object.entries(MATCHUP.DEF).forEach(([t,o])=>{D[t]={};Object.entries(o).forEach(([g,v])=>D[t][g]=[...v])});
@@ -897,7 +925,8 @@ function defNow(){if(DEF_NOW)return DEF_NOW;const D={},dec=.5**(1/MP.h);Object.e
 const defFactor=(opp,g)=>{const v=(defNow()[opp]||{})[g];return v&&v[1]?1+(v[0]/v[1]-1)*v[2]/(v[2]+MP.Kd):1};
 function nextGames(p,n=4){const S=SCHED[p.team]||[],O=SCHED_OPP[p.team]||{},last=(gamesOf(p)[0]||{}).date||"",base=formBase(p),g=posGroup(p);
   return S.filter(q=>q>=CUR_PERIOD&&PDATE(q)>last).slice(0,n).map(q=>{const o=O[q]||"",opp=o.replace("@",""),home=!o.startsWith("@"),b2b=S.includes(q-1),f=defFactor(opp,g),
-    fp=base*Math.max(.5,f)**MP.a*(home?1+MP.hm:1-MP.hm)*(b2b?1-MP.b2:1),date=PDATE(q),out=!!(p.out&&p.inj&&(p.inj.fs==="OFS"||!p.inj.ret||date<p.inj.ret));return {q,date,out,o,opp,home,b2b,f,fp,lo:fp*MATCHUP.Q[0],hi:fp*MATCHUP.Q[1],base,vs:(MATCHUP.VS[p.espnId]||{})[opp]}})}
+    date=PDATE(q),m=mateAdj(p,date,base),fp=(base+m.adj)*Math.max(.5,f)**MP.a*(home?1+MP.hm:1-MP.hm)*(b2b?1-MP.b2:1),out=isOut(p,date);
+    return {q,date,out,o,opp,home,b2b,f,fp,lo:fp*MATCHUP.Q[0],hi:fp*MATCHUP.Q[1],base,mate:m,vs:(MATCHUP.VS[p.espnId]||{})[opp]}})}
 const pctTag=f=>{const d=Math.round((f-1)*100);return d?`<span class="${d>0?"zpos":"zneg"}">${d>0?"+":"−"}${Math.abs(d)}%</span>`:`<span class="mut">even</span>`};
 function plCols(view){const w0=Math.max(0,CUR_WEEK),N=+S.pl.rn,line=(get,lab)=>[["pts","Pts"],["reb","Reb"],["ast","Ast"],["stl","Stl"],["blk","Blk"],["tpm","3PM"],["tov","TO"]].map(([k,h])=>({k:lab+k,h,v:p=>{const o=get(p);return o?o[k]:-1},d:p=>{const o=get(p);return o?nv(o[k]):dash}}));
   const S2=p=>p.now&&p.now.gp?p.now:null,R=p=>p._r,P=p=>p.proj.line,B=p=>p._bs;
@@ -1043,6 +1072,7 @@ function openPlayer(id){
   <div class="dr-sec"><h3>Insights</h3>${(()=>{const I=insightsOf(p);return I.length?`<ul class="heads">${I.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing stands out: his recent games, minutes and schedule are in line with his projection.</p>'})()}</div>
   <div class="dr-sec"><h3>Recent games</h3>${recentSection(p)}</div>
   <div class="dr-sec"><h3>Schedule</h3>${scheduleSection(p)}</div>
+  <div class="dr-sec"><h3>Teammates</h3>${matesSection(p)}</div>
   <div class="dr-sec"><h3>News</h3>${newsSection(p)}</div>`
   :tab==="stats"?`
   <div class="dr-sec"><h3>Advanced profile</h3>${advSection(p)}</div>
@@ -1071,6 +1101,24 @@ function closePlayer(){openId=null;$("drawer").hidden=true;$("scrim").hidden=tru
 $("scrim").onclick=closePlayer;document.addEventListener("keydown",e=>{if(e.key==="Escape"&&openId!==null)closePlayer()});
 
 // ================= MODELS TAB =================
+// prediction scorecard: next-game predictions logged before tip-off each morning, scored once the game is played
+function scorecardCard(){const P=typeof PREDS!=="undefined"?PREDS:null;
+  if(!P||!P.n)return `<div class="chart-card" style="grid-column:1/-1"><h4>Prediction scorecard</h4><p class="empty">Each morning Pivot saves its prediction for every relevant player's game that day, then scores it once the game is played. ${P&&P.pending?`${P.pending} predictions are waiting on tonight's games.`:"The first predictions are scored after the next refresh."}</p></div>`;
+  const pc0=x=>Math.round(x*100)+"%",win=P.avg?Math.round((1-P.mae/P.avg)*100):0;
+  const kp=(k,v,d)=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+  return `<div class="chart-card" style="grid-column:1/-1"><h4>Prediction scorecard</h4>
+    <div class="kpis" style="margin:8px 0 12px">${kp("Games scored",P.n.toLocaleString(),P.live?`${P.live.toLocaleString()} logged live, the rest replayed`:`replayed from ${gDate(P.since)}; live scoring starts with the next refresh`)}
+      ${kp("Average miss",f1(P.mae)+" FP",`vs ${f1(P.avg)} for his season average so far${P.proj!=null?` and ${f1(P.proj)} for the rest-of-season projection`:""}`)}
+      ${kp("Better than season average",(win>=0?"":"−")+Math.abs(win)+"%","smaller average miss on the same games")}
+      ${kp("Inside the 80% range",pc0(P.cover),"should be close to 80%: much lower means the ranges are too narrow")}
+      ${kp("Bias",(P.bias>=0?"+":"−")+f1(Math.abs(P.bias))+" FP","actual minus predicted, on average: near zero means no lean")}</div>
+    <div class="chart-grid" style="margin:0">
+      <div><h4 style="margin:0 0 6px;font-size:15px">Calibration</h4><table><thead><tr><th class="l">Predicted</th><th>Games</th><th>Avg predicted</th><th>Avg actual</th></tr></thead><tbody>${P.bins.map(([lo,hi,n,pr,ac])=>`<tr><td class="l">${hi>90?lo+"+":lo+"–"+hi} FP</td><td>${n}</td><td>${f1(pr)}</td><td><b>${f1(ac)}</b> ${cpos(ac-pr)}</td></tr>`).join("")}</tbody></table>
+        <p class="empty">If the model is honest, each row's actual average lands near its predicted average.</p></div>
+      <div><h4 style="margin:0 0 6px;font-size:15px">By matchup week</h4><div style="overflow-x:auto"><table><thead><tr><th class="l">Week</th><th>Games</th><th>Model miss</th><th title="Average miss of his season average so far">Season avg</th><th>In range</th></tr></thead><tbody>${P.weeks.map(w=>`<tr><td class="l">${w.w}</td><td>${w.n}</td><td><b>${f1(w.mae)}</b></td><td>${f1(w.avg)}</td><td>${pc0(w.cover)}</td></tr>`).join("")}</tbody></table></div></div>
+      <div><h4 style="margin:0 0 6px;font-size:15px">Biggest misses, ${gDate(P.lastD)}</h4><table><thead><tr><th class="l">Player</th><th>Predicted</th><th>Actual</th></tr></thead><tbody>${P.misses.map(([e,n,pr,ac,lo,hi])=>{const p=players[BY_ESPN.get(e)];return `<tr><td class="l">${p?pBtn(p):esc(n)}</td><td>${f1(pr)} <span class="mut">(${f0(lo)}–${f0(hi)})</span></td><td><b>${f1(ac)}</b></td></tr>`}).join("")}</tbody></table></div>
+    </div>
+    <p class="empty" style="margin-top:8px">Predictions are for games he plays: a player who sits isn't scored. ${P.live<P.n?"Games before live logging began are replayed: the model as it stands now, using only games before each date, but without teammate adjustments, since who sat is only known after the fact. ":""}One game is noisy whatever you do, so judge the model over weeks, not nights.</p></div>`}
 function renderModels(){
   const P=PRM,peak=P.ageFit.b?-P.ageFit.a/P.ageFit.b:0,vs=players.map(p=>({p,v:p.rank-p.modelRank}));
   const ups=[...vs].sort((a,b)=>b.v-a.v).slice(0,6),downs=[...vs].sort((a,b)=>a.v-b.v).slice(0,6);
@@ -1088,9 +1136,10 @@ function renderModels(){
     ${kp("Breakout base rate",pc(BRK_BASE),`${TRANS.filter(r=>r.brk).length} breakouts in ${TRANS.length} player-seasons`)}
   </div>
   <div class="chart-grid">
-    <div class="chart-card"><h4>Next-game model</h4><div class="eq">expected FP = form × defense vs his position${MP.a!==1?"^"+MP.a:""} × home (±${Math.round(MP.hm*100)}%) × back-to-back (−${Math.round(MP.b2*100)}%)</div>
-      <table><thead><tr><th style="text-align:left">Predicting each game from</th><th title="First month of 2025-26, Oct 21 to Nov 19">Early season</th><th title="Feb to Apr 2026. Weights were chosen on late Nov to Jan games only">Holdout</th></tr></thead><tbody>${MATCHUP.BT.map((r,i)=>`<tr><td style="text-align:left">${r[0]}</td><td>${f1(r[1])}</td><td>${i===3?"<b>"+f1(r[2])+"</b>":f1(r[2])}</td></tr>`).join("")}</tbody></table>
-      <p>Average miss in fantasy points per game, tested walk-forward on ${MATCHUP.N.toLocaleString()} games: each prediction only uses games before it. Weighting recent games beats a plain season average, and the opponent's defense adds a little more. A player's own record against that team does not help, so it gets no weight. One game is noisy whatever you do: 8 in 10 land between ${Math.round(MATCHUP.Q[0]*100)}% and ${Math.round(MATCHUP.Q[1]*100)}% of the prediction.</p></div>
+    ${scorecardCard()}
+    <div class="chart-card"><h4>Next-game model</h4><div class="eq">expected FP = (form + teammates out) × defense vs his position${MP.a!==1?"^"+MP.a:""} × home (±${Math.round(MP.hm*100)}%) × back-to-back (−${Math.round(MP.b2*100)}%)</div>
+      <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Predicting each game from</th><th title="First month of 2025-26, Oct 21 to Nov 19">Early season</th><th title="Feb to Apr 2026. Weights were chosen on late Nov to Jan games only">Holdout</th></tr></thead><tbody>${MATCHUP.BT.map((r,i)=>`<tr><td style="text-align:left">${r[0]}</td><td>${f1(r[1])}</td><td>${i===MATCHUP.BT.length-2?"<b>"+f1(r[2])+"</b>":f1(r[2])}</td></tr>`).join("")}</tbody></table></div>
+      <p>Average miss in fantasy points per game, tested walk-forward on ${MATCHUP.N.toLocaleString()} games: each prediction only uses games before it. Weighting recent games beats a plain season average. Accounting for teammates who sit is the next biggest gain, then the opponent's defense. A player's own record against that team didn't help when choosing weights, so it gets none. One game is noisy whatever you do: 8 in 10 land between ${Math.round(MATCHUP.Q[0]*100)}% and ${Math.round(MATCHUP.Q[1]*100)}% of the prediction.</p></div>
     <div class="chart-card"><h4>Year-over-year stability</h4><div class="eq">FP/G 2025-26 = ${P.stab.a.toFixed(1)} + ${P.stab.b.toFixed(2)} × FP/G 2024-25 · R² ${P.stab.r2.toFixed(2)}</div>
       ${scatter({pts:st.map(d=>({x:d.x,y:d.y,tip:`${d.p.name}: ${f1(d.x)} → ${f1(d.y)}`})),fit:P.stab,diag:true,xl:"FP/G 2024-25",yl:"FP/G 2025-26"})}
       <p>A slope below 1 means extreme seasons drift back toward the middle. This slope sets how hard every projection is pulled toward the pool average. The dashed line marks "no change."</p></div>

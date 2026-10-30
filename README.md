@@ -23,7 +23,7 @@ The app is one self-contained HTML page (no framework, no build step beyond conc
 bash refresh.sh
 ```
 
-It fetches today's data, writes `work/` (data files) and `build/draft-room.html`, and smoke-tests the page in Chromium. Exit 0 means the page is publishable. Any source that fails falls back to its copy in `last/`, and if today's data breaks the page the build is redone from `last/` entirely.
+It fetches today's data, writes `work/` (data files) and `build/draft-room.html`, and smoke-tests the page in Chromium. It then runs `tools/log_preds.js`, which saves today's next-game predictions to `last/preds_log.json`, scores earlier ones against the games ESPN has recorded, and rebuilds the page with the scorecard. Exit 0 means the page is publishable. Any source that fails falls back to its copy in `last/`, and if today's data breaks the page the build is redone from `last/` entirely.
 
 Sources:
 
@@ -33,7 +33,8 @@ Sources:
 | ESPN Fantasy API | player pool, projections, ranks, positions, NBA schedule | |
 | ESPN Fantasy API | your league, public read | teams, picks, rosters, records, matchups |
 | ESPN Fantasy API | every player's last 10 games | one request; `static/games_2026.json` dates last season's games |
-| ESPN Fantasy API | every game of 2024-25 and 2025-26 | fetched once by `tools/build_matchup.py`, which fits the next-game model into `static/p2_matchup.js` |
+| ESPN Fantasy API | every game of 2024-25 and 2025-26 | fetched once by `tools/build_matchup.py`, which fits the next-game model into `static/p2_matchup.js` and saves teammate splits in `static/mates_2026.json` |
+| ESPN Fantasy API | every game this season | one request; `tools/build_mates.py` turns it into teammate splits |
 | ESPN site API | injuries and news | |
 | FantasyPros | expert consensus ranks | |
 
@@ -51,6 +52,7 @@ node tests/tabs.js                   # nothing moves on tab clicks or picks; dra
 node tests/league_season.js          # league sync and My Team: before the draft, after a simulated draft, mid-season
 node tests/modes.js                  # Draft Day / Season: which mode opens, which tabs show, last tab remembered
 node tests/profile.js                # player profile: every section, recent games, next-game predictions, comparisons, phone
+node tests/hub.js                    # prediction scorecard, injury fallout, teammate splits, phone
 ```
 
 ## Publishing
