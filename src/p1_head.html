@@ -324,6 +324,12 @@ html{scrollbar-gutter:stable}
 .chart-card.prose p{font-style:normal}
 @media (max-width:860px){.bar-in{flex-wrap:wrap}.dock{width:100%;margin-left:0}}
 @media (max-width:480px){.brand small{display:none}}
+
+/* news summary: two columns (injuries, headlines) that stack on a phone */
+.news-sum{max-width:none;margin-bottom:6px}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:8px}
+.sum-grid h5{margin:0 0 6px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.sum-grid .heads{margin:0}
 </style>
 
 <header class="bar">

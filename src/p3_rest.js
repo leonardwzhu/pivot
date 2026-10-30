@@ -1,5 +1,6 @@
 // ================= STATE =================
 const LS="hoopsDraftRoom.v2";
+let sample=null; // Ask Claude, when the viewer allows it (set at the end of the file)
 let S={teams:10,slot:1,scoring:"pts",picks:[],order:null,pos:"ALL",sort:{k:"rank",d:1},hideTaken:true,hideOut:false,view:"model",rankBy:"board"};
 try{const s=JSON.parse(localStorage.getItem(LS)||"null");if(s)S={...S,...s}}catch(e){}
 S.mix=S.mix||{};S.adj=S.adj||{};
@@ -967,6 +968,35 @@ function minutesModels(){
   </div>`;
 }
 // ================= NEWS =================
+// the top of News: what today's injuries and headlines mean for you. In Season that's your roster; in Draft Day it's
+// the players likely to be there at your next pick, plus the top of the board
+function newsFocus(){const my=myRoster(),season=S.mode==="season"&&my.length;
+  if(season)return {season,label:"your roster",head:"Injured on your roster",set:new Set(my.map(p=>p.id)),list:my};
+  const D=draftState(),near=D.nx?D.av.filter(p=>{const a=availAt(p,D.nx);return a>=.2&&a<=.95&&p.rank<=D.nx+30}):[],top=D.av.filter(p=>p.rank<=40);
+  const list=[...new Set([...near,...top])];return {season,label:D.nx?`players near your pick #${D.nx} or high on the board`:"players high on the board",head:D.nx?`Injured near your pick #${D.nx} or high on the board`:"Injured high on the board",set:new Set(list.map(p=>p.id)),list,near:new Set(near.map(p=>p.id)),nx:D.nx}}
+function newsSummary(){const F=newsFocus(),back=p=>p.inj&&p.inj.ret?`back ~${new Date(p.inj.ret+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}`:"no return date",
+  missed=p=>Math.max(0,p.teamLeft-p.avail),hurt=F.list.filter(p=>p.out||p.dtd).sort((a,b)=>(b.out-a.out)||b.projTot-a.projTot),
+  fresh=[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p))),mine=fresh.filter(a=>a.tags.some(t=>byName[t]&&F.set.has(byName[t].id))).slice(0,4),
+  allOut=ESPN_INJ.filter(i=>byName[i.n]).length,since=fresh.length?Math.round((Date.parse(FETCHED+"T12:00:00")-Date.parse(fresh[fresh.length-1].p))/864e5):0;
+  const li=[];
+  if(hurt.length)hurt.slice(0,6).forEach(p=>li.push(`<li class="${p.out?"warn":""}">${pBtn(p)} <span class="chip ${p.out?"out":"dtd"}">${p.out?"Out":"Day-to-day"}</span> <span class="mut">${back(p)}${p.out&&missed(p)?` · misses about ${missed(p)} game${missed(p)===1?"":"s"}`:""}${F.near&&F.near.has(p.id)?` · likely there at #${F.nx}`:""}</span></li>`));
+  else li.push(`<li class="good">Nobody in ${F.label} is on the injury report.</li>`);
+  return `<div class="chart-card news-sum"><h4>${F.season?"What today's news means for your team":"What today's news means for your draft"}</h4>
+    <div class="eq">${allOut} players in the pool are on ESPN's injury report · ${fresh.length} headlines ${since<=1?"from the past day":`from the past ${since} days`}</div>
+    <div class="sum-grid"><div><h5>${F.head}</h5><ul class="heads">${li.join("")}</ul>${hurt.length>6?`<p class="empty">and ${hurt.length-6} more below</p>`:""}</div>
+    <div><h5>Headlines about them</h5>${mine.length?`<ul class="heads">${mine.map(a=>`<li><b>${esc(a.h)}</b><br><span class="mut">${new Date(a.p).toLocaleDateString(undefined,{month:"short",day:"numeric"})} · ${a.tags.filter(t=>byName[t]&&F.set.has(byName[t].id)).map(t=>pBtn(byName[t])).join(", ")}</span></li>`).join("")}</ul>`:`<p class="empty">None of today's headlines mention ${F.label}.</p>`}</div></div>
+    <div class="row-btns" style="margin-top:10px" id="briefRow" ${sample?"":"hidden"}><button class="btn primary" id="briefBtn">Write me a briefing</button><span class="mut" style="font-size:12px;align-self:center">Claude reads today's headlines and injury report with ${F.season?"your roster":"your draft position"} in mind</span></div>
+    <div class="ai-out" id="briefOut" hidden></div></div>`}
+async function newsBrief(){const out=$("briefOut"),F=newsFocus();out.hidden=false;out.textContent="Reading today's news…";
+  const fresh=[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p))).slice(0,30),inj=ESPN_INJ.filter(i=>byName[i.n]&&F.set.has(byName[i.n].id));
+  const who=F.list.slice(0,40).map(p=>`${p.name} (${p.team}, ${p.pos.join("/")}, proj ${f1(p.proj.fp)} FP/G${p.out?", OUT":p.dtd?", day-to-day":""})`).join("; ");
+  const prompt=`I play in an ESPN head-to-head points fantasy basketball league. ${F.season?"These are the players on my roster":`My next draft pick is #${F.nx}. These are the players I'm considering`}: ${who}.
+Today's injury report for them:\n${inj.map(i=>`- ${i.n}: ${i.status}${i.ret?`, expected back ${i.ret}`:""}. ${i.short}`).join("\n")||"(none)"}
+Today's NBA headlines:\n${fresh.map(a=>`- ${a.h}: ${a.d}`).join("\n")}
+Write a short briefing for me: at most 5 bullet points, most important first. Only include items that change a decision for me (${F.season?"who to start, bench, drop or pick up":"who to draft, avoid or wait on"}). Name players and say what to do. Use only the information above. Plain text, bullets starting with "-".`;
+  try{const r=await sample(prompt,{modelTier:"default",onText:({text})=>{out.textContent=text}});out.textContent=r.text}
+  catch(e){out.textContent=e&&e.code==="not_granted"?"Claude access wasn't allowed for this page. You can turn it on from the artifact's Permissions menu.":e&&e.code==="rate_limited"?"Too many requests just now. Try again in a minute.":"Couldn't write the briefing: "+(e&&e.message||"unknown error")}}
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#briefBtn"))newsBrief()});
 function renderNews(){
   const fmt=d=>new Date(d).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
   const poolNames=new Set(players.map(p=>p.name));
@@ -974,7 +1004,7 @@ function renderNews(){
   const moves=players.filter(p=>p.prevTeam&&p.prevTeam!==p.team).sort((a,b)=>a.rank-b.rank);
   const pb=n=>{const p=byName[n];return p?`<button class="expander" data-open="${p.id}"><b>${esc(n)}</b></button>`:`<b>${esc(n)}</b>`};
   $("newsCount").textContent=ESPN_NEWS.length;
-  $("newsList").innerHTML=`<div class="news-sec"><h3>Injury report · drafted-range players (${inj.length})</h3><div class="news">${inj.map(i=>`<div class="item ${i.status==="Out"?"out":"dtd"}"><div class="h">${pb(i.n)} <span class="mut">· ${esc(i.team)}</span> <span class="chip ${i.status==="Out"?"out":"dtd"}">${esc(i.status)}</span>${i.ret?` <span class="mut">back ~${new Date(i.ret+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span>`:""}</div><p>${esc(i.short)}</p></div>`).join("")}</div></div>
+  $("newsList").innerHTML=newsSummary()+`<div class="news-sec"><h3>Injury report · drafted-range players (${inj.length})</h3><div class="news">${inj.map(i=>`<div class="item ${i.status==="Out"?"out":"dtd"}"><div class="h">${pb(i.n)} <span class="mut">· ${esc(i.team)}</span> <span class="chip ${i.status==="Out"?"out":"dtd"}">${esc(i.status)}</span>${i.ret?` <span class="mut">back ~${new Date(i.ret+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span>`:""}</div><p>${esc(i.short)}</p></div>`).join("")}</div></div>
   <div class="news-sec"><h3>Latest NBA news</h3><div class="news">${[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p))).map(a=>`<div class="item"><div class="h">${esc(a.h)}</div><p>${esc(a.d)}</p><div class="src"><span class="mut">${fmt(a.p)}</span> · <a href="${a.u}" target="_blank" rel="noopener">ESPN ↗</a>${a.tags.filter(t=>poolNames.has(t)).map(t=>` · ${pb(t)}`).join("")}</div></div>`).join("")}</div></div>
   <div class="news-sec"><h3>New teams since last season (${moves.length})</h3><div class="news">${moves.map(p=>`<div class="item move"><div class="h">${pb(p.name)} <span class="mut">${p.prevTeam} → ${p.team}</span></div></div>`).join("")}</div></div>
   <p class="empty" style="margin-top:14px">ESPN news and injury report fetched ${FETCHED}; team changes from Basketball Reference and ESPN rosters.</p>`;
@@ -1257,6 +1287,7 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times with each player's games swinging about 35% either way.</p></div>`}
 const TABS=["board","team","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
+$("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
 $("tab-team").addEventListener("click",renderTeam);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
@@ -1311,8 +1342,7 @@ $("asof").textContent=`ESPN 2026-27 · data as of ${new Date(FETCHED+"T12:00:00"
 renderNews();renderModels();renderAll();renderMix();renderScoring();renderMock();
 
 // ================= ASK CLAUDE (optional capability) =================
-let sample=null;
-(async()=>{try{sample=window.claude&&window.claude.use?await window.claude.use("sample"):null}catch(e){sample=null}if(sample)$("aiCard").hidden=false})();
+(async()=>{try{sample=window.claude&&window.claude.use?await window.claude.use("sample"):null}catch(e){sample=null}if(sample){$("aiCard").hidden=false;const b=$("briefRow");if(b)b.hidden=false}})();
 function ctx(){
   computeDisp();const my=mine(),avail=players.filter(p=>!pickOf(p.id)).sort((a,b)=>a.disp-b.disp).slice(0,30);
   const line=p=>`${p.disp}. ${p.name}${p.adp?` [ADP ${f1(p.adp)}]`:""}${p.espnFp!=null?` [ESPN proj ${f1(p.espnFp)} FP/G]`:""} (${p.team}, ${p.pos.join("/")}, age ${p.age}) proj ${f1(p.proj.fp)} FP/G [80% ${f1(p.lo)}-${f1(p.hi)}], proj ${Math.round(p.projGP)} GP, proj season ${f0(p.projTot)} FP, top-50 odds ${pc(p.pTop50)}, 9cat z ${f1(p.cat)}, board #${p.rank} vs model #${p.modelRank}, breakout odds ${p.brk===null?"n/a":pc(p.brk)}, team fit ×${p.fit.tot.toFixed(2)}, proj ${f1(p.projMpg)} min/g (${f1(p.fp36)} FP/36)${p.out?", CURRENTLY OUT":""}${p.dtd?", day-to-day":""}. Note: ${p.note}`;
