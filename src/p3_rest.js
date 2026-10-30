@@ -299,7 +299,7 @@ function renderSide(){
   $("ba").innerHTML=ba.map(p=>{const fills=my.length&&p.pos.some(x=>need.has(x));
     return `<li><span class="rk">${p.disp}</span><span class="nm"><button class="expander" data-open="${p.id}">${esc(p.name)}</button><br><span class="sub">${p.team} · ${p.pos.join("/")} · ${S.scoring==="pts"?f1(p.proj.fp)+" FP/G":(p.cat>=0?"+":"")+f1(p.cat)+" z"} · top-50 ${pc(p.pTop50)}${p.out?" · OUT":""}${fills?" · fills need":""}</span></span><button class="btn mine" data-mine="${p.id}">Draft</button></li>`}).join("");
   const cur=S.picks.length+1,rnd=Math.ceil(cur/S.teams);replay($("curPick"),"tick",String(cur));
-  if(S.picks.length>=S.teams*13){$("curPick").textContent="✓";$("clockMsg").innerHTML=`<div class="lab">Draft complete<br>${MOCK()?"see Mock Draft results":"manage it in Season · Waivers · Trades"}</div>`}
+  if(S.picks.length>=S.teams*13){$("curPick").textContent="✓";$("clockMsg").innerHTML=`<div class="lab">Draft complete<br>${MOCK()?"see Mock Draft results":"<button class='btn' id='toSeason' style='margin-top:4px'>Go to Season</button>"}</div>`}
   else if(!S.picks.length&&!MOCK()&&typeof LEAGUE!=="undefined"&&LEAGUE&&LEAGUE.draftDate>Date.now()&&teamAt(cur)!==S.slot)$("clockMsg").innerHTML=`<div class="lab">${esc(LEAGUE.name)} drafts<br>${new Date(LEAGUE.draftDate).toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`
   else if(teamAt(cur)===S.slot)$("clockMsg").innerHTML=`<button class="you clockbtn" id="toAdv">You're on the clock · Rd ${rnd} · see picks</button>`;
   else{const nx=myNextPick(cur);$("clockMsg").innerHTML=`<div class="lab">Rd ${rnd} · ${esc(teamName(teamAt(cur)))} picking<br>Your next: #${nx} (${nx-cur} away)</div>`}
@@ -560,7 +560,7 @@ function matchupSim(A,B,w,N=600){let seed=(w*7919+A.length*31+B.length)>>>0;cons
   let win=0;const a=[],b=[];for(let i=0;i<N;i++){const x=side(A),y=side(B);a.push(x);b.push(y);if(x>y)win++}
   return {p:win/N,a:mean(a),b:mean(b),aq:[quant(a,.1),quant(a,.9)],bq:[quant(b,.1),quant(b,.9)]}}
 function seasonGate(view){const has=myRoster().length;if(has)return "";
-  return `<div class="chart-card" style="max-width:720px"><h4>Set up your season</h4><p style="font-size:13px;color:var(--ink)">The Season, Waivers and Trades tabs work from your league's rosters. ${S.picks.length&&!MOCK()?`You have ${S.picks.length} draft picks entered. Use them to fill every team's roster, then record adds, drops and trades in the Rosters tab.`:"Enter your draft on the Big Board (Draft for your picks, Taken for everyone else's, in order), or add players to your roster in the Rosters tab."}</p>
+  return `<div class="chart-card" style="max-width:720px"><h4>Set up your season</h4><p style="font-size:13px;color:var(--ink)">The Matchup, Waivers and Trades tabs work from your league's rosters. ${S.picks.length&&!MOCK()?`You have ${S.picks.length} draft picks entered. Use them to fill every team's roster, then record adds, drops and trades in the Rosters tab.`:"Enter your draft on the Big Board (Draft for your picks, Taken for everyone else's, in order), or add players to your roster in the Rosters tab."}</p>
     <div class="row-btns" style="margin-top:8px">${S.picks.length&&!MOCK()?'<button class="btn primary" id="seasonFromDraft">Start the season from my draft</button>':""}<button class="btn" id="goRosters">Go to Rosters</button></div>${MOCK()?'<p class="empty" style="margin-top:6px">You\'re in a mock draft. Exit it first so the season uses your real draft.</p>':""}</div>`}
 function startSeasonFromDraft(){const L={};for(let t=1;t<=S.teams;t++)L[t]=[];S.picks.forEach(x=>L[teamAt(x.o)].push(x.id));S.league=L;save();toast("Season started: rosters copied from your draft");renderSeason("season")}
 function renderSeason(view){const v=$("view-"+view);if(!v)return;
@@ -1263,6 +1263,26 @@ $("tab-team").addEventListener("click",renderTeam);
 // the draft rail (Pick Advisor, projection mix, My Team, Best Available) belongs to the draft tabs; season and reference tabs use the full width
 const DRAFT_TABS=new Set(["board","insights","mock"]);
 TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in");$("rail").hidden=!DRAFT_TABS.has(t);document.querySelector("main").classList.toggle("solo",!DRAFT_TABS.has(t))});
+// ---- modes: Draft Day (board, insights, mock) and Season (my team, matchup, waivers, trades, rosters) ----
+const modeOf=t=>$("tab-"+t).dataset.mode||null;
+S.lastTab=S.lastTab||{draft:"board",season:"team"};
+function setMode(m,{open=true}={}){S.mode=m;save();document.body.classList.toggle("m-draft",m==="draft");document.body.classList.toggle("m-season",m==="season");
+  $("mode-draft").setAttribute("aria-pressed",m==="draft");$("mode-season").setAttribute("aria-pressed",m==="season");
+  TABS.forEach(t=>{const md=modeOf(t);$("tab-"+t).hidden=!!md&&md!==m});
+  if(m==="season")renderSeasonBar();
+  if(open){const cur=TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");if(!cur||modeOf(cur)!==m)$("tab-"+(S.lastTab[m]||(m==="draft"?"board":"team"))).click()}}
+function renderSeasonBar(){const el=$("seasonBar");if(!el)return;const w=Math.max(0,CUR_WEEK),wk=WEEKS[w],opp=leagueOpp(w),my=myRoster(),O=opp?rosterOf(opp):[];
+  const dates=`${new Date(wk.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(wk.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
+  const M=my.length&&O.length?matchupSim(my,O,w,300):null;
+  el.innerHTML=`<span><b>Week ${wk.i}</b> <span class="mut">${dates}</span><br>${opp?`vs ${esc(teamName(opp))}`:"no matchup set"}</span>${M?`<span class="pct" style="color:${M.p>=.5?"var(--ok)":"var(--bad)"}">${pc(M.p)}</span>`:`<span class="mut">${my.length?"":"after the draft"}</span>`}`;
+  el.hidden=false;el.title="Open this week's matchup";el.onclick=()=>$("tab-season").click()}
+$("mode-draft").onclick=()=>setMode("draft");$("mode-season").onclick=()=>setMode("season");
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#toSeason"))setMode("season")});
+// a tab opened from anywhere (a link inside a view, a button) brings its mode with it, and each mode remembers its last tab
+TABS.forEach(t=>$("tab-"+t).addEventListener("click",()=>{const md=modeOf(t);if(md&&md!==S.mode)setMode(md,{open:false});S.lastTab[S.mode]=t;save()}));
+// start in Season once the league has drafted (or your draft is complete), otherwise in Draft Day; switching yourself sticks
+(()=>{const done=(HAS_LG()&&LEAGUE.drafted)||(!MOCK()&&S.picks.length>=S.teams*13),key=HAS_LG()?LEAGUE.id+":"+LEAGUE.drafted:"";
+  if(done&&S.modeAuto!==key){S.modeAuto=key;S.mode="season"}setMode(S.mode||(done?"season":"draft"))})();
 // tooltips
 const tip=$("tip");
 document.addEventListener("pointerover",e=>{const t=e.target.closest("[data-tip]");if(!t){tip.hidden=true;return}tip.textContent=t.getAttribute("data-tip");tip.hidden=false});

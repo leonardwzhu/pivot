@@ -288,16 +288,29 @@ td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:va
 @keyframes tick{from{transform:translateY(-40%);opacity:0}to{transform:none;opacity:1}}
 @keyframes onclock{0%,100%{box-shadow:0 0 0 0 var(--band)}50%{box-shadow:0 0 0 6px var(--band)}}
 @keyframes toastin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translateX(-50%)}}
+
+/* modes: Draft Day and Season each get their own tabs and header; Models, News and Method are shared */
+.modes{display:inline-flex;border:1px solid var(--ink);border-radius:999px;padding:2px;gap:2px;background:var(--panel)}
+.modes button{border:0;background:none;border-radius:999px;padding:5px 14px;font-family:var(--display);font-size:15px;color:var(--muted)}
+.modes button[aria-pressed=true]{background:var(--ink);color:var(--panel);font-style:italic}
+.tab-gap{flex:1 0 12px}
+.season-bar{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--soft);border-radius:8px;padding:6px 12px;font-size:13px;text-align:left;color:var(--ink)}
+.season-bar b{font-family:var(--display);font-size:17px;font-weight:700}
+.season-bar .pct{font-family:var(--display);font-style:italic;font-size:22px;line-height:1}
+body.m-season .draft-only,body.m-draft .season-only{display:none!important}
+@media (prefers-reduced-motion:no-preference){.modes button{transition:background .15s,color .15s}}
 </style>
 
 <header class="bar">
   <div class="bar-in wrap">
     <div class="brand"><svg class="mark" viewBox="0 0 40 40" aria-hidden="true"><path class="orbit" d="M6.98 9.07A17 17 0 0 1 35.98 25.8" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><path class="head" d="M34.95 28.62L38.76 25.75L33.88 23.97Z" fill="var(--ink)"/><g class="ball"><circle cx="20" cy="20" r="11" fill="var(--ball)"/><g fill="none" stroke="var(--seam)" stroke-width="1.4" stroke-linecap="round"><path d="M20 9V31M9 20H31"/><path d="M12.6 11.8C16.6 15.6 16.6 24.4 12.6 28.2M27.4 11.8C23.4 15.6 23.4 24.4 27.4 28.2"/></g></g></svg><h1 aria-label="Pivot">Piv<span>o</span>t</h1><span class="need-chip high" id="mockBadge" hidden>Mock draft</span><small id="asof">ESPN 2026-27</small></div>
-    <div class="clock" aria-live="polite">
+    <div class="modes" role="group" aria-label="Mode"><button id="mode-draft" aria-pressed="true">Draft Day</button><button id="mode-season" aria-pressed="false">Season</button></div>
+    <button class="season-bar season-only" id="seasonBar" hidden></button>
+    <div class="clock draft-only" aria-live="polite">
       <div><div class="lab">Overall<br>pick</div></div><div class="num" id="curPick">1</div>
       <div id="clockMsg"></div>
     </div>
-    <div class="settings">
+    <div class="settings draft-only">
       <label for="teams">Teams <select id="teams"></select></label>
       <label for="slot">My slot <select id="slot"></select></label>
       <div class="seg" role="group" aria-label="Scoring">
@@ -312,16 +325,17 @@ td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:va
 <main class="wrap">
   <section style="min-width:0">
     <div class="tabs" role="tablist">
-      <button role="tab" id="tab-board" aria-selected="true">Big Board</button>
-      <button role="tab" id="tab-team" aria-selected="false">My Team</button>
-      <button role="tab" id="tab-season" aria-selected="false">Season</button>
-      <button role="tab" id="tab-waivers" aria-selected="false">Waivers</button>
-      <button role="tab" id="tab-trades" aria-selected="false">Trades</button>
-      <button role="tab" id="tab-rosters" aria-selected="false">Rosters</button>
+      <button role="tab" id="tab-board" data-mode="draft" aria-selected="true">Big Board</button>
+      <button role="tab" id="tab-insights" data-mode="draft" aria-selected="false">Insights</button>
+      <button role="tab" id="tab-mock" data-mode="draft" aria-selected="false">Mock Draft</button>
+      <button role="tab" id="tab-team" data-mode="season" aria-selected="false">My Team</button>
+      <button role="tab" id="tab-season" data-mode="season" aria-selected="false">Matchup</button>
+      <button role="tab" id="tab-waivers" data-mode="season" aria-selected="false">Waivers</button>
+      <button role="tab" id="tab-trades" data-mode="season" aria-selected="false">Trades</button>
+      <button role="tab" id="tab-rosters" data-mode="season" aria-selected="false">Rosters</button>
+      <span class="tab-gap" aria-hidden="true"></span>
       <button role="tab" id="tab-models" aria-selected="false">Models</button>
       <button role="tab" id="tab-news" aria-selected="false">News <span class="count" id="newsCount"></span></button>
-      <button role="tab" id="tab-insights" aria-selected="false">Insights</button>
-      <button role="tab" id="tab-mock" aria-selected="false">Mock Draft</button>
       <button role="tab" id="tab-how" aria-selected="false">Method &amp; Import</button>
     </div>
 

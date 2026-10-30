@@ -10,7 +10,7 @@ for(const mode of ['pre','post','mid']){
     html=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(L)+';\n');}
   const pg=await b.newPage({viewport:{width:1300,height:900}});const errs=[];pg.on('pageerror',e=>errs.push(e.message));
   await pg.setContent(html,{waitUntil:'load'});await pg.waitForTimeout(5000);
-  const t0=Date.now();await pg.click('#tab-team');await pg.waitForTimeout(300);const t1=Date.now()-t0;
+  const t0=Date.now();await pg.click('#mode-season');await pg.click('#tab-team');await pg.waitForTimeout(300);const t1=Date.now()-t0;
   await pg.waitForFunction(()=>!document.getElementById('tradeIdeas')||!/Searching/.test(document.getElementById('tradeIdeas').innerText),{timeout:30000});
   const txt=await pg.evaluate(()=>document.getElementById('view-team').innerText);
   console.log('=====',mode,'render ms',t1,'errors',errs);console.log(txt.slice(0,300));

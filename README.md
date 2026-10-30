@@ -47,6 +47,7 @@ Needs `python3` with `beautifulsoup4` and `lxml` (installed automatically if mis
 bash refresh.sh                      # builds build/draft-room.html and runs the smoke test
 node tests/tabs.js                   # draft sidebar shows only on draft tabs
 node tests/league_season.js          # league sync and My Team: before the draft, after a simulated draft, mid-season
+node tests/modes.js                  # Draft Day / Season: which mode opens, which tabs show, last tab remembered
 ```
 
 ## Publishing
