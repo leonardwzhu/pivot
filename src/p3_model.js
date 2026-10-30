@@ -287,7 +287,7 @@ const players=POOL.map((o,i)=>{
   const rook=!seasons.some(x=>x&&x.gp>0)&&!(pid&&YEARS.slice(0,-1).some(y=>DB[pid].s[y]));
   const out=["OUT","INJURY_RESERVE","SUSPENSION"].includes(o.st)||(o.inj&&o.inj.status==="Out"),dtd=!out&&(["DAY_TO_DAY","QUESTIONABLE","DOUBTFUL","PROBABLE"].includes(o.st)||(o.inj&&o.inj.status==="Day-To-Day"));
   const ol=(o.ol||"").replace(/\s+/g," "),sent=ol.match(/[^.!?]+[.!?]+/g)||[ol],note=sent.slice(0,2).join("").trim().slice(0,360);
-  return {id:i,pid,espnId:o.e,sal:o.sal,dp:o.dp,rank:o.rk||o.rr||300,base:o.rk||o.rr||300,baseRoto:o.rr||o.rk||300,adp:o.adp>0?o.adp:null,auc:o.auc,own:o.own,
+  return {id:i,pid,espnId:o.e,jersey:o.j||"",sal:o.sal,dp:o.dp,rank:o.rk||o.rr||300,base:o.rk||o.rr||300,baseRoto:o.rr||o.rk||300,adp:o.adp>0?o.adp:null,auc:o.auc,own:o.own,
     name:o.n,boardName:o.n,team:o.t,pos:o.pos.length?o.pos:["SF"],age:now?now.age:s26?s26.age+1:(pid&&DB[pid]?((Object.values(DB[pid].s).pop()||[24])[0]+1):22),
     note:note||"No ESPN outlook yet.",outlook:ol,espn:o.rk,espnProj:pjLine(o.pj),inj:o.inj,gamesOut:gamesOut(o),
     seasons,now,college:null,cur:s26||{gp:0,pts:0,reb:0,ast:0,stl:0,blk:0,tpm:0,tov:0,fg:0,ft:0},curGp:s26?s26.gp:rook?-1:0,

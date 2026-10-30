@@ -35,7 +35,7 @@ for x in P:
     team=TEAM.get(pl.get('proTeamId'),'FA');ck=CON.get(k) or CON.get(ALIAS.get(k,''))
     # every player on a standard NBA contract who is on a team right now (waived players still being paid are excluded)
     if not (ck and team!='FA'): continue
-    out.append(dict(dp=pl.get('defaultPositionId'),e=pl['id'],pid=pid or (ck['pid'] if ck['pid'] in DB else None),sal=ck['sal'],n=pl['fullName'],t=TEAM.get(pl.get('proTeamId'),'FA'),pos=[POS[s] for s in pl.get('eligibleSlots',[]) if s in POS],
+    out.append(dict(dp=pl.get('defaultPositionId'),e=pl['id'],j=pl.get('jersey') or '',pid=pid or (ck['pid'] if ck['pid'] in DB else None),sal=ck['sal'],n=pl['fullName'],t=TEAM.get(pl.get('proTeamId'),'FA'),pos=[POS[s] for s in pl.get('eligibleSlots',[]) if s in POS],
         st=pl.get('injuryStatus'),rk=r.get('STANDARD',{}).get('rank'),rr=r.get('ROTO',{}).get('rank'),adp=round(own.get('averageDraftPosition') or 0,1),
         auc=round(own.get('auctionValueAverage') or 0,1),own=round(own.get('percentOwned') or 0,1),ol=ol,pj=proj(pl,'102027'),pj26=proj(pl,'102026'),inj=inj.get(k)))
 news=[dict(h=a['headline'],d=a.get('description',''),p=a.get('published'),u=a.get('links',{}).get('web',{}).get('href'),

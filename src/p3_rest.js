@@ -886,16 +886,41 @@ document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest
   else if(t.dataset.plsort){const k=t.dataset.plsort;if(S.pl.sort===k)S.pl.dir*=-1;else{S.pl.sort=k;S.pl.dir=PL_COLS.find(c=>c[0]===k)[3]?1:-1}}
   else S.pl.n+=100;save();renderPlayers()});
 document.addEventListener("input",e=>{if(e.target.id!=="plQ")return;S.pl.q=e.target.value;S.pl.n=100;clearTimeout(renderPlayers.t);renderPlayers.t=setTimeout(()=>{save();renderPlayers()},150)});
+// a drawn jersey in his team's colors with his number: no logos or photos, just the team's colors and nickname
+const lum=h=>{const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]},
+  contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+function jerseySvg(p,size=78){const J=typeof TEAM_JERSEY!=="undefined"&&TEAM_JERSEY[p.team],id="j"+p.id,num=p.jersey||"",c=h=>"#"+h;
+  if(!J)return `<svg class="jersey" width="${size}" height="${Math.round(size*1.1)}" viewBox="0 0 100 110" role="img" aria-label="No team jersey"><path d="${JERSEY_BODY}" fill="var(--soft)" stroke="var(--line)" stroke-width="1.5"/>${num?`<text x="50" y="90" text-anchor="middle" style="font-family:'Saira Condensed',sans-serif;font-weight:800;font-size:44px;fill:var(--muted)">${esc(num)}</text>`:""}</svg>`;
+  const block=J.f!=="college",ff=block?"'Saira Condensed','Arial Narrow',sans-serif":"Graduate,Rockwell,'Courier New',serif",fw=block?800:400,
+    widths=[[4],[6,2.6],[8,4.6,2]][J.t.length-1],ws=J.w.length,wsz=Math.min(block?13:11,58/(ws*(block?.5:.68))),fit=false,
+    nsz=block?(num.length>=2?46:50):(num.length>=2?36:40),word=`style="font-family:${ff};font-weight:${fw};font-size:${wsz.toFixed(1)}px;letter-spacing:${block?.4:.2}px;fill:${c(J.wf)}${J.wo?`;stroke:${c(J.wo)};stroke-width:1.3px;paint-order:stroke`:""}"${fit?' textLength="58" lengthAdjust="spacingAndGlyphs"':""}`,
+    ntxt=(fill,stroke,w)=>`<text x="50" y="${block?96:93}" text-anchor="middle" style="font-family:${ff};font-weight:${fw};font-size:${nsz}px;fill:${fill}${stroke?`;stroke:${stroke};stroke-width:${w}px;stroke-linejoin:round;paint-order:stroke`:""}">${esc(num)}</text>`;
+  return `<svg class="jersey" width="${size}" height="${Math.round(size*1.1)}" viewBox="0 0 100 110" role="img" aria-label="${esc(TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team)} home jersey${num?", number "+esc(num):""}">
+    <defs><clipPath id="${id}c"><path d="${JERSEY_BODY}"/></clipPath>
+      <linearGradient id="${id}s" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".28"/><stop offset=".22" stop-color="#000" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".1"/><stop offset=".78" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></linearGradient>
+      <linearGradient id="${id}v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient>
+      ${J.pin?`<pattern id="${id}p" width="4.2" height="10" patternUnits="userSpaceOnUse"><rect x="0" width=".55" height="10" fill="${c(J.pin)}" opacity=".45"/></pattern>`:""}
+      ${J.a?`<path id="${id}a" d="M19 48 Q50 33 81 48"/>`:""}</defs>
+    <g clip-path="url(#${id}c)"><rect width="100" height="110" fill="${c(J.b)}"/>${J.pin?`<rect width="100" height="110" fill="url(#${id}p)"/>`:""}
+      ${J.sp?`<rect x="8" y="30" width="6" height="80" fill="${c(J.sp)}"/><rect x="86" y="30" width="6" height="80" fill="${c(J.sp)}"/>`:""}
+      ${J.t.map((col,i)=>`<path d="${JERSEY_TRIM}" fill="none" stroke="${c(col)}" stroke-width="${widths[i]}" stroke-linecap="round"/>`).join("")}
+      <rect width="100" height="110" fill="url(#${id}s)"/><rect width="100" height="110" fill="url(#${id}v)"/>
+      <rect x="14" y="97" width="9" height="5" rx="1" fill="#f2f2f2" opacity=".85"/></g>
+    <path d="${JERSEY_BODY}" fill="none" stroke="var(--ink)" stroke-opacity=".35" stroke-width="1"/>
+    ${J.a?`<text text-anchor="middle" ${word}><textPath href="#${id}a" startOffset="50%">${esc(J.w)}</textPath></text>`:`<text x="50" y="47" text-anchor="middle" ${word}>${esc(J.w)}</text>`}
+    ${num?(J.no2?ntxt(c(J.no2),c(J.no2),6.5):"")+ntxt(c(J.nf),J.no?c(J.no):"",J.no2?3:2.4):""}</svg>`}
+// NBA cut: deep armholes, scooped neck; the trim path follows the neck and both armholes
+const JERSEY_BODY="M24 3H37C40 15 60 15 63 3H76C76 19 82 28 92 31V106Q50 109 8 106V31C18 28 24 19 24 3Z",JERSEY_TRIM="M37 3C40 15 60 15 63 3M24 3C24 19 18 28 8 31M76 3C76 19 82 28 92 31";
 const DTABS=[["overview","Overview"],["stats","Stats"],["proj","Projection"],["compare","Compare"]];
 function openPlayer(id){
   const same=openId===id,scroll=$("drawer").scrollTop;openId=id;const tab=S.drTab||"overview";const p=players[id],pk=pickOf(id),l=p.proj.line;computeDisp();
   const chips=[p.out?`<span class="chip out">Out${p.gamesOut>=2?` ~${p.gamesOut}g`:""}</span>`:"",p.dtd?'<span class="chip dtd">GTD</span>':"",p.rook?'<span class="chip rook">Rookie</span>':"",p.hot?'<span class="chip hot">Hot</span>':""].join("");
   $("drawer").innerHTML=`
-  <div class="dr-head"><div><h2 id="drName">${esc(p.name)}</h2><div class="dr-sub">${p.team} · ${p.pos.join("/")} · age ${p.age} ${chips}</div>
+  <div class="dr-head"><div class="dr-id">${jerseySvg(p)}<div><h2 id="drName">${esc(p.name)}</h2><div class="dr-sub">${p.team} · ${p.pos.join("/")} · age ${p.age} ${chips}</div>
     ${p.nowFp!=null?`<div class="dr-sub">2026-27 so far: <b>${f1(p.nowFp)} FP/G</b> in ${p.now.gp} game${p.now.gp>1?"s":""}, ${f1(p.now.min)} min</div>`:""}
     <div class="dr-sub">Name value #${p.fameRank}${p.fameParts&&p.fameParts[0]?` · ${p.fameParts[0]}× All-Star`:""}${p.fameParts&&p.fameParts[1]?` · ${p.fameParts[1]}× All-NBA`:""} since 2016-17</div>
     <div class="dr-sub">${p.sal?`$${(p.sal/1e6).toFixed(1)}M standard contract (${CONTRACT_SEASON}) · `:""}${p.unranked?"Not ranked by ESPN; placed by this model · ":""}ESPN #${p.base} points · #${p.baseRoto} cats${p.adp?` · ADP ${f1(p.adp)}`:""} · Model #${p.modelRank} points · #${p.catRank} cats</div></div>
-    <button class="btn" id="drClose" aria-label="Close">Close ✕</button></div>
+    </div><button class="btn" id="drClose" aria-label="Close">Close ✕</button></div>
   <div class="row-btns" style="margin-top:10px">${pk?`<button class="btn" data-undo="${p.id}">${pk.mine?"On my team":"Taken"} · pick #${pk.o} · undo</button>`:`<button class="btn mine" data-mine="${p.id}">Draft to my team</button><button class="btn" data-take="${p.id}">Mark taken</button>`}</div>
   <div class="pgrid" style="margin-top:12px">
     <div class="kpi"><div class="k">Proj FP/G</div><div class="v">${f1(p.proj.fp)}</div><div class="d">80%: ${f1(p.lo)}–${f1(p.hi)}</div></div>

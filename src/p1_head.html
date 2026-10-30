@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2716%27 fill=%27%23E06A1B%27/%3E%3Cg fill=%27none%27 stroke=%27%2317202E%27 stroke-width=%272%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M20 4V36M4 20H36%27/%3E%3Cpath d=%27M9 8.5C15 14 15 26 9 31.5M31 8.5C25 14 25 26 31 31.5%27/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:ital,wght@0,400..700;1,400..700&family=Saira+Condensed:wght@800&family=Graduate&display=swap">
 <style>
 /* Layout: draft-room console (sticky pick bar, big board left, war-room rail right, player lab drawer from the right).
    Look: hardwood. Maple floor, navy court lines, painted-key blue, basketball orange; Caslon serif with italics kept for emphasis. */
@@ -333,6 +333,11 @@ html{scrollbar-gutter:stable}
 
 /* player profile: section tabs inside the panel, schedule tiles */
 #view-players .own{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+/* the drawn jersey sits beside the name in the profile header */
+.dr-id{display:flex;gap:14px;align-items:flex-start;min-width:0}
+.dr-id>div{min-width:0}
+.jersey{flex:none;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+@media (max-width:480px){.jersey{width:58px;height:64px}}
 .dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
 .dtabs button{border:0;background:none;padding:7px 12px;font-family:var(--display);font-size:17px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .dtabs button[aria-selected=true]{color:var(--ink);font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
