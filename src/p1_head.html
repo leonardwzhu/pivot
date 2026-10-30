@@ -45,7 +45,8 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;max-width:1
 @media (max-width:1060px){main{grid-template-columns:minmax(0,1fr)}}
 main.solo{grid-template-columns:minmax(0,1fr)}
 main>.tabs{grid-column:1/-1;margin-bottom:0}
-.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;overflow-x:auto}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.tabs::-webkit-scrollbar,.dtabs::-webkit-scrollbar{display:none}  /* still swipes sideways on phones, no scrollbar under the tab line */
 .tabs button{border:0;background:none;padding:8px 12px;font-family:var(--display);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
 .tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
 .tabs .count{font-family:var(--mono);font-size:11px;background:var(--soft);border-radius:10px;padding:1px 6px;margin-left:4px;vertical-align:middle}
@@ -341,7 +342,7 @@ html{scrollbar-gutter:stable}
 .jersey{flex:none;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
 .jersey.pixel{image-rendering:pixelated;image-rendering:crisp-edges;image-rendering:pixelated}
 @media (max-width:480px){.jersey:not(.pixel){width:58px;height:64px}}
-.dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
+.dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
 .dtabs button{border:0;background:none;padding:7px 12px;font-family:var(--display);font-size:17px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .dtabs button[aria-selected=true]{color:var(--ink);font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
 @media (max-width:480px){.dtabs button{padding:7px 8px;font-size:16px}}
