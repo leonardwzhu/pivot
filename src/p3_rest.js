@@ -894,15 +894,25 @@ const lum=h=>{const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=
 const DIGITS=["01110110111101111011110111101101110","01100111000110001100011000110011110","01110110110001100110011001100011111","11110000110001101110000110001111110","00011001110101110011111110001100011","11111110001111000011000111101101110","01110110001100011110110111101101110","11111000110011000110011000110001100","01110110111101101110110111101101110","01110110111101101111000110001101110"];
 // the number is painted into the kit bitmap itself (38x59), so it shares the art's pixel grid and 1-pixel strokes, then the whole
 // image is scaled up as one; images decode asynchronously, so a first render shows the plain kit and swaps in the numbered one
-const KIT_IMG={},KIT_CACHE={},DIGITS3=["111101101101111","010110010010111","111001111100111","111001111001111","101101111001001","111100111001111","111100111101111","111001001001001","111101111101111","111101111001111"];
+// pixel number fonts matched to each team's real numbers: rounded (DIGITS), square block, slab-serif (footed 1, 4 and 7),
+// italic (top rows lean one pixel right) and tall (middle row doubled, for condensed fonts)
+const KIT_IMG={},KIT_CACHE={},DIGITS_SQ=["11111110111101111011110111101111111","01100111000110001100011000110011110","11111000110001111111110001100011111","11111000110001101111000110001111111","11011110111101111111000110001100011","11111110001100011111000110001111111","11111110001100011111110111101111111","11111000110001100110001100110001100","11111110111101111111110111101111111","11111110111101111111000110001111111"];
+const DIGITS_SLAB=DIGITS.map((g,d)=>d===1?"01100111000110001100011000110011111":d===4?g.slice(0,30)+"00111":d===7?g.slice(0,30)+"01110":g);
+function glyph(font,d){const base=font.startsWith("s")&&font!=="sl"?DIGITS_SQ:font==="sl"?DIGITS_SLAB:DIGITS,g=base[d];if(!g)return null;
+  let R=[0,1,2,3,4,5,6].map(y=>g.slice(y*5,y*5+5));
+  if(font==="i")R=R.map((row,y)=>y<3?"0"+row:row+"0");
+  if(font.endsWith("t"))R.splice(3,0,R[3]);
+  return R}
 function kitWithNumber(team,num){const key=team+"#"+num;if(KIT_CACHE[key])return KIT_CACHE[key];
   let im=KIT_IMG[team];if(!im){im=KIT_IMG[team]=new Image();im.src=KITS[team]}
   if(!im.complete||!im.naturalWidth){im.addEventListener("load",()=>document.querySelectorAll(`img[data-kit="${CSS.escape(key)}"]`).forEach(e=>e.src=kitWithNumber(team,num)),{once:true});return KITS[team]}
-  const M=(typeof KIT_NUM!=="undefined"&&KIT_NUM[team])||[31,"FFFFFF","000000"],cv=document.createElement("canvas");cv.width=38;cv.height=59;const g=cv.getContext("2d");g.imageSmoothingEnabled=false;g.drawImage(im,0,0);
-  const sm=M[4]===1,F=sm?DIGITS3:DIGITS,gw=sm?3:5,gh=sm?5:7,on=new Set();let W=0;[...num].forEach((d,i)=>{const gl=F[+d];if(!gl)return;const ox=i*(gw+1);for(let y=0;y<gh;y++)for(let x=0;x<gw;x++)if(gl[y*gw+x]==="1")on.add((ox+x)+","+y);W=ox+gw});
-  const x0=Math.round((M[3]??19)-W/2),y0=M[0],edge=new Set();// outline the four direct neighbours only, so the edge stays one pixel and the fill reads as the number
+  const M=(typeof KIT_NUM!=="undefined"&&KIT_NUM[team])||{y:31,f:"FFFFFF",o:"000000",font:"r"},cv=document.createElement("canvas");cv.width=38;cv.height=59;const g=cv.getContext("2d");g.imageSmoothingEnabled=false;g.drawImage(im,0,0);
+  // clear art inside a ring (the Warriors' bridge) so the number takes its place
+  if(M.clear){const [cx,cy,rad]=M.clear;g.fillStyle="#"+M.o;for(let y=0;y<59;y++)for(let x=0;x<38;x++)if((x+.5-cx)**2+(y+.5-cy)**2<rad*rad)g.fillRect(x,y,1,1)}
+  const on=new Set();let W=0;[...num].forEach(d=>{const R=glyph(M.font||"r",+d);if(!R)return;R.forEach((row,y)=>[...row].forEach((c,x)=>{if(c==="1")on.add((W+x)+","+y)}));W+=R[0].length+1});W=Math.max(0,W-1);
+  const x0=Math.round((M.cx??19)-W/2),y0=M.y,edge=new Set();// outline the four direct neighbours only, so the edge stays one pixel and the fill reads as the number
   on.forEach(k=>{const [x,y]=k.split(",").map(Number);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const q=(x+dx)+","+(y+dy);if(!on.has(q))edge.add(q)}});
-  const paint=(set,col)=>{g.fillStyle=col;set.forEach(k=>{const [x,y]=k.split(",").map(Number);g.fillRect(x0+x,y0+y,1,1)})};paint(edge,"#"+M[2]);paint(on,"#"+M[1]);
+  const paint=(set,col)=>{g.fillStyle=col;set.forEach(k=>{const [x,y]=k.split(",").map(Number);g.fillRect(x0+x,y0+y,1,1)})};paint(edge,"#"+M.o);paint(on,"#"+M.f);
   return KIT_CACHE[key]=cv.toDataURL("image/png")}
 function pixelJersey(p,size=76){const num=String(p.jersey||""),key=p.team+"#"+num,name=TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team;
   return `<img class="jersey pixel" data-kit="${esc(key)}" src="${num?kitWithNumber(p.team,num):KITS[p.team]}" width="${size}" height="${Math.round(size*59/38)}" alt="${esc(name)} home jersey${num?", number "+esc(num):""}" title="Jersey art: Wikimedia Commons contributors, CC BY-SA 4.0 (number added)">`}
