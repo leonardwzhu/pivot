@@ -1,0 +1,394 @@
+<title>Pivot</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: draft-room console — sticky pick clock bar, big board left, war-room rail right, player lab drawer from the right */
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --ink:#15192a; --muted:#5d6478; --line:#dfe2ea; --soft:#eef0f5; --grid:#e8eaf0;
+  --accent:#e2621b; --accent-ink:#ffffff; --accent-soft:#fde9dc; --band:rgba(226,98,27,.16);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c53030; --ok-soft:#e3f4ec; --warn-soft:#fbf0d9; --bad-soft:#fbe4e4;
+  --mine:#2b59c3; --mine-soft:#e3eafb; --scrim:rgba(15,18,32,.38);
+  --display:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1220; --panel:#171b2c; --ink:#e8eaf2; --muted:#9aa1b8; --line:#2a3048; --soft:#1e2337; --grid:#252b42;
+  --accent:#f0813f; --accent-ink:#1a0d04; --accent-soft:#3a2416; --band:rgba(240,129,63,.22);
+  --ok:#4cc38a; --warn:#e0a84a; --bad:#f07171; --ok-soft:#14301f; --warn-soft:#352812; --bad-soft:#3a1a1c;
+  --mine:#7aa2ff; --mine-soft:#1c2850; --scrim:rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1220; --panel:#171b2c; --ink:#e8eaf2; --muted:#9aa1b8; --line:#2a3048; --soft:#1e2337; --grid:#252b42;
+  --accent:#f0813f; --accent-ink:#1a0d04; --accent-soft:#3a2416; --band:rgba(240,129,63,.22);
+  --ok:#4cc38a; --warn:#e0a84a; --bad:#f07171; --ok-soft:#14301f; --warn-soft:#352812; --bad-soft:#3a1a1c;
+  --mine:#7aa2ff; --mine-soft:#1c2850; --scrim:rgba(0,0,0,.55); color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar-in{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;padding-block:10px;max-width:1500px;margin:0 auto}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto;flex-wrap:wrap}
+.brand h1{font-family:var(--display);font-weight:800;font-size:28px;letter-spacing:.02em;margin:0;text-transform:uppercase;line-height:1}
+.brand h1 span{color:var(--accent)}
+.brand small{color:var(--muted);font-size:12px}
+.clock{display:flex;align-items:center;gap:12px;font-family:var(--display);text-transform:uppercase}
+.clock .num{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.clock .lab{font-size:12px;letter-spacing:.08em;color:var(--muted);line-height:1.1}
+.clock .you{background:var(--accent);color:var(--accent-ink);padding:4px 10px;border-radius:4px;font-size:15px;font-weight:700;letter-spacing:.05em}
+.settings{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.settings label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:6px}
+select,input[type=search]{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--soft);padding:6px 10px;font-size:12px;font-weight:600}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--panel)}
+.seg-lab{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;max-width:1500px;margin:0 auto;padding-block:16px 40px}
+@media (max-width:1060px){main{grid-template-columns:minmax(0,1fr)}}
+main.solo{grid-template-columns:minmax(0,1fr)}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;overflow-x:auto}
+.tabs button{border:0;background:none;padding:8px 12px;font-family:var(--display);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs .count{font-family:var(--mono);font-size:11px;background:var(--soft);border-radius:10px;padding:1px 6px;margin-left:4px;vertical-align:middle}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:10px}
+.filters input[type=search]{flex:1 1 180px}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.tablebox{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;background:var(--soft);cursor:pointer;user-select:none}
+th.l,td.l{text-align:left}
+th[aria-sort]{color:var(--ink)}
+td.num{font-family:var(--mono);font-size:13px}
+.board th:nth-child(1),.board td:nth-child(1){position:sticky;left:0;width:40px;min-width:40px;z-index:1;background:var(--panel)}
+.board th:nth-child(2),.board td:nth-child(2){position:sticky;left:40px;z-index:1;background:var(--panel);box-shadow:1px 0 0 var(--line)}
+.board th:nth-child(1),.board th:nth-child(2){background:var(--soft);z-index:2}
+.board tr.is-mine td:nth-child(1),.board tr.is-mine td:nth-child(2){background:var(--mine-soft)}
+tr.tierbreak td{border-top:2px solid var(--ink)}
+tbody tr:hover{background:var(--soft)}
+tr.is-mine{background:var(--mine-soft)}
+tr.is-taken td{opacity:.45}
+tr.is-taken td.act{opacity:1}
+.pname{font-weight:600;font-size:14px;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.expander:hover .pname{text-decoration-color:var(--accent)}
+.pmeta{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.chip{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;font-family:var(--body)}
+.chip.out{background:var(--bad-soft);color:var(--bad)}
+.chip.dtd{background:var(--warn-soft);color:var(--warn)}
+.chip.rook{background:var(--mine-soft);color:var(--mine)}
+.chip.hot{background:var(--ok-soft);color:var(--ok)}
+.chip.espn{background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.tier{font-family:var(--display);font-weight:700;font-size:15px;color:var(--muted)}
+.fp{font-weight:600;color:var(--ink)}
+.zpos{color:var(--ok)} .zneg{color:var(--bad)} .mut{color:var(--muted)}
+.actw{display:flex;gap:4px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:5px;padding:4px 9px;font-size:12px;font-weight:600}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.mine{background:var(--mine);color:var(--panel);border-color:var(--mine)}
+.expander{background:none;border:0;padding:0;text-align:left}
+svg text{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+svg .ax{stroke:var(--line);stroke-width:1}
+svg .gr{stroke:var(--grid);stroke-width:1}
+svg .ln{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+svg .ln.proj{stroke-dasharray:4 4}
+svg .dot{fill:var(--accent);stroke:var(--panel);stroke-width:2}
+svg .dot.hollow{fill:var(--panel);stroke:var(--accent);stroke-width:2}
+svg .band{fill:var(--band)}
+svg .fit{stroke:var(--ink);stroke-width:2;fill:none;opacity:.75}
+svg .diag{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 4;fill:none}
+svg .bar{fill:var(--accent)}
+svg .bar2{fill:var(--muted);opacity:.35}
+svg .bar3{fill:var(--mine)}
+svg .dot.dim{fill:var(--muted);opacity:.45}
+svg .bar.soft{fill:var(--band);stroke:var(--accent);stroke-width:1;stroke-dasharray:3 2}
+svg .mk{stroke:var(--ink);stroke-width:1.5}
+svg .lbl{fill:var(--ink);font-weight:500}
+svg .whisk{stroke:var(--muted);stroke-width:2;stroke-linecap:round}
+svg .hit{fill:transparent}
+
+aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.card h2{font-family:var(--display);text-transform:uppercase;font-size:18px;letter-spacing:.04em;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card h2 small{font-family:var(--body);font-size:12px;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:400}
+.slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.slot{text-align:center;border:1px solid var(--line);border-radius:6px;padding:6px 0}
+.slot b{display:block;font-family:var(--display);font-size:20px;line-height:1}
+.slot span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.slot.need{border-color:var(--accent);background:var(--accent-soft)}
+.roster{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.roster li{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.roster li span:last-child{font-family:var(--mono);color:var(--muted);font-size:12px}
+.empty{color:var(--muted);font-size:13px;margin:0}
+.stat-row{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin-top:8px}
+.stat-row b{font-family:var(--mono);text-align:right}
+.ba{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.ba li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center}
+.ba .rk{font-family:var(--display);font-size:18px;font-weight:700;color:var(--muted)}
+.ba .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px}
+.ba .sub{font-size:11px;color:var(--muted);font-weight:400}
+.ai-out{white-space:pre-wrap;font-size:13px;background:var(--soft);border-radius:6px;padding:10px;margin-top:10px;max-height:360px;overflow:auto}
+.row-btns{display:flex;gap:6px;flex-wrap:wrap}
+
+.news{display:flex;flex-direction:column;gap:10px}
+.news-sec h3{font-family:var(--display);text-transform:uppercase;font-size:17px;letter-spacing:.05em;margin:14px 0 8px;color:var(--muted)}
+.item{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:6px;padding:10px 12px;max-width:80ch}
+.item.out{border-left-color:var(--bad)} .item.dtd{border-left-color:var(--warn)} .item.up{border-left-color:var(--ok)} .item.move{border-left-color:var(--mine)}
+.item .h{font-weight:600}
+.item p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.item .src{font-size:12px;margin-top:6px}
+a{color:var(--mine)}
+.prose{max-width:80ch;color:var(--muted);font-size:13px}
+.prose h3,.models h3{font-family:var(--display);text-transform:uppercase;color:var(--ink);font-size:18px;letter-spacing:.04em;margin:18px 0 6px}
+.prose b{color:var(--ink)}
+textarea{width:100%;min-height:140px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px;font-family:var(--mono);font-size:12px}
+
+.models{display:flex;flex-direction:column;gap:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.kpi .v{font-family:var(--display);font-size:28px;font-weight:700;line-height:1.1}
+.kpi .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi .d{font-size:12px;color:var(--muted);margin-top:2px}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.chart-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}
+.chart-card h4{margin:0;font-size:14px}
+.chart-card .eq{font-family:var(--mono);font-size:12px;color:var(--muted);margin:2px 0 6px}
+.chart-card p{font-size:12px;color:var(--muted);margin:6px 0 0}
+.chart-card svg{width:100%;height:auto;display:block}
+
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:30}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--bg);z-index:31;overflow-y:auto;border-left:1px solid var(--line);
+  padding-top:calc(14px + env(safe-area-inset-top,0px));padding-bottom:calc(30px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+.dr-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.dr-head h2{font-family:var(--display);font-size:32px;text-transform:uppercase;margin:0;line-height:1;letter-spacing:.02em}
+.dr-sub{color:var(--muted);font-size:13px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dr-sec{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:12px}
+.dr-sec h3{font-family:var(--display);text-transform:uppercase;font-size:16px;letter-spacing:.05em;margin:0 0 8px;color:var(--muted)}
+.dr-sec svg{width:100%;height:auto;display:block}
+.mini-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:480px){.mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.dr-sec svg text,.chart-card svg text{font-size:14px}}
+.adv.live{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.sug{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 0;border-top:1px solid var(--line);align-items:center}
+.sug:first-child{border-top:0;padding-top:0}
+.sug .lab{grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.sug .lab.top{color:var(--accent)}
+.sug .who{min-width:0}
+.sug .who .expander{font-weight:600;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.sug .meta{font-size:12px;color:var(--muted)}
+.sug .big{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.sug .why{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.cmp{margin-top:10px}
+.cmp summary{cursor:pointer;font-weight:600;font-size:13px}
+.cmp .tablebox{margin-top:8px}
+.cmp th,.cmp td{padding:5px 6px;font-size:12px}
+.cmp th:nth-child(2),.cmp td:nth-child(2){position:static;box-shadow:none}
+.cmp th:nth-child(1),.cmp td:nth-child(1){width:auto;min-width:0}
+.clockbtn{border:0;cursor:pointer}
+.needs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.need-chip{font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:12px;background:var(--soft);color:var(--muted);border:1px solid var(--line)}
+.need-chip.high{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.need-chip.med{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.need-chip.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.roster li.lu{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:8px;align-items:center}
+.lu-slot{font-family:var(--display);font-weight:700;font-size:13px;color:var(--muted);letter-spacing:.04em}
+.lu-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lu-name .expander{font-weight:600}
+.slot-tag{color:var(--mine);font-weight:600}
+.mix-row{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.mix-row label{font-size:13px;display:flex;justify-content:space-between}
+.mix-row input[type=range]{width:100%;accent-color:var(--accent)}
+.mix-note{font-size:11px;color:var(--muted)}
+.mock-grid td,.mock-grid th{font-size:11px;padding:4px 6px;white-space:nowrap}
+.mock-grid td.me{background:var(--mine-soft)}
+.mock-grid .pos{color:var(--muted);font-size:10px}
+.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:13px;max-height:260px;overflow:auto}
+.feed li{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:8px}
+.heads{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px}
+.heads li{font-size:13px;padding:6px 8px;border-radius:6px;background:var(--soft);border-left:3px solid var(--line)}
+.heads li.hi{border-left-color:var(--accent)} .heads li.warn{border-left-color:var(--warn)} .heads li.good{border-left-color:var(--ok)}
+.heads li b{font-weight:600}
+.cmp-wide th,.cmp-wide td{font-size:12px;padding:5px 7px}
+.wkgrid td,.wkgrid th{font-size:12px;padding:5px 6px;text-align:center;white-space:nowrap}
+.wkgrid td.st{background:var(--ok-soft);color:var(--ink);font-weight:600}
+.wkgrid td.bn{background:var(--warn-soft);color:var(--warn)}
+.wkgrid td.ot{color:var(--bad)}
+.wkgrid td.no{color:var(--line)}
+.wkgrid th.l,.wkgrid td.l{text-align:left}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center}
+.vs .big{font-family:var(--display);font-size:34px;font-weight:800;line-height:1}
+.ros-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.ros-grid ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.ros-grid li{display:flex;justify-content:space-between;gap:6px;align-items:center}
+.mini .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mini .v{font-family:var(--mono);font-size:12px}
+.wf{display:flex;flex-direction:column;gap:6px}
+.wf-row{display:grid;grid-template-columns:150px minmax(0,1fr) 70px;gap:8px;align-items:center;font-size:13px}
+.wf-row .amt{font-family:var(--mono);text-align:right}
+.wf-track{height:12px;position:relative;background:var(--soft);border-radius:3px}
+.wf-track span{position:absolute;top:0;bottom:0;border-radius:3px}
+.wf-why{font-size:12px;color:var(--muted);grid-column:1/-1;margin-top:-4px}
+@media (max-width:480px){.wf-row{grid-template-columns:110px minmax(0,1fr) 60px}}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.pgrid .kpi .v{font-size:22px}
+
+.tip{position:fixed;z-index:40;pointer-events:none;background:var(--ink);color:var(--panel);font-size:12px;padding:6px 8px;border-radius:5px;max-width:240px;line-height:1.35}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:6px;font-size:13px;z-index:45}
+@media (prefers-reduced-motion:no-preference){tbody tr{transition:background .12s}}
+</style>
+
+<header class="bar">
+  <div class="bar-in wrap">
+    <div class="brand"><h1 aria-label="Pivot">Piv<span>o</span>t</h1><span class="need-chip high" id="mockBadge" hidden>Mock draft</span><small id="asof">ESPN 2026-27</small></div>
+    <div class="clock" aria-live="polite">
+      <div><div class="lab">Overall<br>pick</div></div><div class="num" id="curPick">1</div>
+      <div id="clockMsg"></div>
+    </div>
+    <div class="settings">
+      <label for="teams">Teams <select id="teams"></select></label>
+      <label for="slot">My slot <select id="slot"></select></label>
+      <div class="seg" role="group" aria-label="Scoring">
+        <button id="scPts" aria-pressed="true">Points</button><button id="scCat" aria-pressed="false">8-Cat</button>
+      </div>
+      <button class="btn" id="undo" title="Undo last pick">Undo</button>
+      <button class="btn" id="restart" title="Clear every pick and start the draft over">Restart</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section style="min-width:0">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-board" aria-selected="true">Big Board</button>
+      <button role="tab" id="tab-team" aria-selected="false">My Team</button>
+      <button role="tab" id="tab-season" aria-selected="false">Season</button>
+      <button role="tab" id="tab-waivers" aria-selected="false">Waivers</button>
+      <button role="tab" id="tab-trades" aria-selected="false">Trades</button>
+      <button role="tab" id="tab-rosters" aria-selected="false">Rosters</button>
+      <button role="tab" id="tab-models" aria-selected="false">Models</button>
+      <button role="tab" id="tab-news" aria-selected="false">News <span class="count" id="newsCount"></span></button>
+      <button role="tab" id="tab-insights" aria-selected="false">Insights</button>
+      <button role="tab" id="tab-mock" aria-selected="false">Mock Draft</button>
+      <button role="tab" id="tab-how" aria-selected="false">Method &amp; Import</button>
+    </div>
+
+    <div id="view-board">
+      <div class="filters">
+        <input type="search" id="q" placeholder="Search player or team">
+        <div class="seg" role="group" aria-label="Position" id="posSeg"></div>
+      </div>
+      <div class="filters">
+        <span class="seg-lab">View</span>
+        <div class="seg" role="group" aria-label="Columns"><button id="vModel" aria-pressed="true">Projections</button><button id="vMin" aria-pressed="false">Per minute</button><button id="vStats" aria-pressed="false">2025-26 stats</button></div>
+        <span class="seg-lab">Rank by</span>
+        <div class="seg" role="group" aria-label="Rank by"><button id="rBoard" aria-pressed="true">ESPN</button><button id="rModel" aria-pressed="false">Model</button></div>
+        <label class="chk" for="hideTaken"><input type="checkbox" id="hideTaken" checked> Hide drafted</label>
+        <label class="chk" for="hideOut"><input type="checkbox" id="hideOut"> Hide injured</label>
+      </div>
+      <div class="tablebox">
+        <table class="board">
+          <thead><tr id="thead"></tr></thead>
+          <tbody id="tbody"><tr><td colspan="12" class="l mut" style="padding:24px 12px">Fitting models on every NBA player-season since 2016-17… this takes a couple of seconds.</td></tr></tbody>
+        </table>
+      </div>
+      <p style="margin-top:8px" id="boardMore"></p>
+      <p class="empty" style="margin-top:8px" id="boardFoot"></p>
+    </div>
+
+    <div id="view-team" hidden class="models"></div>
+    <div id="view-season" hidden class="models"></div>
+    <div id="view-waivers" hidden class="models"></div>
+    <div id="view-trades" hidden class="models"></div>
+    <div id="view-rosters" hidden class="models"></div>
+    <div id="view-models" hidden class="models"></div>
+    <div id="view-news" hidden><div class="news" id="newsList"></div></div>
+
+    <div id="view-insights" hidden class="models"></div>
+    <div id="view-mock" hidden class="models"></div>
+    <div id="view-how" hidden class="prose">
+      <h3>Where everything comes from</h3>
+      <p><b>My Team</b> shows your record and standing (from ESPN), projected points a week, playoff odds from replaying your league's schedule, where your points come from, your lineup and depth by position, and suggestions: IR moves, pickups, streaming, sell-high and buy-low candidates, and 1-for-1 trades that help both sides. It also explains how rosters, lineups, scoring and playoffs work in your league.</p>
+      <p><b>Your league:</b> team names, draft order, your draft slot, the matchup schedule and (after the draft) every pick and roster are read daily from your ESPN league, which is viewable to the public. Changes you make in the Rosters tab last until the next daily sync, when ESPN's rosters replace them.</p>
+      <p><b>Who's on the board:</b> every player on a standard (full) NBA contract for 2026-27 who is on a team right now, from Basketball Reference's contracts page matched to ESPN's current rosters. Two-way and Exhibit 10 players are left out, and so are waived players whose old team is still paying them. Players ESPN doesn't rank are placed after ESPN's ranked players by this model's projection.</p>
+      <p><b>Board, ADP, positions, injuries, outlooks and news</b> come straight from ESPN Fantasy (default league settings) and ESPN's NBA injury report and news feed, refreshed daily (see the date in the header). The board is ESPN's points ranking, or its roto ranking when you switch to 8-Cat. Position eligibility is ESPN's, so the lineup slots match your draft room. Injured players lose the games until ESPN's expected return date.</p>
+      <p><b>Head-to-head lineups.</b> ESPN's default H2H points league starts 10 players a day (PG, SG, SF, PF, C, G, F and 3 UTIL), with 3 bench spots and 1 IR, and lineups lock game by game. For any roster, the app walks through every remaining day of ESPN's schedule. Each day it checks which of your players have a game and are healthy (drawn from each player's games-played rate), and fills the 10 slots with the best of them. Points from players who don't fit, and slots with nobody available, count for nothing. Weeks follow your league's calendar on ESPN: because it drafts after opening night, Week 1 starts the Monday after the draft (Nov 2), then Monday–Sunday weeks, 19 regular-season weeks, and playoffs in weeks 20–23 (Mar 15 – Apr 11). Each week's opponent comes from your league schedule. The Pick Advisor's "best pick" is the player who adds the most starter points across those weeks, with playoff weeks weighted by the setting in your mix card. Category leagues use ESPN's default 8 categories (no turnovers).</p>
+      <p><b>Center minimum.</b> You can require a number of C-eligible players by a given round (default: 2 by round 8). The Pick Advisor doesn't simply force a center at some point. Its lookahead simulates your upcoming picks with the rule in place, so a center now gets credit for the weaker center you'd otherwise be forced into later. It switches every card to centers only when the picks left before your deadline equal the centers you still need.</p>
+      <p><b>Availability.</b> The chance a player is still there at your next pick comes from his ESPN average draft position, with a spread that grows later in the draft. This drives the "won't make it back" and "can likely wait" cards and the lineup lookahead.</p>
+      <h3>The projection model</h3>
+      <p>Every player gets a 2026-27 projected stat line built in four steps. You can see each step for any player in his Player Lab.</p>
+      <p><b>1. Weighted history.</b> His last three seasons, plus any 2026-27 games so far, are blended with weights chosen by walk-forward tuning (currently 1, 2 and 7, oldest to newest, with this season weighted like last season), each multiplied by games played. A healthy recent season counts most, and a short injured one barely moves the needle.</p>
+      <p><b>2. Regression to the mean.</b> The blend is pulled toward the league average by an amount fit on every NBA player-season since 2016-17. The year-over-year regression slope tells us how much of one season carries into the next, and that slope becomes an equivalent number of "average games" mixed in. Small samples get pulled more.</p>
+      <p><b>3. Age.</b> After step 2, the model regresses what is left over each season against age. That gives an average change in fantasy points per year of age, which is applied to the line.</p>
+      <p><b>4. Breakout comps.</b> Every season-to-season change since 2016-17 (thousands of player-seasons, every NBA player) is a training example. For each player, the model finds the most similar past seasons (how many is tuned walk-forward) by age, production, prior-year trend, usage, minutes, assists and rebounds, and takes the weighted average of what those players did next. A breakout is a jump of 6+ FP/G and 15%+. Breakout odds are the share of a player's comps who had one, and the Validation section checks that those odds match reality.</p>
+      <p><b>5. Team fit.</b> The model rebuilds every 2026-27 roster from the players who have actually appeared for each team, then projects everyone's minutes and usage from their history. A team has 240 minutes and a roughly fixed number of plays a game, so overbooked rotations get squeezed and thin ones open up. Stars give up less than bench players. How strong the squeeze should be was fit by running the same method on the 2023-24, 2024-25 and 2025-26 rosters and keeping the strength that predicted best. The only manual adjustments left are for players returning from major injuries.</p>
+      <p><b>6. Minutes model.</b> FP/G is also projected a second way: fantasy points per minute × minutes per game, each with its own regression, regression to the mean and age curve. The backtest decides how much weight it gets. Per-100-possession figures use team pace estimated from Basketball Reference's per-100 tables.</p>
+      <p><b>7. ESPN blend.</b> ESPN's preseason projections were backtested against what actually happened in 2025-26, next to this model. The projection uses the mix that had the lowest error, and the same is done for games played. ESPN's numbers carry news the history can't see (new roles, injury returns), and the model carries the long-run trends.</p>
+      <p><b>8. Your mix.</b> The sidebar sliders set how much the final projection leans on ESPN, on this season's games and on the FantasyPros expert consensus. The defaults are the backtest choices: 50% ESPN, this-season weight that grows with games played, and FantasyPros off. Expert ranks are turned into fantasy points by matching each rank to the projection at that spot on this board. In any Player Lab you can nudge a player up or down or set his FP/G outright. Your settings stay in this browser.</p>
+      <p><b>Rookies and players with no NBA history</b> start from ESPN's projected line. Their 2026-27 games then pull them toward what they're actually doing, weighted by how many games they've played.</p>
+      <p><b>Games played</b> uses the same weighted blend plus a regression to the mean, an age fit, and known absences, applied to the roughly 77 games left. The player's games-played history over the last three seasons sets his rate.</p>
+      <p><b>Simulation.</b> Each season is simulated 2,000 times. Every run draws a per-game level from the model's error distribution and an availability rate from the games model, multiplies them into season totals, and ranks the pool. The share of runs where a player finishes top-12, top-50 or top-100 gives his odds.</p>
+      <p><b>Walk-forward tuning.</b> Every season from 2019-20 through 2025-26 is predicted using only the seasons before it. Before each season, every setting is re-tuned on the seasons already played: how much each of the last three seasons counts, how many comps to use, the comps weight, the minutes-model weight and the team-fit strengths. Older seasons count less when tuning, and that decay is chosen the same way. The tuned settings are then scored on the season they never saw, and the final 2026-27 settings are tuned on all seven seasons. The Validation section on the Models tab shows what each season chose and how it scored.</p>
+      <h3>About the data</h3>
+      <p>Season stats for 2016-17 through 2026-27 (so far) come from Basketball Reference's per-game, per-36, per-100 and advanced tables, refreshed daily (see the date in the header): 1,526 players and every season they played. Fantasy points use real field-goal and free-throw attempts. Board ranks, ESPN rank tags, injury notes and news were compiled from reports. College lines for rookies are compiled too, because Basketball Reference doesn't cover college. Game-by-game logs aren't used because Basketball Reference asks automated tools not to fetch them.</p>
+      <h3>League scoring</h3>
+      <p>How ESPN H2H Points works: each day your 10 starters earn points for what they do on the court. Each matchup week, your starters' points are added up and compared with your opponent's, and the higher total wins the week. Your regular-season record decides the 4 playoff spots. The values below are ESPN's defaults for H2H Points. If your league changed any of them, edit them here, so every projection, backtest, simulation and Pick Advisor suggestion uses your league's scoring.</p>
+      <div id="scoringBox"></div>
+      <h3>Load your own rankings</h3>
+      <p>Paste any list with one player per line, such as ESPN's top 150 from your draft lobby. Numbers, teams and positions are ignored. Matched players are re-ranked in your order on the "Board" ranking.</p>
+      <textarea id="importBox" placeholder="1. Nikola Jokic, DEN&#10;2. Shai Gilgeous-Alexander&#10;3. Luka Doncic"></textarea>
+      <div class="row-btns" style="margin-top:8px"><button class="btn primary" id="importBtn">Apply my rankings</button><button class="btn" id="resetRanks">Restore default board</button><button class="btn" id="resetDraft">Clear draft</button></div>
+      <p id="importMsg"></p>
+    </div>
+  </section>
+
+  <aside id="rail">
+    <div class="card adv" id="advCard">
+      <h2>Pick Advisor <small id="advNote"></small></h2>
+      <div id="adv"></div>
+    </div>
+    <div class="card" id="mixCard">
+      <h2>Your projection mix <small>how much each source counts</small></h2>
+      <div id="mixBody"></div>
+    </div>
+    <div class="card">
+      <h2>My Team <small id="myCount">0 / 13</small></h2>
+      <div class="slots" id="slots"></div>
+      <ul class="roster" id="roster"></ul>
+      <h2 style="margin-top:14px">Head-to-head outlook <small>daily lineups, ESPN weeks</small></h2>
+      <div id="h2hBox"></div>
+      <div class="stat-row"><span>Projected FP/G (top 10)</span><b id="teamFp">0.0</b></div>
+      <div class="stat-row"><span>Projected season FP (top 10)</span><b id="teamTot">0</b></div>
+      <div class="stat-row"><span>8-Cat strengths</span><b id="teamCats">–</b></div>
+    </div>
+    <div class="card">
+      <h2>Best Available <small id="baNote">by board rank</small></h2>
+      <ol class="ba" id="ba"></ol>
+    </div>
+    <div class="card" id="aiCard" hidden>
+      <h2>Ask Claude <small>uses your board, model &amp; roster</small></h2>
+      <div class="row-btns">
+        <button class="btn primary" id="aiPick">Who should I take?</button>
+        <button class="btn" id="aiTeam">Grade my team</button>
+      </div>
+      <div class="ai-out" id="aiOut" hidden></div>
+    </div>
+  </aside>
+</main>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="drName"></aside>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// [boardRank, name, team, pos, gp, pts, reb, ast, stl, blk, 3pm, tov, fg%, ft%, status, note, espnRank]
+// This is the 2025-26 season. gp = -1 marks a rookie whose line is his final college season.
