@@ -44,6 +44,7 @@ select,input[type=search]{background:var(--soft);border:1px solid var(--line);bo
 main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;max-width:1500px;margin:0 auto;padding-block:16px 40px}
 @media (max-width:1060px){main{grid-template-columns:minmax(0,1fr)}}
 main.solo{grid-template-columns:minmax(0,1fr)}
+main>.tabs{grid-column:1/-1;margin-bottom:0}
 .tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;overflow-x:auto}
 .tabs button{border:0;background:none;padding:8px 12px;font-family:var(--display);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
 .tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
@@ -272,19 +273,18 @@ td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:va
   .mark .ball{animation:spinin .9s .1s cubic-bezier(.3,.7,.3,1) both;transition:transform .6s cubic-bezier(.3,.7,.3,1)}
   .brand:hover .mark .ball{transform:rotate(180deg)}
   .dribble{animation:dribble .5s cubic-bezier(.5,0,.5,1) infinite alternate}
-  .view-in{animation:viewin .24s ease-out}
+  .view-in{animation:viewin .15s ease-out}
   .tick{animation:tick .4s cubic-bezier(.3,.7,.3,1)}
   .clock .you{animation:onclock 1.8s ease-in-out infinite}
   .toast:not([hidden]){animation:toastin .22s ease-out}
   .btn,.seg button,.tabs button{transition:transform .08s ease,background .12s,border-color .12s,color .12s}
   .btn:active,.seg button:active{transform:scale(.95)}
-  .heads li,.sug{animation:fadein .3s ease-out both}
 }
 @keyframes orbit{to{stroke-dashoffset:0}}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 @keyframes spinin{from{transform:rotate(-120deg) scale(.6);opacity:0}to{transform:none;opacity:1}}
 @keyframes dribble{from{transform:translateY(-10px)}85%{transform:translateY(4px) scale(1,1)}to{transform:translateY(5px) scale(1.15,.8)}}
-@keyframes viewin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes viewin{from{opacity:0}to{opacity:1}}
 @keyframes tick{from{transform:translateY(-40%);opacity:0}to{transform:none;opacity:1}}
 @keyframes onclock{0%,100%{box-shadow:0 0 0 0 var(--band)}50%{box-shadow:0 0 0 6px var(--band)}}
 @keyframes toastin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translateX(-50%)}}
@@ -299,32 +299,50 @@ td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:va
 .season-bar .pct{font-family:var(--display);font-style:italic;font-size:22px;line-height:1}
 body.m-season .draft-only,body.m-draft .season-only{display:none!important}
 @media (prefers-reduced-motion:no-preference){.modes button{transition:background .15s,color .15s}}
+
+/* steady layout: nothing moves when you click. The header is one fixed-height row, the dock has a fixed size whatever
+   it says, the draft sidebar stays for all of Draft Day, and each tab reserves room for its bold italic selected form */
+html{scrollbar-gutter:stable}
+.bar-in{flex-wrap:nowrap;gap:10px 20px;min-height:68px}
+.brand{margin-right:0;flex-wrap:nowrap;min-width:0}
+.brand small{white-space:nowrap}
+.dock{margin-left:auto;width:420px;height:50px;flex:none;display:flex}
+.dock>*{flex:1;min-width:0;height:100%}
+.clock{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:10px;text-transform:none}
+.clock .lab{text-transform:uppercase}
+#clockMsg{min-width:0;overflow:hidden;max-height:46px}
+#clockMsg .lab{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.clock .you{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.season-bar{justify-content:space-between;overflow:hidden}
+.season-bar>span:first-child{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#settingsCard .settings{gap:10px}
+.tabs button,.modes button{display:inline-flex;align-items:center;gap:6px}
+.tl{display:inline-grid}
+.tl::before,.tl::after{content:attr(data-label);grid-area:1/1;height:0;visibility:hidden;overflow:hidden;pointer-events:none}
+.tl::before{font-weight:400;font-style:normal}.tl::after{font-weight:700;font-style:italic}
+/* long explanations read upright; italics stay for short notes */
+.chart-card.prose p{font-style:normal}
+@media (max-width:860px){.bar-in{flex-wrap:wrap}.dock{width:100%;margin-left:0}}
+@media (max-width:480px){.brand small{display:none}}
 </style>
 
 <header class="bar">
   <div class="bar-in wrap">
     <div class="brand"><svg class="mark" viewBox="0 0 40 40" aria-hidden="true"><path class="orbit" d="M6.98 9.07A17 17 0 0 1 35.98 25.8" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><path class="head" d="M34.95 28.62L38.76 25.75L33.88 23.97Z" fill="var(--ink)"/><g class="ball"><circle cx="20" cy="20" r="11" fill="var(--ball)"/><g fill="none" stroke="var(--seam)" stroke-width="1.4" stroke-linecap="round"><path d="M20 9V31M9 20H31"/><path d="M12.6 11.8C16.6 15.6 16.6 24.4 12.6 28.2M27.4 11.8C23.4 15.6 23.4 24.4 27.4 28.2"/></g></g></svg><h1 aria-label="Pivot">Piv<span>o</span>t</h1><span class="need-chip high" id="mockBadge" hidden>Mock draft</span><small id="asof">ESPN 2026-27</small></div>
     <div class="modes" role="group" aria-label="Mode"><button id="mode-draft" aria-pressed="true">Draft Day</button><button id="mode-season" aria-pressed="false">Season</button></div>
-    <button class="season-bar season-only" id="seasonBar" hidden></button>
-    <div class="clock draft-only" aria-live="polite">
-      <div><div class="lab">Overall<br>pick</div></div><div class="num" id="curPick">1</div>
-      <div id="clockMsg"></div>
-    </div>
-    <div class="settings draft-only">
-      <label for="teams">Teams <select id="teams"></select></label>
-      <label for="slot">My slot <select id="slot"></select></label>
-      <div class="seg" role="group" aria-label="Scoring">
-        <button id="scPts" aria-pressed="true">Points</button><button id="scCat" aria-pressed="false">8-Cat</button>
+    <div class="dock">
+      <div class="clock draft-only" aria-live="polite">
+        <div class="lab">Overall<br>pick</div><div class="num" id="curPick">1</div>
+        <div id="clockMsg"></div>
+        <button class="btn" id="undo" title="Undo last pick">Undo</button>
       </div>
-      <button class="btn" id="undo" title="Undo last pick">Undo</button>
-      <button class="btn" id="restart" title="Clear every pick and start the draft over">Restart</button>
+      <button class="season-bar season-only" id="seasonBar" hidden></button>
     </div>
   </div>
 </header>
 
 <main class="wrap">
-  <section style="min-width:0">
-    <div class="tabs" role="tablist">
+  <div class="tabs" role="tablist">
       <button role="tab" id="tab-board" data-mode="draft" aria-selected="true">Big Board</button>
       <button role="tab" id="tab-insights" data-mode="draft" aria-selected="false">Insights</button>
       <button role="tab" id="tab-mock" data-mode="draft" aria-selected="false">Mock Draft</button>
@@ -338,6 +356,7 @@ body.m-season .draft-only,body.m-draft .season-only{display:none!important}
       <button role="tab" id="tab-news" aria-selected="false">News <span class="count" id="newsCount"></span></button>
       <button role="tab" id="tab-how" aria-selected="false">Method &amp; Import</button>
     </div>
+  <section style="min-width:0">
 
     <div id="view-board">
       <div class="filters">
@@ -430,6 +449,17 @@ body.m-season .draft-only,body.m-draft .season-only{display:none!important}
     <div class="card">
       <h2>Best Available <small id="baNote">by board rank</small></h2>
       <ol class="ba" id="ba"></ol>
+    </div>
+    <div class="card" id="settingsCard">
+      <h2>Draft settings <small>loaded from your ESPN league</small></h2>
+      <div class="settings">
+        <label for="teams">Teams <select id="teams"></select></label>
+        <label for="slot">My slot <select id="slot"></select></label>
+        <div class="seg" role="group" aria-label="Scoring">
+          <button id="scPts" aria-pressed="true">Points</button><button id="scCat" aria-pressed="false">8-Cat</button>
+        </div>
+        <button class="btn" id="restart" title="Clear every pick and start the draft over">Restart draft</button>
+      </div>
     </div>
     <div class="card" id="aiCard" hidden>
       <h2>Ask Claude <small>uses your board, model &amp; roster</small></h2>

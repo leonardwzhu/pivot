@@ -1260,15 +1260,15 @@ $("tab-insights").addEventListener("click",()=>renderInsights());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
 $("tab-team").addEventListener("click",renderTeam);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
-// the draft rail (Pick Advisor, projection mix, My Team, Best Available) belongs to the draft tabs; season and reference tabs use the full width
-const DRAFT_TABS=new Set(["board","insights","mock"]);
-TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in");$("rail").hidden=!DRAFT_TABS.has(t);document.querySelector("main").classList.toggle("solo",!DRAFT_TABS.has(t))});
+TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in")});
 // ---- modes: Draft Day (board, insights, mock) and Season (my team, matchup, waivers, trades, rosters) ----
 const modeOf=t=>$("tab-"+t).dataset.mode||null;
 S.lastTab=S.lastTab||{draft:"board",season:"team"};
 function setMode(m,{open=true}={}){S.mode=m;save();document.body.classList.toggle("m-draft",m==="draft");document.body.classList.toggle("m-season",m==="season");
   $("mode-draft").setAttribute("aria-pressed",m==="draft");$("mode-season").setAttribute("aria-pressed",m==="season");
   TABS.forEach(t=>{const md=modeOf(t);$("tab-"+t).hidden=!!md&&md!==m});
+  // the draft sidebar stays for all of Draft Day (shared tabs included) so the page width never changes within a mode
+  $("rail").hidden=m!=="draft";document.querySelector("main").classList.toggle("solo",m!=="draft");
   if(m==="season")renderSeasonBar();
   if(open){const cur=TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");if(!cur||modeOf(cur)!==m)$("tab-"+(S.lastTab[m]||(m==="draft"?"board":"team"))).click()}}
 function renderSeasonBar(){const el=$("seasonBar");if(!el)return;const w=Math.max(0,CUR_WEEK),wk=WEEKS[w],opp=leagueOpp(w),my=myRoster(),O=opp?rosterOf(opp):[];
@@ -1276,6 +1276,9 @@ function renderSeasonBar(){const el=$("seasonBar");if(!el)return;const w=Math.ma
   const M=my.length&&O.length?matchupSim(my,O,w,300):null;
   el.innerHTML=`<span><b>Week ${wk.i}</b> <span class="mut">${dates}</span><br>${opp?`vs ${esc(teamName(opp))}`:"no matchup set"}</span>${M?`<span class="pct" style="color:${M.p>=.5?"var(--ok)":"var(--bad)"}">${pc(M.p)}</span>`:`<span class="mut">${my.length?"":"after the draft"}</span>`}`;
   el.hidden=false;el.title="Open this week's matchup";el.onclick=()=>$("tab-season").click()}
+// reserve each tab's width for its selected (bold italic) form so choosing a tab never nudges its neighbours
+document.querySelectorAll(".tabs [role=tab],.modes button").forEach(b=>{const t=[...b.childNodes].find(n=>n.nodeType===3&&n.textContent.trim());if(!t)return;
+  const s=document.createElement("span");s.className="tl";s.dataset.label=s.textContent=t.textContent.trim();b.replaceChild(s,t)});
 $("mode-draft").onclick=()=>setMode("draft");$("mode-season").onclick=()=>setMode("season");
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#toSeason"))setMode("season")});
 // a tab opened from anywhere (a link inside a view, a button) brings its mode with it, and each mode remembers its last tab
