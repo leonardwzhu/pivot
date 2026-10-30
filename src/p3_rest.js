@@ -1,6 +1,8 @@
 // ================= STATE =================
 const LS="hoopsDraftRoom.v2";
 let sample=null; // Ask Claude, when the viewer allows it (set at the end of the file)
+// saves made while the page boots (league sync, opening mode) don't count as edits, so a fresh device never outranks your saved copy
+let BOOT=true,pushT=null;const SYNC={ref:null,dev:null,push:()=>{}};
 let S={teams:10,slot:1,scoring:"pts",picks:[],order:null,pos:"ALL",sort:{k:"rank",d:1},hideTaken:true,hideOut:false,view:"model",rankBy:"board"};
 try{const s=JSON.parse(localStorage.getItem(LS)||"null");if(s)S={...S,...s}}catch(e){}
 S.mix=S.mix||{};S.adj=S.adj||{};
@@ -16,7 +18,7 @@ const BY_ESPN=new Map(players.map(p=>[p.espnId,p.id]));let LEAGUE_MSG="";
 // this week's head-to-head opponent from your league schedule (week index -> your slot's opponent)
 const leagueOpp=w=>typeof LEAGUE!=="undefined"&&LEAGUE&&LEAGUE.opp&&LEAGUE.opp[w]?LEAGUE.opp[w][S.slot]:null;
 let MIX=applyMix(S.mix,S.adj);
-function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function save(){if(!BOOT)S._t=Date.now();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}if(!BOOT&&SYNC.ref){clearTimeout(pushT);pushT=setTimeout(SYNC.push,1200)}}
 function applyOrder(){
   if(S.order&&S.order.length===players.length)S.order.forEach((id,i)=>{players[id].rank=i+1});
   else players.forEach(p=>p.rank=S.scoring==="cat"?p.baseRoto:p.base);
@@ -1335,7 +1337,7 @@ function renderNews(){
   <div class="news-sec"><h3>New teams since last season (${moves.length})</h3><div class="news">${moves.map(p=>`<div class="item move"><div class="h">${pb(p.name)} <span class="mut">${p.prevTeam} → ${p.team}</span></div></div>`).join("")}</div></div>
   <p class="empty" style="margin-top:14px">ESPN news and injury report fetched ${FETCHED}; team changes from Basketball Reference and ESPN rosters.</p>`;
 }
-function renderAll(){applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();if(!$("view-players").hidden)renderPlayers();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});save()}
+function renderAll(){applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();if(!$("view-players").hidden)renderPlayers();if(!$("view-today").hidden)renderToday();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});save()}
 
 // ================= LEAGUE SCORING =================
 function renderScoring(){
@@ -1611,24 +1613,77 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>Weeks, standings and playoffs</h3><p>Each week (Monday to Sunday) you play one team. All your starters' points for the week are added up, and the higher total wins. There are <b>19 regular-season weeks</b> (Nov 2 to Mar 14). The <b>top 4 records</b> make the playoffs, with seeding by head-to-head record. Playoffs are two rounds of <b>two weeks each</b>: semifinals Mar 15–28, final Mar 29–Apr 11. That's why the app weights playoff-week games: a player with 16 games in those four weeks is worth more to you then than one with 12.</p>
   <h3>Changing your team</h3><p>Free agents are added through <b>waivers</b>: a dropped player waits on waivers briefly, and claims go by waiver priority. There's no limit on adds. Trades are allowed until <b>${dl}</b>.</p>
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times, drawing each game from how far real games landed from their predictions over the last two seasons: a typical game misses by about half the prediction, and bad nights are more common than huge ones.</p></div>`}
-const TABS=["board","team","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
+const TABS=["board","today","team","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
+// ---- Today: what to do today, in one screen: tonight's lineup, news that touches your team, your matchup, one move ----
+function tonight(my){const d=PDATE(CUR_PERIOD),P=my.map(p=>{const g=nextGames(p,1)[0];return {p,g:g&&g.date===d?g:null}});
+  const play=P.filter(x=>x.g&&!x.g.out).sort((a,b)=>b.g.fp-a.g.fp),slot=new Array(LINEUP.length).fill(-1);
+  const aug=(i,seen)=>{for(let k=0;k<LINEUP.length;k++){if(seen[k]||!elig(play[i].p,k))continue;seen[k]=1;if(slot[k]<0||aug(slot[k],seen)){slot[k]=i;return true}}return false};
+  play.forEach((_,i)=>aug(i,new Uint8Array(LINEUP.length)));const on=new Set(slot.filter(i=>i>=0));
+  const starters=slot.map((i,k)=>i>=0?{...play[i],k}:null).filter(Boolean),bench=play.filter((_,i)=>!on.has(i));
+  // a close call: a benched player within 3 FP of a starter he could replace
+  bench.forEach(b=>{const r=starters.filter(s=>elig(b.p,s.k)).sort((x,y)=>x.g.fp-y.g.fp)[0];if(r&&r.g.fp-b.g.fp<3)b.close=r});
+  return {d,starters,bench,out:P.filter(x=>x.g&&x.g.out),idle:P.filter(x=>!x.g),open:LINEUP.length-starters.length}}
+// the single best pickup this week, if one is worth a roster move
+function bestMove(my,w){const fa=freeAgents(),base=weekProj(my,w).pts,full=my.length>=13,drop=[...my].sort((a,b)=>a.projTot-b.projTot)[0];
+  const C=[...fa].sort((a,b)=>b.projTot-a.projTot).slice(0,30).concat([...fa].sort((a,b)=>weekGames(b,w)*b.proj.fp-weekGames(a,w)*a.proj.fp).slice(0,20));
+  let best=null;new Set(C).forEach(p=>{if(p.out)return;const R=full?my.filter(x=>x!==drop).concat([p]):my.concat([p]),g=weekProj(R,w).pts-base;if(!best||g>best.g)best={p,g,drop:full?drop:null}});
+  return best&&best.g>=12?best:null}
+function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PDATE(CUR_PERIOD),dl=new Date(d+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
+  const head=`<div class="today-head"><h3 style="margin:0">${dl}</h3><span class="mut">${CUR_WEEK>=0&&d>=wk.s?`Week ${wk.i} · day ${Math.round((Date.parse(d)-Date.parse(wk.s))/864e5)+1} of ${Math.round((Date.parse(wk.e)-Date.parse(wk.s))/864e5)+1}`:`Week 1 starts ${gDate(WEEKS[0].s)}`}</span></div>`;
+  const row=(x,lab,extra="")=>`<tr><td class="l mut" style="width:52px">${lab}</td><td class="l">${pBtn(x.p)} <span class="mut meta">${x.p.pos.join("/")} · ${x.g?x.g.o:""}</span>${extra}</td><td>${x.g?`<b>${f1(x.g.fp)}</b> <span class="mut rng">(${f0(x.g.lo)}–${f0(x.g.hi)})</span>`:dash}</td></tr>`;
+  if(!my.length){const top=players.filter(p=>p.rank<=200).map(p=>({p,g:(n=>n&&n.date===d&&!n.out?n:null)(nextGames(p,1)[0])})).filter(x=>x.g).sort((a,b)=>b.g.fp-a.g.fp).slice(0,10);
+    return `${head}<div class="chart-card"><h4>After your draft</h4><p class="empty" style="margin:0">This screen becomes your daily checklist: who to start tonight, injuries and news that touch your team, how your matchup stands, and the one pickup worth making.${HAS_LG()&&LEAGUE.draftDate?` Your draft is ${new Date(LEAGUE.draftDate).toLocaleString(undefined,{weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}.`:""}</p></div>
+      ${top.length?`<div class="chart-card"><h4>Tonight's best bets</h4><div class="tablebox"><table class="today-tbl"><tbody>${top.map((x,i)=>row(x,"#"+(i+1))).join("")}</tbody></table></div><p class="empty">Expected fantasy points tonight from the next-game model, with the range 8 in 10 games land in.</p></div>`:""}${falloutCard()}`}
+  const T=tonight(my),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w,400):null,mv=bestMove(my,w);
+  const live=HAS_LG()&&LEAGUE.live?LEAGUE.live.find(r=>r[0]===LEAGUE.curMatchup&&(r[1]===S.slot||r[3]===S.slot)):null,sc=live?(live[1]===S.slot?[live[2],live[4]]:[live[4],live[2]]):null;
+  let h=head;
+  h+=`<div class="chart-card"><h4>Tonight's lineup</h4>${T.starters.length?`<div class="tablebox"><table class="today-tbl"><tbody>${T.starters.map(x=>row(x,LINEUP[x.k][0])).join("")}${T.bench.map(x=>row(x,"Bench",x.close?` <span class="chip dtd" title="Within 3 FP of ${esc(x.close.p.name)}, who starts at ${LINEUP[x.close.k][0]}">close call vs ${esc(x.close.p.name.split(" ").pop())}</span>`:"")).join("")}</tbody></table></div>`:'<p class="empty">None of your players has a game tonight.</p>'}
+    <p class="empty" style="margin-top:6px">${T.open?`${T.open} open slot${T.open>1?"s":""} tonight: a free agent with a game could fill ${T.open>1?"them":"it"}. `:""}${T.out.length?`Out tonight: ${T.out.map(x=>esc(x.p.name)).join(", ")}. `:""}${T.idle.length?`No game: ${T.idle.length} player${T.idle.length>1?"s":""}. `:""}Starters are the best valid lineup by tonight's expected points.</p></div>`;
+  const news=[];my.forEach(p=>{if(p.out||p.dtd)news.push(`<li><b>${pBtn(p)}</b> <span class="chip ${p.out?"out":"dtd"}">${p.out?"Out":"GTD"}</span> ${esc(p.inj&&p.inj.short||"")}${p.out?` <span class="mut">(${retLabel(p)})</span>`:""}</li>`)});
+  T.starters.concat(T.bench).forEach(x=>{const m=x.g.mate;if(m.adj>=1.5){const who=m.list.filter(q=>q.out&&q.x>0).map(q=>q.q.name);if(who.length)news.push(`<li><b>${pBtn(x.p)}</b> <span class="zpos">+${f1(m.adj)} FP tonight</span> with ${esc(who.join(" and "))} out</li>`)}});
+  const names=new Set(my.map(p=>p.name)),H=ESPN_NEWS.filter(a=>a.tags.some(t=>names.has(t)&&a.h.includes(t.split(" ").pop())))  // about him, not just tagged.sort((a,b)=>String(b.p).localeCompare(String(a.p))).slice(0,3);
+  H.forEach(a=>news.push(`<li class="mut">${esc(a.h)} <span style="font-size:12px">· ${gDate(String(a.p).slice(0,10))}</span></li>`));
+  h+=`<div class="chart-card"><h4>News for your team</h4>${news.length?`<ul class="today-news">${news.join("")}</ul>`:'<p class="empty">Nothing new about your players.</p>'}</div>`;
+  if(M)h+=`<div class="chart-card"><h4>Your matchup · vs ${esc(teamName(opp))}</h4><div class="vs"><div><div class="k mut">${sc?"Score so far":"Projected score"}</div><div class="big">${sc?f0(sc[0])+"–"+f0(sc[1]):f0(M.a)+"–"+f0(M.b)}</div></div><div><div class="big" style="color:${M.p>=.5?"var(--ok)":"var(--bad)"}">${pc(M.p)}</div><div class="mut" style="font-size:12px">chance you win the week</div></div></div>
+    <p class="empty" style="margin-top:6px"><button class="expander" onclick="$('tab-season').click()">Full matchup and daily lineups →</button></p></div>`;
+  h+=`<div class="chart-card"><h4>One move</h4>${mv?`<p style="margin:0;font-style:normal;font-size:15px">Add ${pBtn(mv.p,"call")}${mv.drop?` and drop ${pBtn(mv.drop)}`:""}: <b class="zpos">+${f0(mv.g)} FP</b> this week, from his games and your open lineup slots.</p><p class="empty" style="margin-top:6px"><button class="expander" onclick="$('tab-waivers').click()">All pickups →</button></p>`:'<p class="empty" style="margin:0">No pickup adds more than about 12 FP this week. Your roster is fine as it is.</p>'}</div>`;
+  return h}
+function renderToday(){$("view-today").innerHTML=todayView()}
+// one-line summary for the pre-game phone notification (tools/digest.js)
+function todayDigest(){const my=myRoster();if(!my.length)return "";const T=tonight(my),w=Math.max(0,CUR_WEEK),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w,400):null,mv=bestMove(my,w),out=[];
+  const close=T.bench.filter(x=>x.close);if(close.length)out.push(`Close call: ${close[0].close.p.name} over ${close[0].p.name} tonight`);
+  const newOut=my.filter(p=>p.out&&T.out.some(x=>x.p===p));if(newOut.length)out.push(`Out tonight: ${newOut.map(p=>p.name).join(", ")}`);
+  out.push(`${T.starters.length} starting tonight${T.open?`, ${T.open} open slot${T.open>1?"s":""}`:""}`);
+  if(M)out.push(`Win chance this week ${pc(M.p)}`);if(mv)out.push(`Pickup: ${mv.p.name} (+${f0(mv.g)} FP this week)`);return out.join(". ")+"."}
+$("tab-today").addEventListener("click",renderToday);
+// ---- find a player from anywhere: the search button or "/" opens it, arrows move, Enter opens his profile ----
+(()=>{const box=document.createElement("div");box.className="finder";box.id="finder";box.hidden=true;box.setAttribute("role","dialog");box.setAttribute("aria-label","Find a player");
+  box.innerHTML='<div class="finder-box"><input id="findQ" placeholder="Find a player or team (e.g. DEN)" autocomplete="off" spellcheck="false" aria-controls="findList"><div id="findList" role="listbox"></div></div>';document.body.appendChild(box);
+  const q=$("findQ"),list=$("findList"),norm=x=>x.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();let hits=[],sel=0;
+  const draw=()=>{const t=norm(q.value.trim());hits=!t?[]:players.filter(p=>norm(p.name).includes(t)||p.team.toLowerCase()===t).sort((a,b)=>(norm(b.name).split(" ").some(w=>w.startsWith(t))-norm(a.name).split(" ").some(w=>w.startsWith(t)))||b.proj.fp-a.proj.fp).slice(0,8);sel=0;
+    list.innerHTML=hits.length?hits.map((p,i)=>`<button class="hit" role="option" aria-selected="${i===sel}" data-i="${i}"><span><b>${esc(p.name)}</b> <span class="mut">${p.team} · ${p.pos.join("/")}</span>${p.out?' <span class="chip out">Out</span>':p.dtd?' <span class="chip dtd">GTD</span>':""}</span><span class="mut">${f1(p.proj.fp)} FP/G</span></button>`).join(""):`<div class="hint">${t?"No player matches.":"Type a name or a team code. Enter opens the profile; Esc closes."}</div>`};
+  const mark=()=>list.querySelectorAll(".hit").forEach((b,i)=>b.setAttribute("aria-selected",i===sel));
+  const open=()=>{box.hidden=false;q.value="";draw();q.focus()},close=()=>{box.hidden=true},go=i=>{const p=hits[i];if(!p)return;close();openPlayer(p.id)};
+  $("findBtn").onclick=open;box.onclick=e=>{if(e.target===box)close();const h=e.target.closest(".hit");if(h)go(+h.dataset.i)};q.oninput=draw;
+  q.onkeydown=e=>{if(e.key==="ArrowDown"){sel=Math.min(hits.length-1,sel+1);mark();e.preventDefault()}else if(e.key==="ArrowUp"){sel=Math.max(0,sel-1);mark();e.preventDefault()}else if(e.key==="Enter")go(sel);else if(e.key==="Escape")close()};
+  document.addEventListener("keydown",e=>{if(e.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&box.hidden){e.preventDefault();open()}})})();
 $("tab-team").addEventListener("click",renderTeam);
 $("tab-players").addEventListener("click",renderPlayers);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
 TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in")});
 // ---- modes: Draft Day (board, insights, mock) and Season (my team, matchup, waivers, trades, rosters) ----
 const modeOf=t=>$("tab-"+t).dataset.mode||null;
-S.lastTab=S.lastTab||{draft:"board",season:"team"};
+S.lastTab=S.lastTab||{draft:"board",season:"today"};if(!S.todaySeen){S.lastTab.season="today";S.todaySeen=1}  // Today is the Season home
 function setMode(m,{open=true}={}){S.mode=m;save();document.body.classList.toggle("m-draft",m==="draft");document.body.classList.toggle("m-season",m==="season");
   $("mode-draft").setAttribute("aria-pressed",m==="draft");$("mode-season").setAttribute("aria-pressed",m==="season");
   TABS.forEach(t=>{const md=modeOf(t);$("tab-"+t).hidden=!!md&&md!==m});
   // the draft sidebar stays for all of Draft Day (shared tabs included) so the page width never changes within a mode
   $("rail").hidden=m!=="draft";document.querySelector("main").classList.toggle("solo",m!=="draft");
   if(m==="season")renderSeasonBar();
-  if(open){const cur=TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");if(!cur||modeOf(cur)!==m)$("tab-"+(S.lastTab[m]||(m==="draft"?"board":"team"))).click()}}
+  if(open){const cur=TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");if(!cur||modeOf(cur)!==m)$("tab-"+(S.lastTab[m]||(m==="draft"?"board":"today"))).click()}}
 function renderSeasonBar(){const el=$("seasonBar");if(!el)return;const w=Math.max(0,CUR_WEEK),wk=WEEKS[w],opp=leagueOpp(w),my=myRoster(),O=opp?rosterOf(opp):[];
   const dates=`${new Date(wk.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(wk.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
   const M=my.length&&O.length?matchupSim(my,O,w,300):null;
@@ -1697,4 +1752,17 @@ async function ask(kind){
 }
 if(LEAGUE_MSG)setTimeout(()=>toast(LEAGUE_MSG),800);
 $("aiPick").onclick=()=>ask("pick");$("aiTeam").onclick=()=>ask("team");
+BOOT=false;
+// your picks, roster edits, adjustments and settings follow you across devices: a private copy only you can read, newest wins
+(async()=>{try{if(!window.claude||!window.claude.use)return;const db=await window.claude.use("db"),user=await window.claude.use("user");if(!db||!user)return;const uid=await user.id();if(!uid)return;
+  let dev=null;try{dev=localStorage.getItem("pivot.device")||Math.random().toString(36).slice(2);localStorage.setItem("pivot.device",dev)}catch(e){dev=Math.random().toString(36).slice(2)}
+  const ref=db.doc("data/users/"+uid+"/state"),sc=()=>{try{return localStorage.getItem("hoopsDraftRoom.scoring")}catch(e){return null}};
+  const adopt=d=>{try{localStorage.setItem(LS,d.s);if(d.sc)localStorage.setItem("hoopsDraftRoom.scoring",d.sc);else localStorage.removeItem("hoopsDraftRoom.scoring")}catch(e){}location.reload()};
+  SYNC.ref=ref;SYNC.dev=dev;SYNC.push=()=>ref.set({t:S._t||Date.now(),dev,s:JSON.stringify(S),sc:sc()}).catch(()=>{});
+  const snap=await ref.get(),r=snap.exists?snap.data():null;
+  if(r&&r.t>(S._t||0)&&r.dev!==dev){adopt(r);return}
+  if(!r||(S._t||0)>r.t)SYNC.push();
+  // edits from another device while this one is open: offer a reload rather than changing the screen under you
+  ref.onSnapshot(sn=>{const d=sn.exists?sn.data():null;if(!d||d.dev===dev||d.t<=(S._t||0)||$("syncBar"))return;
+    const b=document.createElement("div");b.id="syncBar";b.className="toast show";b.style.cursor="pointer";b.textContent="Changed on another device · tap to load";b.onclick=()=>adopt(d);document.body.appendChild(b)},()=>{})}catch(e){}})();
 </script>

@@ -14,8 +14,8 @@ const state=pg=>pg.evaluate(()=>({mode:S.mode,tabs:[...document.querySelectorAll
 for(const [name,h] of [['before draft',html],['after draft',post]]){const ctx=await b.newContext({viewport:{width:1280,height:800}});const pg=await ctx.newPage();const errs=[];pg.on('pageerror',e=>errs.push(e.message));
   await pg.setContent(h,{waitUntil:'load'});await pg.waitForTimeout(4500);let s=await state(pg);console.log(name,JSON.stringify(s));
   if(name==='before draft'){check(s.mode==='draft'&&s.sel==='board'&&s.clock&&!s.bar,'opens in Draft Day on the Big Board');check(!s.tabs.includes('team')&&s.tabs.includes('mock'),'draft tabs only (plus shared)');
-    await pg.click('#mode-season');await pg.waitForTimeout(600);s=await state(pg);check(s.mode==='season'&&s.sel==='team'&&!s.clock&&!!s.bar,'Season shows My Team and the week bar, hides the draft clock')}
-  else{check(s.mode==='season'&&s.sel==='team'&&!!s.bar&&/%/.test(s.bar),'opens in Season with this week\'s win chance');
+    await pg.click('#mode-season');await pg.waitForTimeout(600);s=await state(pg);check(s.mode==='season'&&s.sel==='today'&&!s.clock&&!!s.bar,'Season opens on Today and the week bar, hides the draft clock')}
+  else{check(s.mode==='season'&&s.sel==='today'&&!!s.bar&&/%/.test(s.bar),'opens in Season on Today with this week\'s win chance');
     await pg.click('#tab-waivers');await pg.click('#mode-draft');await pg.waitForTimeout(400);s=await state(pg);check(s.mode==='draft'&&s.sel==='board','Draft Day opens the Big Board');
     await pg.click('#mode-season');await pg.waitForTimeout(400);s=await state(pg);check(s.sel==='waivers','Season remembers its last tab');
     await pg.setViewportSize({width:390,height:800});await pg.waitForTimeout(300);check(await pg.evaluate(()=>document.documentElement.scrollWidth)<=390,'no sideways scroll on a phone')}

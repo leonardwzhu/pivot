@@ -52,7 +52,8 @@ node tests/tabs.js                   # nothing moves on tab clicks or picks; dra
 node tests/league_season.js          # league sync and My Team: before the draft, after a simulated draft, mid-season
 node tests/modes.js                  # Draft Day / Season: which mode opens, which tabs show, last tab remembered
 node tests/profile.js                # player profile: every section, recent games, next-game predictions, comparisons, phone
-node tests/hub.js                    # prediction scorecard, injury fallout, teammate splits, phone
+node tests/hub.js                    # Today, player search, prediction scorecard, injury fallout, teammate splits, phone
+node tests/sync.js                   # cross-device sync of your edits, against a stand-in for the artifact store
 ```
 
 ## Publishing
@@ -62,6 +63,8 @@ The live app is a private claude.ai artifact. Two scheduled Claude sessions keep
 | Run | When | What |
 | --- | --- | --- |
 | `bash refresh.sh` | 6:47am ET | every source, the teammate splits and the prediction scorecard |
-| `bash refresh.sh injuries` | 5:11pm ET | only ESPN players, injuries and news, so late scratches reach the lineup advice before tip-off |
+| `bash refresh.sh injuries` | 5:11pm ET | only ESPN players, injuries and news, so late scratches reach the lineup advice before tip-off; prints the Today summary (`tools/digest.js`) that goes to your phone |
 
 Each run republishes `build/draft-room.html` to the same link and saves the updated data files back to `pipeline/last/`. `last/sources.json` records when each source was last fetched fresh; the page header says when it was updated and shows a warning when the data is over a day old or a source has been stuck on its last good copy for more than 36 hours. Code changes reach the live app the morning after they're merged to `main`.
+
+Your own edits (draft picks entered by hand, roster moves, projection adjustments, settings) are kept in the browser and, through the artifact's private per-person store, synced across your devices: the newest copy wins when the page loads, and an open page offers a reload when another device changes something.

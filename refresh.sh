@@ -75,7 +75,9 @@ if node tools/smoke_test.js "$(pwd)/build/draft-room.html"; then
   if [ "$MODE" = daily ]; then if node tools/log_preds.js "$(pwd)/build/draft-room.html" last/preds_log.json && assemble work && node tools/smoke_test.js "$(pwd)/build/draft-room.html" >/dev/null; then cp work/preds_log.json last/; STATUS+=("scorecard: updated")
   else echo "WARN scorecard: not updated today"; cp last/p2_preds.js work/p2_preds.js; assemble work; STATUS+=("scorecard: last good"); fi; fi
   cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js work/p2_mates.js work/p2_preds.js work/p2_build.js work/sources.json last/ 2>/dev/null; cp work/contracts.json last/ 2>/dev/null
-  echo "BUILD OK: ${STATUS[*]}"; exit 0
+  echo "BUILD OK: ${STATUS[*]}"
+  [ "$MODE" = injuries ] && node tools/digest.js "$(pwd)/build/draft-room.html"
+  exit 0
 fi
 echo "WARN today's data failed the smoke test; rebuilding with the last good data"
 python3 -P tools/build_status.py "$MODE" last </dev/null >/dev/null
