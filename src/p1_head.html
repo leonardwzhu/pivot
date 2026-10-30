@@ -1,5 +1,6 @@
 <title>Pivot</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 40 40%27%3E%3Ccircle cx=%2720%27 cy=%2720%27 r=%2716%27 fill=%27%23E06A1B%27/%3E%3Cg fill=%27none%27 stroke=%27%2317202E%27 stroke-width=%272%27 stroke-linecap=%27round%27%3E%3Cpath d=%27M20 4V36M4 20H36%27/%3E%3Cpath d=%27M9 8.5C15 14 15 26 9 31.5M31 8.5C25 14 25 26 31 31.5%27/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:ital,wght@0,400..700;1,400..700&display=swap">
 <style>
@@ -7,7 +8,7 @@
    Look: hardwood. Maple floor, navy court lines, painted-key blue, basketball orange; Caslon serif with italics kept for emphasis. */
 :root{--bg:#E8D7B9;--panel:#FBF5EA;--ink:#17202E;--muted:#6A5E4B;--line:#D8C39C;--soft:#F3E8D4;--grid:#E6D5B5;
  --accent:#1E5AA8;--accent-ink:#FFFFFF;--accent-soft:#DCE6F4;--band:rgba(30,90,168,.16);--ball:#E06A1B;
- --ok:#2F7D4F;--warn:#A86A12;--bad:#B3261E;--ok-soft:#E1EEDD;--warn-soft:#F6E6C4;--bad-soft:#F6DCD6;--mine:#B34A12;--mine-soft:#F7E1CF;--scrim:rgba(23,32,46,.4);--display:"Libre Caslon Text","Big Caslon",Georgia,serif;--body:"Source Sans 3",system-ui,sans-serif;--mono:"Source Sans 3",system-ui,sans-serif;
+ --ok:#2F7D4F;--warn:#A86A12;--bad:#B3261E;--ok-soft:#E1EEDD;--warn-soft:#F6E6C4;--bad-soft:#F6DCD6;--mine:#B34A12;--mine-soft:#F7E1CF;--seam:#2A1A0E;--scrim:rgba(23,32,46,.4);--display:"Libre Caslon Text","Big Caslon",Georgia,serif;--body:"Source Sans 3",system-ui,sans-serif;--mono:"Source Sans 3",system-ui,sans-serif;
  }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#B3A188;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
  --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}}
@@ -258,11 +259,40 @@ header.bar{border-bottom:2px solid var(--ink)}
 .pname{font-weight:600}
 td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:var(--body);font-variant-numeric:tabular-nums lining-nums}
 .tabs button{font-size:18px;padding:8px 10px}
+
+/* logo and motion: one entrance for the mark, then small confirmations (tab change, pick counter, toast, on-the-clock) */
+.brand{align-items:center}
+.mark{width:42px;height:42px;flex:none;overflow:visible;align-self:center}
+.mark .ball{transform-box:fill-box;transform-origin:center}
+.loader{display:flex;align-items:center;gap:12px}
+.dribble{width:14px;height:14px;border-radius:50%;background:var(--ball);flex:none}
+@media (prefers-reduced-motion:no-preference){
+  .mark .orbit{stroke-dasharray:48;stroke-dashoffset:48;animation:orbit .8s .2s cubic-bezier(.3,.7,.3,1) forwards}
+  .mark .head{opacity:0;animation:fadein .2s .9s forwards}
+  .mark .ball{animation:spinin .9s .1s cubic-bezier(.3,.7,.3,1) both;transition:transform .6s cubic-bezier(.3,.7,.3,1)}
+  .brand:hover .mark .ball{transform:rotate(180deg)}
+  .dribble{animation:dribble .5s cubic-bezier(.5,0,.5,1) infinite alternate}
+  .view-in{animation:viewin .24s ease-out}
+  .tick{animation:tick .4s cubic-bezier(.3,.7,.3,1)}
+  .clock .you{animation:onclock 1.8s ease-in-out infinite}
+  .toast:not([hidden]){animation:toastin .22s ease-out}
+  .btn,.seg button,.tabs button{transition:transform .08s ease,background .12s,border-color .12s,color .12s}
+  .btn:active,.seg button:active{transform:scale(.95)}
+  .heads li,.sug{animation:fadein .3s ease-out both}
+}
+@keyframes orbit{to{stroke-dashoffset:0}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes spinin{from{transform:rotate(-120deg) scale(.6);opacity:0}to{transform:none;opacity:1}}
+@keyframes dribble{from{transform:translateY(-10px)}85%{transform:translateY(4px) scale(1,1)}to{transform:translateY(5px) scale(1.15,.8)}}
+@keyframes viewin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes tick{from{transform:translateY(-40%);opacity:0}to{transform:none;opacity:1}}
+@keyframes onclock{0%,100%{box-shadow:0 0 0 0 var(--band)}50%{box-shadow:0 0 0 6px var(--band)}}
+@keyframes toastin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translateX(-50%)}}
 </style>
 
 <header class="bar">
   <div class="bar-in wrap">
-    <div class="brand"><h1 aria-label="Pivot">Piv<span>o</span>t</h1><span class="need-chip high" id="mockBadge" hidden>Mock draft</span><small id="asof">ESPN 2026-27</small></div>
+    <div class="brand"><svg class="mark" viewBox="0 0 40 40" aria-hidden="true"><path class="orbit" d="M6.98 9.07A17 17 0 0 1 35.98 25.8" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><path class="head" d="M34.95 28.62L38.76 25.75L33.88 23.97Z" fill="var(--ink)"/><g class="ball"><circle cx="20" cy="20" r="11" fill="var(--ball)"/><g fill="none" stroke="var(--seam)" stroke-width="1.4" stroke-linecap="round"><path d="M20 9V31M9 20H31"/><path d="M12.6 11.8C16.6 15.6 16.6 24.4 12.6 28.2M27.4 11.8C23.4 15.6 23.4 24.4 27.4 28.2"/></g></g></svg><h1 aria-label="Pivot">Piv<span>o</span>t</h1><span class="need-chip high" id="mockBadge" hidden>Mock draft</span><small id="asof">ESPN 2026-27</small></div>
     <div class="clock" aria-live="polite">
       <div><div class="lab">Overall<br>pick</div></div><div class="num" id="curPick">1</div>
       <div id="clockMsg"></div>
@@ -311,7 +341,7 @@ td.num,.sug .big,.roster li span:last-child,.mini .v,.wf-row .amt{font-family:va
       <div class="tablebox">
         <table class="board">
           <thead><tr id="thead"></tr></thead>
-          <tbody id="tbody"><tr><td colspan="12" class="l mut" style="padding:24px 12px">Fitting models on every NBA player-season since 2016-17… this takes a couple of seconds.</td></tr></tbody>
+          <tbody id="tbody"><tr><td colspan="12" class="l mut" style="padding:24px 12px"><div class="loader"><span class="dribble" aria-hidden="true"></span><span>Fitting models on every NBA player-season since 2016-17… this takes a couple of seconds.</span></div></td></tr></tbody>
         </table>
       </div>
       <p style="margin-top:8px" id="boardMore"></p>

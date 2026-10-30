@@ -298,7 +298,7 @@ function renderSide(){
   $("baNote").textContent=(S.rankBy==="model"?"model rank":"board rank")+" · "+(S.scoring==="pts"?"proj FP/G":"cat z");
   $("ba").innerHTML=ba.map(p=>{const fills=my.length&&p.pos.some(x=>need.has(x));
     return `<li><span class="rk">${p.disp}</span><span class="nm"><button class="expander" data-open="${p.id}">${esc(p.name)}</button><br><span class="sub">${p.team} · ${p.pos.join("/")} · ${S.scoring==="pts"?f1(p.proj.fp)+" FP/G":(p.cat>=0?"+":"")+f1(p.cat)+" z"} · top-50 ${pc(p.pTop50)}${p.out?" · OUT":""}${fills?" · fills need":""}</span></span><button class="btn mine" data-mine="${p.id}">Draft</button></li>`}).join("");
-  const cur=S.picks.length+1,rnd=Math.ceil(cur/S.teams);$("curPick").textContent=cur;
+  const cur=S.picks.length+1,rnd=Math.ceil(cur/S.teams);replay($("curPick"),"tick",String(cur));
   if(S.picks.length>=S.teams*13){$("curPick").textContent="✓";$("clockMsg").innerHTML=`<div class="lab">Draft complete<br>${MOCK()?"see Mock Draft results":"manage it in Season · Waivers · Trades"}</div>`}
   else if(!S.picks.length&&!MOCK()&&typeof LEAGUE!=="undefined"&&LEAGUE&&LEAGUE.draftDate>Date.now()&&teamAt(cur)!==S.slot)$("clockMsg").innerHTML=`<div class="lab">${esc(LEAGUE.name)} drafts<br>${new Date(LEAGUE.draftDate).toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`
   else if(teamAt(cur)===S.slot)$("clockMsg").innerHTML=`<button class="you clockbtn" id="toAdv">You're on the clock · Rd ${rnd} · see picks</button>`;
@@ -1126,6 +1126,12 @@ $("hideTaken").checked=S.hideTaken;$("hideOut").checked=S.hideOut;
 $("hideTaken").onchange=e=>{S.hideTaken=e.target.checked;renderAll()};
 $("hideOut").onchange=e=>{S.hideOut=e.target.checked;renderAll()};
 $("thead").onclick=e=>{const th=e.target.closest("th");if(!th||th.dataset.k==="act")return;const k=th.dataset.k;S.sort=S.sort.k===k?{k,d:-S.sort.d}:{k,d:1};renderAll()};
+// restart a CSS animation on an element (optionally setting its text first); a no-op when the text is unchanged
+function replay(el,cls,text){if(!el)return;if(text!=null){if(el.textContent===text)return;el.textContent=text}el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls)}
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function countUp(root){if(REDUCED)return;root.querySelectorAll(".kpi .v").forEach(el=>{const m=el.textContent.match(/^([^\d-]*)(-?[\d,]*\.?\d+)([^\d]*)$/);if(!m)return;
+  const end=parseFloat(m[2].replace(/,/g,"")),dec=(m[2].split(".")[1]||"").length,comma=m[2].includes(","),t0=performance.now(),fmt=v=>comma?Math.round(v).toLocaleString():v.toFixed(dec);
+  const step=t=>{const k=Math.min(1,(t-t0)/650),e=1-Math.pow(1-k,3);el.textContent=m[1]+fmt(end*e)+m[3];if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)})}
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-mine],[data-take],[data-undo],[data-open]");if(!b)return;
@@ -1251,12 +1257,12 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times with each player's games swinging about 35% either way.</p></div>`}
 const TABS=["board","team","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
-function renderTeam(){$("view-team").innerHTML=myTeamView();setTimeout(fillTradeIdeas,30)}
+function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
 $("tab-team").addEventListener("click",renderTeam);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
 // the draft rail (Pick Advisor, projection mix, My Team, Best Available) belongs to the draft tabs; season and reference tabs use the full width
 const DRAFT_TABS=new Set(["board","insights","mock"]);
-TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});$("rail").hidden=!DRAFT_TABS.has(t);document.querySelector("main").classList.toggle("solo",!DRAFT_TABS.has(t))});
+TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in");$("rail").hidden=!DRAFT_TABS.has(t);document.querySelector("main").classList.toggle("solo",!DRAFT_TABS.has(t))});
 // tooltips
 const tip=$("tip");
 document.addEventListener("pointerover",e=>{const t=e.target.closest("[data-tip]");if(!t){tip.hidden=true;return}tip.textContent=t.getAttribute("data-tip");tip.hidden=false});
