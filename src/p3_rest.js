@@ -891,12 +891,19 @@ const lum=h=>{const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=
   contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
 // pixel-art jersey: the team's Wikimedia Commons icon kit with his number drawn in the same pixel grid (5x7 digits, bolded, outlined)
 const DIGITS=["01110100011001110101110011000101110","00100011000010000100001000010001110","01110100010000100010001000100011111","11110000010000101110000010000111110","00010001100101010010111110001000010","11111100001111000001000011000101110","00110010001000011110100011000101110","11111000010001000100010000100001000","01110100011000101110100011000101110","01110100011000101111000010001001100"];
-function pixelJersey(p,size=76){const src=KITS[p.team],M=(typeof KIT_NUM!=="undefined"&&KIT_NUM[p.team])||[31,"FFFFFF","000000"],num=String(p.jersey||""),fill="#"+M[1],line="#"+M[2];
-  let on=new Set(),W=0;[...num].forEach((d,i)=>{const g=DIGITS[+d];if(!g)return;const ox=i*7;for(let y=0;y<7;y++)for(let x=0;x<5;x++)if(g[y*5+x]==="1"){on.add((ox+x)+","+y);on.add((ox+x+1)+","+y)}W=ox+6});
+// the number is painted into the kit bitmap itself (38x59), so it shares the art's pixel grid and 1-pixel strokes, then the whole
+// image is scaled up as one; images decode asynchronously, so a first render shows the plain kit and swaps in the numbered one
+const KIT_IMG={},KIT_CACHE={};
+function kitWithNumber(team,num){const key=team+"#"+num;if(KIT_CACHE[key])return KIT_CACHE[key];
+  let im=KIT_IMG[team];if(!im){im=KIT_IMG[team]=new Image();im.src=KITS[team]}
+  if(!im.complete||!im.naturalWidth){im.addEventListener("load",()=>document.querySelectorAll(`img[data-kit="${CSS.escape(key)}"]`).forEach(e=>e.src=kitWithNumber(team,num)),{once:true});return KITS[team]}
+  const M=(typeof KIT_NUM!=="undefined"&&KIT_NUM[team])||[31,"FFFFFF","000000"],cv=document.createElement("canvas");cv.width=38;cv.height=59;const g=cv.getContext("2d");g.imageSmoothingEnabled=false;g.drawImage(im,0,0);
+  const on=new Set();let W=0;[...num].forEach((d,i)=>{const gl=DIGITS[+d];if(!gl)return;const ox=i*6;for(let y=0;y<7;y++)for(let x=0;x<5;x++)if(gl[y*5+x]==="1")on.add((ox+x)+","+y);W=ox+5});
   const x0=Math.round((M[3]??19)-W/2),y0=M[0],edge=new Set();on.forEach(k=>{const [x,y]=k.split(",").map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const q=(x+dx)+","+(y+dy);if(!on.has(q))edge.add(q)}});
-  const px=(set,col)=>[...set].map(k=>{const [x,y]=k.split(",").map(Number);return `<rect x="${x0+x}" y="${y0+y}" width="1" height="1" fill="${col}"/>`}).join("");
-  return `<svg class="jersey pixel" width="${size}" height="${Math.round(size*59/38)}" viewBox="0 0 38 59" shape-rendering="crispEdges" role="img" aria-label="${esc(TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team)} home jersey${num?", number "+esc(num):""}"><title>Jersey art: Wikimedia Commons contributors, CC BY-SA 4.0 (number added)</title>
-    <image href="${src}" width="38" height="59" style="image-rendering:pixelated"/>${num?px(edge,line)+px(on,fill):""}</svg>`}
+  const paint=(set,col)=>{g.fillStyle=col;set.forEach(k=>{const [x,y]=k.split(",").map(Number);g.fillRect(x0+x,y0+y,1,1)})};paint(edge,"#"+M[2]);paint(on,"#"+M[1]);
+  return KIT_CACHE[key]=cv.toDataURL("image/png")}
+function pixelJersey(p,size=76){const num=String(p.jersey||""),key=p.team+"#"+num,name=TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team;
+  return `<img class="jersey pixel" data-kit="${esc(key)}" src="${num?kitWithNumber(p.team,num):KITS[p.team]}" width="${size}" height="${Math.round(size*59/38)}" alt="${esc(name)} home jersey${num?", number "+esc(num):""}" title="Jersey art: Wikimedia Commons contributors, CC BY-SA 4.0 (number added)">`}
 function jerseySvg(p,size=78){if(typeof KITS!=="undefined"&&KITS[p.team])return pixelJersey(p);const J=typeof TEAM_JERSEY!=="undefined"&&TEAM_JERSEY[p.team],id="j"+p.id,num=p.jersey||"",c=h=>"#"+h;
   if(!J)return `<svg class="jersey" width="${size}" height="${Math.round(size*1.1)}" viewBox="0 0 100 110" role="img" aria-label="No team jersey"><path d="${JERSEY_BODY}" fill="var(--soft)" stroke="var(--line)" stroke-width="1.5"/>${num?`<text x="50" y="90" text-anchor="middle" style="font-family:'Saira Condensed',sans-serif;font-weight:800;font-size:44px;fill:var(--muted)">${esc(num)}</text>`:""}</svg>`;
   const block=J.f!=="college",ff=block?"'Saira Condensed','Arial Narrow',sans-serif":"Graduate,Rockwell,'Courier New',serif",fw=block?800:400,

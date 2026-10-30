@@ -339,7 +339,7 @@ html{scrollbar-gutter:stable}
 #drClose{flex:none}
 @media (max-width:480px){.dr-head h2{font-size:26px;overflow-wrap:anywhere}}
 .jersey{flex:none;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
-.jersey.pixel{image-rendering:pixelated;filter:drop-shadow(0 0 0 var(--ink))}
+.jersey.pixel{image-rendering:pixelated;image-rendering:crisp-edges;image-rendering:pixelated}
 @media (max-width:480px){.jersey:not(.pixel){width:58px;height:64px}}
 .dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
 .dtabs button{border:0;background:none;padding:7px 12px;font-family:var(--display);font-size:17px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
