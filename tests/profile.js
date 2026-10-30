@@ -14,6 +14,8 @@ const star=await pg.evaluate(id=>{S.drTab='overview';openPlayer(id);const t=docu
 check(star.games,'top player has recent games');check(star.adv,'advanced profile shows true shooting and box plus-minus');check(star.cmp>=3,'closest alternatives listed');
 const ofs=await pg.evaluate(()=>{const p=players.find(p=>p.inj&&p.inj.fs==='OFS');if(!p)return null;return insightsOf(p).map(x=>x.t).join(' ')});
 if(ofs!==null)check(/Out for the season/.test(ofs)&&!/Priced high|Value pick/.test(ofs),'season-ending injury reads "Out for the season" with nothing else');
+const kits=await pg.evaluate(()=>{const T=[...new Set(players.map(p=>p.team))].filter(t=>t!=='FA');return T.filter(t=>!(KITS[t]&&KIT_NUM[t]))});
+check(!kits.length,'every team has pixel jersey art and number settings'+(kits.length?' (missing: '+kits.join(', ')+')':''));
 await pg.setViewportSize({width:390,height:800});await pg.evaluate(id=>{S.drTab='overview';openPlayer(id)},ids[0]);await pg.waitForTimeout(200);
 check(await pg.evaluate(()=>{const d=document.getElementById('drawer'),t=document.querySelector('.dtabs');return d.scrollWidth<=d.clientWidth+1&&t.scrollWidth<=t.clientWidth+1}),'phone: panel and section tabs fit');
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();

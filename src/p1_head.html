@@ -336,6 +336,8 @@ html{scrollbar-gutter:stable}
 /* the drawn jersey sits beside the name in the profile header */
 .dr-id{display:flex;gap:14px;align-items:flex-start;min-width:0}
 .dr-id>div{min-width:0}
+#drClose{flex:none}
+@media (max-width:480px){.dr-head h2{font-size:26px;overflow-wrap:anywhere}}
 .jersey{flex:none;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
 .jersey.pixel{image-rendering:pixelated;filter:drop-shadow(0 0 0 var(--ink))}
 @media (max-width:480px){.jersey:not(.pixel){width:58px;height:64px}}
