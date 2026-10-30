@@ -890,16 +890,18 @@ document.addEventListener("input",e=>{if(e.target.id!=="plQ")return;S.pl.q=e.tar
 const lum=h=>{const c=[0,2,4].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]},
   contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
 // pixel-art jersey: the team's Wikimedia Commons icon kit with his number drawn in the same pixel grid (5x7 digits, bolded, outlined)
-const DIGITS=["01110100011001110101110011000101110","00100011000010000100001000010001110","01110100010000100010001000100011111","11110000010000101110000010000111110","00010001100101010010111110001000010","11111100001111000001000011000101110","00110010001000011110100011000101110","11111000010001000100010000100001000","01110100011000101110100011000101110","01110100011000101111000010001001100"];
+// athletic 5x7 digits: two-pixel uprights so the fill color carries the number and the outline stays a thin edge
+const DIGITS=["01110110111101111011110111101101110","01100111000110001100011000110011110","01110110110001100110011001100011111","11110000110001101110000110001111110","00011001110101110011111110001100011","11111110001111000011000111101101110","01110110001100011110110111101101110","11111000110011000110011000110001100","01110110111101101110110111101101110","01110110111101101111000110001101110"];
 // the number is painted into the kit bitmap itself (38x59), so it shares the art's pixel grid and 1-pixel strokes, then the whole
 // image is scaled up as one; images decode asynchronously, so a first render shows the plain kit and swaps in the numbered one
-const KIT_IMG={},KIT_CACHE={};
+const KIT_IMG={},KIT_CACHE={},DIGITS3=["111101101101111","010110010010111","111001111100111","111001111001111","101101111001001","111100111001111","111100111101111","111001001001001","111101111101111","111101111001111"];
 function kitWithNumber(team,num){const key=team+"#"+num;if(KIT_CACHE[key])return KIT_CACHE[key];
   let im=KIT_IMG[team];if(!im){im=KIT_IMG[team]=new Image();im.src=KITS[team]}
   if(!im.complete||!im.naturalWidth){im.addEventListener("load",()=>document.querySelectorAll(`img[data-kit="${CSS.escape(key)}"]`).forEach(e=>e.src=kitWithNumber(team,num)),{once:true});return KITS[team]}
   const M=(typeof KIT_NUM!=="undefined"&&KIT_NUM[team])||[31,"FFFFFF","000000"],cv=document.createElement("canvas");cv.width=38;cv.height=59;const g=cv.getContext("2d");g.imageSmoothingEnabled=false;g.drawImage(im,0,0);
-  const on=new Set();let W=0;[...num].forEach((d,i)=>{const gl=DIGITS[+d];if(!gl)return;const ox=i*6;for(let y=0;y<7;y++)for(let x=0;x<5;x++)if(gl[y*5+x]==="1")on.add((ox+x)+","+y);W=ox+5});
-  const x0=Math.round((M[3]??19)-W/2),y0=M[0],edge=new Set();on.forEach(k=>{const [x,y]=k.split(",").map(Number);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const q=(x+dx)+","+(y+dy);if(!on.has(q))edge.add(q)}});
+  const sm=M[4]===1,F=sm?DIGITS3:DIGITS,gw=sm?3:5,gh=sm?5:7,on=new Set();let W=0;[...num].forEach((d,i)=>{const gl=F[+d];if(!gl)return;const ox=i*(gw+1);for(let y=0;y<gh;y++)for(let x=0;x<gw;x++)if(gl[y*gw+x]==="1")on.add((ox+x)+","+y);W=ox+gw});
+  const x0=Math.round((M[3]??19)-W/2),y0=M[0],edge=new Set();// outline the four direct neighbours only, so the edge stays one pixel and the fill reads as the number
+  on.forEach(k=>{const [x,y]=k.split(",").map(Number);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const q=(x+dx)+","+(y+dy);if(!on.has(q))edge.add(q)}});
   const paint=(set,col)=>{g.fillStyle=col;set.forEach(k=>{const [x,y]=k.split(",").map(Number);g.fillRect(x0+x,y0+y,1,1)})};paint(edge,"#"+M[2]);paint(on,"#"+M[1]);
   return KIT_CACHE[key]=cv.toDataURL("image/png")}
 function pixelJersey(p,size=76){const num=String(p.jersey||""),key=p.team+"#"+num,name=TEAM_COLORS&&TEAM_COLORS[p.team]?TEAM_COLORS[p.team][2]:p.team;
