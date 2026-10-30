@@ -57,4 +57,11 @@ node tests/hub.js                    # prediction scorecard, injury fallout, tea
 
 ## Publishing
 
-The live app is a private claude.ai artifact. A scheduled Claude session runs `refresh.sh` every morning at 10:47 UTC and republishes `build/draft-room.html` to the same link. That session currently reads the pipeline from the artifact's own supporting files (`pipeline/`). Switching it to clone this repository instead is a one-line change to the scheduled task's prompt.
+The live app is a private claude.ai artifact. Two scheduled Claude sessions keep it current, each cloning this repository's `main` branch for the code and taking the data from the artifact's supporting files (`pipeline/last/`), which hold the last good copy of every data file and the prediction log:
+
+| Run | When | What |
+| --- | --- | --- |
+| `bash refresh.sh` | 6:47am ET | every source, the teammate splits and the prediction scorecard |
+| `bash refresh.sh injuries` | 5:11pm ET | only ESPN players, injuries and news, so late scratches reach the lineup advice before tip-off |
+
+Each run republishes `build/draft-room.html` to the same link and saves the updated data files back to `pipeline/last/`. `last/sources.json` records when each source was last fetched fresh; the page header says when it was updated and shows a warning when the data is over a day old or a source has been stuck on its last good copy for more than 36 hours. Code changes reach the live app the morning after they're merged to `main`.

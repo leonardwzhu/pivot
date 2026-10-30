@@ -18,4 +18,5 @@ await pg.setViewportSize({width:390,height:800});await pg.waitForTimeout(200);
 check(await pg.evaluate(()=>{const d=document.getElementById('drawer');return d.scrollWidth<=d.clientWidth+1}),'phone: profile with teammate tables fits');
 await pg.keyboard.press('Escape');await pg.click('#tab-models');await pg.waitForTimeout(300);
 check(await pg.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'phone: Models tab fits');
+check(/updated /.test(await pg.evaluate(()=>document.getElementById('asof').textContent)),'header says when the data was updated');
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();

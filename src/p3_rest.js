@@ -557,14 +557,16 @@ function dayLineup(ros,q){const c=ros.filter(p=>p.daySet.has(q)).sort((a,b)=>gam
   const aug=(p,seen)=>{for(let k=0;k<LINEUP.length;k++){if(seen[k]||!elig(p,k))continue;seen[k]=1;if(!slot[k]||aug(slot[k],seen)){slot[k]=p;return true}}return false};
   c.forEach(p=>{if(!aug(p,new Uint8Array(LINEUP.length)))bench.push(p)});return {slot,bench,starters:slot.filter(Boolean)}}
 function weekProj(ros,w){let pts=0,games=0;const per=weekDays(w).map(q=>{const L=dayLineup(ros,q),v=L.starters.reduce((s,p)=>s+p.proj.fp*p.rate,0);pts+=v;games+=L.starters.length;return {q,L,v}});return {pts,per,games}}
-// head-to-head week: availability drawn per game from each player's games-played rate, and game-to-game swings
-// of about 35% of a player's average (a typical spread for fantasy points; game logs weren't available to fit it)
+// head-to-head week: availability drawn per game from each player's games-played rate, and each game's points drawn from
+// the measured spread of actual vs predicted over two seasons of games (MATCHUP.RQ: lopsided, more bad nights than blowups)
+// centered on 1: the shape of the swing, not last season's slight under-prediction, belongs in the simulation
+const RQ1=MATCHUP.RQ.map(x=>x/mean(MATCHUP.RQ)),swing=rnd=>{const u=rnd()*(RQ1.length-1),i=Math.floor(u);return RQ1[i]+(RQ1[Math.min(i+1,RQ1.length-1)]-RQ1[i])*(u-i)};
 function matchupSim(A,B,w,N=600){let seed=(w*7919+A.length*31+B.length)>>>0;const rnd=()=>{seed=seed+0x6D2B79F5|0;let x=Math.imul(seed^seed>>>15,1|seed);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296};
-  const gs=()=>{let u=0;while(!u)u=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd())},days=weekDays(w);
+  const days=weekDays(w);
   const side=ros=>{const ps=[...ros].sort((a,b)=>gameVal(b)-gameVal(a));let tot=0;for(const q of days){const slot=new Array(LINEUP.length).fill(-1);
       const aug=(i,seen)=>{for(let k=0;k<LINEUP.length;k++){if(seen[k]||!elig(ps[i],k))continue;seen[k]=1;if(slot[k]<0||aug(slot[k],seen)){slot[k]=i;return true}}return false};
       for(let i=0;i<ps.length;i++){if(!ps[i].daySet.has(q)||rnd()>=ps[i].rate)continue;aug(i,new Uint8Array(LINEUP.length))}
-      for(let k=0;k<LINEUP.length;k++)if(slot[k]>=0){const p=ps[slot[k]];tot+=Math.max(0,p.proj.fp*(1+.35*gs()))}}return tot};
+      for(let k=0;k<LINEUP.length;k++)if(slot[k]>=0){const p=ps[slot[k]];tot+=p.proj.fp*swing(rnd)}}return tot};
   let win=0;const a=[],b=[];for(let i=0;i<N;i++){const x=side(A),y=side(B);a.push(x);b.push(y);if(x>y)win++}
   return {p:win/N,a:mean(a),b:mean(b),aq:[quant(a,.1),quant(a,.9)],bq:[quant(b,.1),quant(b,.9)]}}
 function seasonGate(view){const has=myRoster().length;if(has)return "";
@@ -1505,11 +1507,11 @@ $("undo").onclick=()=>{if(MOCK()){mockUndo();return}const x=S.picks.pop();if(x)t
 const HAS_LG=()=>typeof LEAGUE!=="undefined"&&!!LEAGUE;
 const wksLeft=()=>Math.max(1,WEEKS.filter(x=>!x.po&&x.p[1]>=CUR_PERIOD).length);
 const perWk=H=>H.reg/wksLeft();
-// a team's weekly scoring spread: game-to-game swings (35% of each start) plus projection error, from the same
+// a team's weekly scoring spread: game-to-game swings (MATCHUP.CV of each start, measured) plus projection error, from the same
 // assumptions as the matchup simulator, so playoff odds and weekly win chances agree
 function teamWeekly(R){const H=R.length?h2hValue(R):{reg:0,po:0,weekly:new Float64Array(WEEKS.length),started:0};
   const top=[...R].sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,10),avg=top.length?mean(top.map(p=>p.proj.fp)):0,sig=top.length?mean(top.map(p=>p.proj.sigma)):0;
-  const starts=Math.max(1,H.started/wksLeft()),sd=Math.sqrt(starts*(.35*avg)**2+(starts*sig*.5)**2);return {H,mu:perWk(H),sd}}
+  const starts=Math.max(1,H.started/wksLeft()),sd=Math.sqrt(starts*(MATCHUP.CV*avg)**2+(starts*sig*.5)**2);return {H,mu:perWk(H),sd}}
 // season simulation over your real schedule: current ESPN records plus each remaining week drawn from those spreads
 function playoffOdds(){const L=leagueRosters(),T=Object.keys(L).map(Number);if(T.length<2||!HAS_LG()||!LEAGUE.opp)return null;
   const tw=Object.fromEntries(T.map(t=>[t,teamWeekly(rosterOf(t))])),rec=LEAGUE.rec||{},N=3000,po=Object.fromEntries(T.map(t=>[t,0])),wins=Object.fromEntries(T.map(t=>[t,0])),seed0=Object.fromEntries(T.map(t=>[t,0]));
@@ -1608,7 +1610,7 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>Scoring</h3><p>Every stat a starter records is worth points:</p><div class="tablebox" style="max-width:360px"><table><tbody>${sc}</tbody></table></div><p>So a 20-point, 10-rebound, 5-assist night on 8-of-16 shooting and 4-of-5 free throws with 2 turnovers is 20 + 10 + 10 + 16 − 16 + 4 − 5 − 4 = <b>35 points</b>. Steals and blocks (+4) are the most valuable single plays. Missed shots and turnovers cost you.</p>
   <h3>Weeks, standings and playoffs</h3><p>Each week (Monday to Sunday) you play one team. All your starters' points for the week are added up, and the higher total wins. There are <b>19 regular-season weeks</b> (Nov 2 to Mar 14). The <b>top 4 records</b> make the playoffs, with seeding by head-to-head record. Playoffs are two rounds of <b>two weeks each</b>: semifinals Mar 15–28, final Mar 29–Apr 11. That's why the app weights playoff-week games: a player with 16 games in those four weeks is worth more to you then than one with 12.</p>
   <h3>Changing your team</h3><p>Free agents are added through <b>waivers</b>: a dropped player waits on waivers briefly, and claims go by waiver priority. There's no limit on adds. Trades are allowed until <b>${dl}</b>.</p>
-  <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times with each player's games swinging about 35% either way.</p></div>`}
+  <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times, drawing each game from how far real games landed from their predictions over the last two seasons: a typical game misses by about half the prediction, and bad nights are more common than huge ones.</p></div>`}
 const TABS=["board","team","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-news").addEventListener("click",()=>renderNews());
@@ -1663,7 +1665,14 @@ $("resetDraft").onclick=e=>{if(!clearArmed){clearArmed=true;e.target.textContent
   S.picks=[];clearArmed=false;e.target.textContent="Clear draft";renderAll();$("importMsg").textContent="Draft cleared."};
 
 if(MOCK()&&S.mock.styles)setRoomPicks();
-$("asof").textContent=`ESPN 2026-27 · data as of ${new Date(FETCHED+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`;
+// freshness: when the page was built, and any source stuck on an old copy (a failed fetch) or a refresh that never ran
+(()=>{const B=typeof BUILD!=="undefined"?BUILD:null,el=$("asof");if(!B){el.textContent=`ESPN 2026-27 · data as of ${new Date(FETCHED+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`;return}
+  const t=s=>new Date(s.replace("Z",":00Z")),fmt=d=>d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}),at=t(B.at),age=(Date.now()-at)/36e5;
+  const LAB={stats:"Basketball Reference stats",contracts:"contracts",ESPN:"ESPN injuries and news",league:"your ESPN league",schedule:"NBA schedule","recent games":"recent games",teammates:"teammate splits",FantasyPros:"FantasyPros ranks"};
+  const old=Object.entries(B.src).filter(([k,v])=>(at-t(v))/36e5>36).map(([k,v])=>`${LAB[k]||k} from ${t(v).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`);
+  el.textContent=`ESPN 2026-27 · updated ${fmt(at)}`;el.title="Last fetched: "+Object.entries(B.src).map(([k,v])=>`${LAB[k]||k} ${fmt(t(v))}`).join(" · ");
+  const w=age>30?`Data is ${Math.max(1,Math.round(age/24))} day${Math.round(age/24)>1?"s":""} old: the daily refresh hasn't run since ${at.toLocaleDateString(undefined,{month:"short",day:"numeric"})}`:old.length?`Stale: ${old.join(", ")}`:"";
+  if(w)el.insertAdjacentHTML("afterend",`<span class="need-chip med" id="staleChip" title="${esc(w)}">${age>30?"data "+Math.max(1,Math.round(age/24))+"d old":"some data stale"}</span>`)})();
 renderNews();renderModels();renderAll();renderMix();renderScoring();renderMock();
 
 // ================= ASK CLAUDE (optional capability) =================

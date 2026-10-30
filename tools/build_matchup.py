@@ -98,16 +98,18 @@ for nm,pp in (('Season average so far',dict(flat=True,a=0,hm=0,b2=0)),('Recent f
 n=score(out,*TE)[1];print(bt,n)
 ratio=sorted(r[7]/pr for r,pr,b in out if pr and pr>=15 and TE[0]<=r[1]<TE[1])
 q=[round(ratio[int(len(ratio)*x)],2) for x in (.1,.9)]
+# game-to-game swing for the matchup and season simulations: actual/predicted at the middle of each 5% slice, and its spread
+RQ=[round(ratio[int(len(ratio)*(.025+.05*k))],3) for k in range(20)];mu=sum(ratio)/len(ratio);CV=round((sum((x-mu)**2 for x in ratio)/len(ratio))**.5,3)
 DEF={}
 for (t,g),v in de.items():DEF.setdefault(t,{})[g]=[round(v[0]*P['c']),round(v[1]*P['c']),round(v[2]*P['c'],1)]
 VS=defaultdict(dict)
 for (p,t),v in hi.items():
   if v[2]>=2 and v[1]:VS[p][t]=[v[2],round(100*v[0]/v[1])]
 spread={t:{g:round(x[0]/x[1],3) for g,x in d.items() if x[1]} for t,d in DEF.items()}
-print('quantiles',q,'defense range',min((min(d.values()) for d in spread.values() if d),default=1),max((max(d.values()) for d in spread.values() if d),default=1))
+print('quantiles',q,'RQ',RQ,'CV',CV,'defense range',min((min(d.values()) for d in spread.values() if d),default=1),max((max(d.values()) for d in spread.values() if d),default=1))
 open('static/p2_matchup.js','w').write('// Per-game model fit on 2024-25 and 2025-26 ESPN game logs (tools/build_matchup.py). P = weights; BT = backtest MAE [early season, Feb-Apr 2026 holdout];\n'
-  '// Q = 10th/90th percentile of actual/predicted; DEF = each defense\'s carried-over record vs guards/forwards/centers [FP allowed, FP expected, games];\n'
-  '// VS = player record vs each team over two seasons [games, FP as % of what was expected]\nconst MATCHUP='+json.dumps(dict(P=P,BT=bt,N=n,Q=q,DEF=DEF,VS=VS),separators=(',',':'))+';\n')
+  '// Q = 10th/90th percentile of actual/predicted; RQ = actual/predicted at the middle of each 5% slice, CV its spread (both drive the simulators); DEF = each defense\'s carried-over record vs guards/forwards/centers [FP allowed, FP expected, games];\n'
+  '// VS = player record vs each team over two seasons [games, FP as % of what was expected]\nconst MATCHUP='+json.dumps(dict(P=P,BT=bt,N=n,Q=q,RQ=RQ,CV=CV,DEF=DEF,VS=VS),separators=(',',':'))+';\n')
 print('wrote',os.path.getsize('static/p2_matchup.js'),'bytes')
 # teammate splits from the last two seasons, for the daily build to start from: "A,B,team": [games with A, FP with, games without, FP without]
 M={f'{a},{b},{t}':[v[0],round(v[1]),v[2],round(v[3])] for (a,b,t),v in PR.items() if v[0]>=3 and v[2]>=1}
