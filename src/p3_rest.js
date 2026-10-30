@@ -863,9 +863,28 @@ function avgGames(G){if(!G.length)return null;const k=["min","pts","reb","ast","
 // last ten team games as bars: this season in the accent color, last season muted, gaps for games he missed
 function formSpark(p){const G=gamesOf(p).slice(0,10).reverse();if(!G.length)return dash;const mx=Math.max(20,...G.filter(g=>!g.dnp).map(g=>g.fp)),w=7;
   return `<svg width="${G.length*w}" height="20" viewBox="0 0 ${G.length*w} 20" role="img" aria-label="Fantasy points in his last ${G.length} team games">${G.map((g,i)=>g.dnp?`<rect x="${i*w+2}" y="18" width="3" height="1" fill="var(--bad)"/>`:`<rect x="${i*w+1}" y="${20-Math.max(1,g.fp/mx*20)}" width="5" height="${Math.max(1,g.fp/mx*20)}" fill="${g.date>=PERIOD0?"var(--accent)":"var(--line)"}"><title>${gDate(g.date)} ${g.opp}: ${f1(g.fp)} FP</title></rect>`).join("")}</svg>`}
-const PL_VIEWS=[["ov","Overview"],["stats","This season"],["recent","Recent games"],["adv","Advanced"],["proj","Rest of season"],["sched","Schedule"],["mkt","Ownership & ADP"]];
+const PL_VIEWS=[["ov","Overview"],["out","Outlook"],["stats","This season"],["recent","Recent games"],["adv","Advanced"],["proj","Rest of season"],["sched","Schedule"],["mkt","Ownership & ADP"]];
+// in-season outlook: last 10 games with a 3-game moving average, then the projection and its 80% range going forward
+function outlookSpark(p){const G=gamesOf(p).slice(0,10).reverse(),W=150,H=30,n=G.length,slots=n+4,x=i=>4+i*(W-8)/Math.max(1,slots-1),played=G.filter(g=>!g.dnp);
+  const mx=Math.max(20,p.hi,...played.map(g=>g.fp))*1.05,y=v=>H-3-(Math.max(0,v)/mx)*(H-6);let s=`<rect x="${x(n)-2}" y="${y(p.hi)}" width="${x(slots-1)-x(n)+4}" height="${Math.max(1,y(p.lo)-y(p.hi))}" class="band"/><line x1="${x(n)-2}" x2="${x(slots-1)+2}" y1="${y(p.proj.fp)}" y2="${y(p.proj.fp)}" class="ln proj"/>`;
+  const ma=[];G.forEach((g,i)=>{const w=G.slice(Math.max(0,i-2),i+1).filter(q=>!q.dnp);if(!g.dnp&&w.length)ma.push([x(i),y(mean(w.map(q=>q.fp)))])});
+  if(ma.length>1)s+=`<path d="${ma.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join(" ")}" class="ln" style="stroke-width:1.5"/>`;
+  G.forEach((g,i)=>{s+=g.dnp?`<rect x="${x(i)-1.5}" y="${H-2}" width="3" height="1.5" fill="var(--bad)"><title>${gDate(g.date)} ${g.opp}: did not play</title></rect>`:`<circle cx="${x(i)}" cy="${y(g.fp)}" r="2" fill="${g.date>=PERIOD0?"var(--accent)":"var(--muted)"}" opacity="${g.date>=PERIOD0?1:.6}"><title>${gDate(g.date)} ${g.opp}: ${f1(g.fp)} FP</title></circle>`});
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Last ${n} games and projection">${s}</svg>`}
+const paceDelta=p=>{const st=p.proj.steps.find(x=>x[0]==="2026-27 pace");return st?st[1]:0};
+// signals from his games this season: a change in minutes usually means a new role and sticks; a shooting streak usually fades
+function signals(p){const G=SEASON_GAMES(p).slice(0,5),prev=p.seasons.filter(s=>s&&s.gp>=20).pop(),out=[];if(G.length<3||!prev)return {html:dash,score:0};
+  const dm=mean(G.map(g=>g.min))-prev.min,fga=G.reduce((a,g)=>a+g.fga,0),dfg=fga>=20?G.reduce((a,g)=>a+g.fgm,0)/fga-prev.fg:0;
+  if(Math.abs(dm)>=3)out.push(`<span class="${dm>0?"zpos":"zneg"}" title="Minutes this season vs ${SEASON_LONG(prev.y)}: a role change that tends to stick">${dm>0?"▲":"▼"} ${f1(Math.abs(dm))} min</span>`);
+  if(Math.abs(dfg)>=.06)out.push(`<span class="mut" title="FG% this season vs ${SEASON_LONG(prev.y)}: shooting streaks usually fade">${dfg>0?"hot":"cold"} shooting ${dfg>0?"+":"−"}${Math.round(Math.abs(dfg)*100)} pts</span>`);
+  return {html:out.length?out.join("<br>"):'<span class="mut">none</span>',score:dm}}
 function plCols(view){const w0=Math.max(0,CUR_WEEK),N=+S.pl.rn,line=(get,lab)=>[["pts","Pts"],["reb","Reb"],["ast","Ast"],["stl","Stl"],["blk","Blk"],["tpm","3PM"],["tov","TO"]].map(([k,h])=>({k:lab+k,h,v:p=>{const o=get(p);return o?o[k]:-1},d:p=>{const o=get(p);return o?nv(o[k]):dash}}));
   const S2=p=>p.now&&p.now.gp?p.now:null,R=p=>p._r,P=p=>p.proj.line,B=p=>p._bs;
+  if(view==="out"){const nw=Math.min(WEEKS.length-1,w0+1),wfp=(p,i)=>weekGames(p,i)*p.proj.fp*p.rate;
+    return [{k:"otrend",h:"Last 10 → ahead",t:"Dots: his last 10 games (muted = last season). Line: 3-game average. Right: projection with its 80% range",v:p=>p._l5!=null?p._l5-p.proj.fp:-99,d:outlookSpark},
+      {k:"proj",h:"Proj FP/G",v:p=>p.proj.fp,d:p=>`<b>${f1(p.proj.fp)}</b>`},{k:"chg",h:"Since preseason",t:"How much this season's games have moved his projection",v:p=>paceDelta(p),d:p=>cpos(paceDelta(p))},
+      {k:"range",h:"80% range",v:p=>p.hi-p.lo,d:p=>`${f1(p.lo)}–${f1(p.hi)}`},{k:"twk",h:`Week ${WEEKS[w0].i} FP`,t:"Projected fantasy points in this matchup week: games x FP/G x chance he plays",v:p=>wfp(p,w0),d:p=>`${f0(wfp(p,w0))} <span class="mut">(${weekGames(p,w0)}g)</span>`},
+      {k:"nwk",h:`Week ${WEEKS[nw].i} FP`,v:p=>wfp(p,nw),d:p=>`${f0(wfp(p,nw))} <span class="mut">(${weekGames(p,nw)}g)</span>`},{k:"sig",h:"Signals",t:"Minutes changes tend to stick; shooting streaks tend to fade",v:p=>signals(p).score,d:p=>signals(p).html,l:1}]}
   if(view==="stats")return [{k:"gp",h:"GP",v:p=>S2(p)?S2(p).gp:-1,d:p=>S2(p)?String(S2(p).gp):dash},{k:"smin",h:"Min",v:p=>S2(p)?S2(p).min:-1,d:p=>S2(p)?nv(S2(p).min):dash},...line(S2,"s"),
     {k:"sfg",h:"FG%",v:p=>S2(p)&&S2(p).fga?S2(p).fgm/S2(p).fga:-1,d:p=>S2(p)&&S2(p).fga?pv(S2(p).fgm/S2(p).fga):dash},{k:"sft",h:"FT%",v:p=>S2(p)&&S2(p).fta?S2(p).ftm/S2(p).fta:-1,d:p=>S2(p)&&S2(p).fta?pv(S2(p).ftm/S2(p).fta):dash},
     {k:"now",h:"FP/G",v:p=>p.nowFp??-1,d:p=>`<b>${nv(p.nowFp)}</b>`},{k:"sdiff",h:"vs proj",t:"This season's FP/G minus his projection",v:p=>p.nowFp!=null?p.nowFp-p.proj.fp:-99,d:p=>cpos(p.nowFp!=null?p.nowFp-p.proj.fp:null)}];
@@ -898,28 +917,28 @@ function playersView(){computeDisp();const L=leagueRosters(),owner={};for(const 
   let list=players.filter(p=>(S.pl.pos==="ALL"||(S.pl.pos==="G"?p.pos.some(x=>x==="PG"||x==="SG"):S.pl.pos==="F"?p.pos.some(x=>x==="SF"||x==="PF"):p.pos.includes(S.pl.pos)))
     &&(S.pl.own==="all"||(S.pl.own==="fa"?owner[p.id]==null:S.pl.own==="mine"?owner[p.id]===S.slot:owner[p.id]!=null&&owner[p.id]!==S.slot))
     &&(!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase()===q));
-  const C=[{k:"name",h:"Player",v:p=>p.name,l:1},{k:"owner",h:"Owner",v:p=>p._own,l:1},...plCols(S.pl.view)],col=C.find(c=>c.k===S.pl.sort)||C[2];
+  const C=[{k:"rk",h:"#",t:"Board rank",v:p=>p.disp??p.rank,l:1},{k:"name",h:"Player",v:p=>p.name,l:1},{k:"owner",h:"Owner",v:p=>p._own,l:1},...plCols(S.pl.view)],col=C.find(c=>c.k===S.pl.sort)||C[3];
   list.sort((a,b)=>{const x=col.v(a),y=col.v(b);return (typeof x==="string"?x.localeCompare(y):x-y)*(C.find(c=>c.k===S.pl.sort)?S.pl.dir:-1)});
   const n=list.length,shown=list.slice(0,S.pl.n),hasOwners=Object.keys(owner).length>0;
   const seg=(key,opts)=>`<div class="seg" role="group">${opts.map(([v,lab])=>`<button data-pl="${key}:${v}" aria-pressed="${S.pl[key]===v}">${lab}</button>`).join("")}</div>`;
   const own=p=>{const o=owner[p.id];return o==null?'<span class="chip espn">Free agent</span>':o===S.slot?'<span class="chip rook">Your team</span>':`<span class="mut own" title="${esc(teamName(o))}">${esc(teamName(o))}</span>`};
   const th=c=>`<th class="${c.l?"l":""}" data-plsort="${c.k}"${c.t?` title="${esc(c.t)}"`:""}${S.pl.sort===c.k?` aria-sort="${S.pl.dir<0?"descending":"ascending"}"`:""}>${c.h}${S.pl.sort===c.k?(S.pl.dir<0?" ▼":" ▲"):""}</th>`;
-  const NOTE={ov:"Proj FP/G is the projection for the rest of the season. This season is fantasy points per game so far (games in brackets). Last 5 averages his last five games this season, Trend compares that with his season once he has more than five games, and Last 10 shows each of his team's last ten games.",
+  const NOTE={out:"Projections update as the season goes: each player's preseason projection is blended with his pace this season, and his own games count for more the more he plays (half the weight at 10 games by default, set in the Draft Day mix card). Since preseason shows how far that has moved him. Week FP multiplies his games that week by his projected FP/G and his chance of playing.",ov:"Proj FP/G is the projection for the rest of the season. This season is fantasy points per game so far (games in brackets). Last 5 averages his last five games this season, Trend compares that with his season once he has more than five games, and Last 10 shows each of his team's last ten games.",
     stats:"Per-game averages this season, from Basketball Reference. vs proj compares his fantasy points per game with his rest-of-season projection.",recent:`Averages over his team's last ${N} games this season (games he missed are counted separately), from ESPN's box scores.`,
     adv:"From Basketball Reference: this season once he has 10 games, otherwise last season; players with fewer than 10 games at 8+ minutes show dashes. Per-36 numbers scale his production to 36 minutes so bench and starting players compare fairly.",proj:"The model's projected per-game line for the rest of the season, under your league's scoring.",
     sched:"Games he's expected to play (injuries included). Green weeks have 4 or more games, red weeks 2 or fewer.",mkt:"How the fantasy world values him: ESPN rostered share and draft position, ESPN's and this model's ranks, and the FantasyPros expert consensus."};
   return `<div class="filters"><input type="search" id="plQ" placeholder="Search a player or team (e.g. DEN)" value="${esc(S.pl.q)}">${seg("pos",["ALL","PG","SG","SF","PF","C","G","F"].map(x=>[x,x]))}</div>
     <div class="filters"><span class="seg-lab">Show</span>${seg("own",[["all","Everyone"],["fa","Free agents"],["mine","My team"],["others","Other teams"]])}<span class="mut" style="font-size:12px">${n} player${n===1?"":"s"}${hasOwners?"":" · rosters appear after your draft"}</span></div>
     <div class="filters"><span class="seg-lab">Columns</span>${seg("view",PL_VIEWS)}${S.pl.view==="recent"?seg("rn",[["5","Last 5"],["10","Last 10"]]):""}</div>
-    <div class="tablebox"><table class="board"><thead><tr><th class="l">#</th>${C.map(th).join("")}</tr></thead><tbody>
-    ${shown.map(p=>`<tr${owner[p.id]===S.slot?' class="is-mine"':""}><td class="num">${p.disp??p.rank}</td>${nameCell(p)}<td class="l">${own(p)}</td>${C.slice(2).map(c=>`<td class="${c.l?"l":"num"}">${c.d(p)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="tablebox"><table class="board"><thead><tr>${C.map(th).join("")}</tr></thead><tbody>
+    ${shown.map(p=>`<tr${owner[p.id]===S.slot?' class="is-mine"':""}><td class="num">${p.disp??p.rank}</td>${nameCell(p)}<td class="l">${own(p)}</td>${C.slice(3).map(c=>`<td class="${c.l?"l":"num"}">${c.d(p)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${n>shown.length?`<p style="margin-top:8px"><button class="btn" data-plmore="1">Show ${Math.min(100,n-shown.length)} more</button> <span class="mut" style="font-size:12px">${shown.length} of ${n}</span></p>`:""}
     <p class="empty" style="margin-top:8px">${NOTE[S.pl.view]||NOTE.ov} Hover a column header for what it means; click it to sort. Click a name for his full profile${hasOwners?"; free agents can be added from the Waivers tab":""}.</p>`}
 function renderPlayers(){const v=$("view-players");if(!v)return;const a=document.activeElement,typing=a&&a.id==="plQ",pos=typing?a.selectionStart:0;v.innerHTML=playersView();
   if(typing){const i=$("plQ");i.focus();i.setSelectionRange(pos,pos)}}
 document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("[data-pl],[data-plsort],[data-plmore]");if(!t)return;
   if(t.dataset.pl){const [k,v]=t.dataset.pl.split(":");S.pl[k]=v;S.pl.n=100}
-  else if(t.dataset.plsort){const k=t.dataset.plsort;if(S.pl.sort===k)S.pl.dir*=-1;else{S.pl.sort=k;S.pl.dir=k==="name"||k==="owner"||k==="adp"||k==="espn"||k==="mrank"||k==="fpro"||k==="to36"?1:-1}}
+  else if(t.dataset.plsort){const k=t.dataset.plsort;if(S.pl.sort===k)S.pl.dir*=-1;else{S.pl.sort=k;S.pl.dir=k==="rk"||k==="name"||k==="owner"||k==="adp"||k==="espn"||k==="mrank"||k==="fpro"||k==="to36"?1:-1}}
   else S.pl.n+=100;save();renderPlayers()});
 document.addEventListener("input",e=>{if(e.target.id!=="plQ")return;S.pl.q=e.target.value;S.pl.n=100;clearTimeout(renderPlayers.t);renderPlayers.t=setTimeout(()=>{save();renderPlayers()},150)});
 // a drawn jersey in his team's colors with his number: no logos or photos, just the team's colors and nickname
