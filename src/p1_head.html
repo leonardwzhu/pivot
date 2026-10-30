@@ -332,6 +332,7 @@ html{scrollbar-gutter:stable}
 .sum-grid .heads{margin:0}
 
 /* player profile: section tabs inside the panel, schedule tiles */
+#view-players .own{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 .dtabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ink);margin-top:14px;overflow-x:auto;position:sticky;top:calc(-14px - env(safe-area-inset-top,0px));z-index:2;background:var(--bg);padding-top:6px}
 .dtabs button{border:0;background:none;padding:7px 12px;font-family:var(--display);font-size:17px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .dtabs button[aria-selected=true]{color:var(--ink);font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
@@ -365,6 +366,7 @@ html{scrollbar-gutter:stable}
       <button role="tab" id="tab-insights" data-mode="draft" aria-selected="false">Insights</button>
       <button role="tab" id="tab-mock" data-mode="draft" aria-selected="false">Mock Draft</button>
       <button role="tab" id="tab-team" data-mode="season" aria-selected="false">My Team</button>
+      <button role="tab" id="tab-players" data-mode="season" aria-selected="false">Players</button>
       <button role="tab" id="tab-season" data-mode="season" aria-selected="false">Matchup</button>
       <button role="tab" id="tab-waivers" data-mode="season" aria-selected="false">Waivers</button>
       <button role="tab" id="tab-trades" data-mode="season" aria-selected="false">Trades</button>
@@ -400,6 +402,7 @@ html{scrollbar-gutter:stable}
     </div>
 
     <div id="view-team" hidden class="models"></div>
+    <div id="view-players" hidden></div>
     <div id="view-season" hidden class="models"></div>
     <div id="view-waivers" hidden class="models"></div>
     <div id="view-trades" hidden class="models"></div>

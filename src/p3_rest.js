@@ -855,6 +855,37 @@ function compareSection(p){const q=players[CMP[p.id]]||similarTo(p,1)[0];if(!q)r
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-cmp],[data-dtab]");if(!b||openId==null)return;
   if(b.dataset.cmp){CMP[openId]=+b.dataset.cmp;S.drTab="compare"}else S.drTab=b.dataset.dtab;openPlayer(openId)});
 document.addEventListener("change",e=>{if(e.target.id!=="cmpPick"||openId==null)return;const q=byName[e.target.value];if(!q){toast("Pick a player from the list");return}CMP[openId]=q.id;openPlayer(openId)});
+// ================= PLAYERS (Season): every player, rostered or not, with who owns him and how he's playing =================
+S.pl=Object.assign({q:"",pos:"ALL",own:"all",sort:"proj",dir:-1,n:100},S.pl||{});
+const PL_COLS=[["rk","#",p=>p.disp??p.rank,1],["name","Player",p=>p.name,1],["own","Owner",p=>p._own,1],["proj","Proj FP/G",p=>p.proj.fp],["now","This season",p=>p.nowFp??-1],["l5","Last 5",p=>p._l5??-1],
+  ["trend","Trend",p=>p._l5!=null&&p.nowFp!=null&&p.now&&p.now.gp>5?p._l5-p.nowFp:-99],["min","Min",p=>p._min??-1],["wk","This week",p=>p._wk],["left","Games left",p=>p.avail],["ros","Rest of season FP",p=>p.projTot]];
+function playersView(){computeDisp();const L=leagueRosters(),owner={};for(const t in L)L[t].forEach(id=>owner[id]=+t);const w=Math.max(0,CUR_WEEK),q=S.pl.q.trim().toLowerCase();
+  players.forEach(p=>{const G=SEASON_GAMES(p).slice(0,5);p._l5=G.length>=2?mean(G.map(g=>g.fp)):null;p._min=p.now&&p.now.gp?p.now.min:G.length?mean(G.map(g=>g.min)):null;p._wk=weekGames(p,w);
+    const o=owner[p.id];p._own=o==null?"~":o===S.slot?" ":teamName(o)});
+  let list=players.filter(p=>(S.pl.pos==="ALL"||(S.pl.pos==="G"?p.pos.some(x=>x==="PG"||x==="SG"):S.pl.pos==="F"?p.pos.some(x=>x==="SF"||x==="PF"):p.pos.includes(S.pl.pos)))
+    &&(S.pl.own==="all"||(S.pl.own==="fa"?owner[p.id]==null:S.pl.own==="mine"?owner[p.id]===S.slot:owner[p.id]!=null&&owner[p.id]!==S.slot))
+    &&(!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase()===q));
+  const col=PL_COLS.find(c=>c[0]===S.pl.sort)||PL_COLS[3],f=col[2];list.sort((a,b)=>{const x=f(a),y=f(b);return (typeof x==="string"?x.localeCompare(y):x-y)*S.pl.dir});
+  const n=list.length,shown=list.slice(0,S.pl.n),hasOwners=Object.keys(owner).length>0;
+  const seg=(key,opts)=>`<div class="seg" role="group">${opts.map(([v,lab])=>`<button data-pl="${key}:${v}" aria-pressed="${S.pl[key]===v}">${lab}</button>`).join("")}</div>`;
+  const own=p=>{const o=owner[p.id];return o==null?'<span class="chip espn">Free agent</span>':o===S.slot?'<span class="chip rook">Your team</span>':`<span class="mut own" title="${esc(teamName(o))}">${esc(teamName(o))}</span>`};
+  const trend=p=>{if(p._l5==null||p.nowFp==null||!p.now||p.now.gp<=5)return '<span class="mut">–</span>';const d=p._l5-p.nowFp;return Math.abs(d)<2?'<span class="mut">steady</span>':`<span class="${d>0?"zpos":"zneg"}">${d>0?"▲":"▼"} ${f1(Math.abs(d))}</span>`};
+  const th=c=>c[0]==="rk"?'<th class="l">#</th>':`<th class="${c[3]?"l":""}" data-plsort="${c[0]}" ${S.pl.sort===c[0]?`aria-sort="${S.pl.dir<0?"descending":"ascending"}"`:""}>${c[1]}${S.pl.sort===c[0]?(S.pl.dir<0?" ▼":" ▲"):""}</th>`;
+  return `<div class="filters"><input type="search" id="plQ" placeholder="Search a player or team (e.g. DEN)" value="${esc(S.pl.q)}">${seg("pos",["ALL","PG","SG","SF","PF","C","G","F"].map(x=>[x,x]))}</div>
+    <div class="filters"><span class="seg-lab">Show</span>${seg("own",[["all","Everyone"],["fa","Free agents"],["mine","My team"],["others","Other teams"]])}<span class="mut" style="font-size:12px">${n} player${n===1?"":"s"}${hasOwners?"":" · rosters appear after your draft"}</span></div>
+    <div class="tablebox"><table class="board"><thead><tr>${PL_COLS.map(th).join("")}</tr></thead><tbody>
+    ${shown.map(p=>`<tr${owner[p.id]===S.slot?' class="is-mine"':""}><td class="num">${p.disp??p.rank}</td>${nameCell(p)}<td class="l">${own(p)}</td><td class="num fp">${f1(p.proj.fp)}</td>
+      <td class="num">${p.nowFp!=null?`${f1(p.nowFp)} <span class="mut">(${p.now.gp})</span>`:'<span class="mut">–</span>'}</td><td class="num">${p._l5!=null?f1(p._l5):'<span class="mut">–</span>'}</td><td class="num">${trend(p)}</td>
+      <td class="num">${p._min!=null?f1(p._min):'<span class="mut">–</span>'}</td><td class="num">${p._wk}</td><td class="num">${p.avail}</td><td class="num">${f0(p.projTot)}</td></tr>`).join("")}</tbody></table></div>
+    ${n>shown.length?`<p style="margin-top:8px"><button class="btn" data-plmore="1">Show ${Math.min(100,n-shown.length)} more</button> <span class="mut" style="font-size:12px">${shown.length} of ${n}</span></p>`:""}
+    <p class="empty" style="margin-top:8px">Proj FP/G is the projection for the rest of the season. This season is fantasy points per game so far (games in brackets); Last 5 is his last five games this season, and Trend compares the two once he has more than five games. This week counts his games in the current matchup week. Click a name for his full profile${hasOwners?"; free agents can be added from the Waivers tab":""}.</p>`}
+function renderPlayers(){const v=$("view-players");if(!v)return;const a=document.activeElement,typing=a&&a.id==="plQ",pos=typing?a.selectionStart:0;v.innerHTML=playersView();
+  if(typing){const i=$("plQ");i.focus();i.setSelectionRange(pos,pos)}}
+document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("[data-pl],[data-plsort],[data-plmore]");if(!t)return;
+  if(t.dataset.pl){const [k,v]=t.dataset.pl.split(":");S.pl[k]=v;S.pl.n=100}
+  else if(t.dataset.plsort){const k=t.dataset.plsort;if(S.pl.sort===k)S.pl.dir*=-1;else{S.pl.sort=k;S.pl.dir=PL_COLS.find(c=>c[0]===k)[3]?1:-1}}
+  else S.pl.n+=100;save();renderPlayers()});
+document.addEventListener("input",e=>{if(e.target.id!=="plQ")return;S.pl.q=e.target.value;S.pl.n=100;clearTimeout(renderPlayers.t);renderPlayers.t=setTimeout(()=>{save();renderPlayers()},150)});
 const DTABS=[["overview","Overview"],["stats","Stats"],["proj","Projection"],["compare","Compare"]];
 function openPlayer(id){
   const same=openId===id,scroll=$("drawer").scrollTop;openId=id;const tab=S.drTab||"overview";const p=players[id],pk=pickOf(id),l=p.proj.line;computeDisp();
@@ -1112,7 +1143,7 @@ function renderNews(){
   <div class="news-sec"><h3>New teams since last season (${moves.length})</h3><div class="news">${moves.map(p=>`<div class="item move"><div class="h">${pb(p.name)} <span class="mut">${p.prevTeam} → ${p.team}</span></div></div>`).join("")}</div></div>
   <p class="empty" style="margin-top:14px">ESPN news and injury report fetched ${FETCHED}; team changes from Basketball Reference and ESPN rosters.</p>`;
 }
-function renderAll(){applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});save()}
+function renderAll(){applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();if(!$("view-players").hidden)renderPlayers();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});save()}
 
 // ================= LEAGUE SCORING =================
 function renderScoring(){
@@ -1388,11 +1419,12 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>Weeks, standings and playoffs</h3><p>Each week (Monday to Sunday) you play one team. All your starters' points for the week are added up, and the higher total wins. There are <b>19 regular-season weeks</b> (Nov 2 to Mar 14). The <b>top 4 records</b> make the playoffs, with seeding by head-to-head record. Playoffs are two rounds of <b>two weeks each</b>: semifinals Mar 15–28, final Mar 29–Apr 11. That's why the app weights playoff-week games: a player with 16 games in those four weeks is worth more to you then than one with 12.</p>
   <h3>Changing your team</h3><p>Free agents are added through <b>waivers</b>: a dropped player waits on waivers briefly, and claims go by waiver priority. There's no limit on adds. Trades are allowed until <b>${dl}</b>.</p>
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times with each player's games swinging about 35% either way.</p></div>`}
-const TABS=["board","team","season","waivers","trades","rosters","models","news","insights","mock","how"];
+const TABS=["board","team","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
 $("tab-team").addEventListener("click",renderTeam);
+$("tab-players").addEventListener("click",renderPlayers);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
 TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in")});
 // ---- modes: Draft Day (board, insights, mock) and Season (my team, matchup, waivers, trades, rosters) ----
