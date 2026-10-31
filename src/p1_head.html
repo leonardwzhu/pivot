@@ -12,6 +12,9 @@
  }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#C6B59B;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
  --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}}
+:root{--s1:#2a78d6;--s2:#eda100;--s3:#e87ba4;--q1:#dbe7f6;--q2:#b7d3f6;--q3:#86b6ef;--q4:#5598e7;--q5:#2a78d6;--q6:#1c5cab;--q7:#104281;--dv-lo:#2a78d6;--dv-mid:#ece6da;--dv-hi:#d03b3b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--s1:#3987e5;--s2:#c98500;--s3:#d55181;--q1:#22303f;--q2:#184f95;--q3:#1c5cab;--q4:#256abf;--q5:#3987e5;--q6:#6da7ec;--q7:#9ec5f4;--dv-lo:#3987e5;--dv-mid:#383835;--dv-hi:#e66767}}
+:root[data-theme="dark"]{--s1:#3987e5;--s2:#c98500;--s3:#d55181;--q1:#22303f;--q2:#184f95;--q3:#1c5cab;--q4:#256abf;--q5:#3987e5;--q6:#6da7ec;--q7:#9ec5f4;--dv-lo:#3987e5;--dv-mid:#383835;--dv-hi:#e66767}
 :root[data-theme="dark"]{--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#C6B59B;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
  --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}
 *{box-sizing:border-box}
@@ -275,6 +278,19 @@ details.how>summary::-webkit-details-marker{display:none}details.how>summary::be
 .guide-box p,.guide-box li{font-size:14px;line-height:1.55}.guide-box ol,.guide-box ul{padding-left:20px;margin:6px 0}
 .guide-box dl{display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:6px 14px;margin:6px 0;font-size:14px;line-height:1.45}.guide-box dt{font-weight:700}.guide-box dd{margin:0}
 @media (max-width:560px){.guide-box dl{grid-template-columns:1fr}.guide-box dd{margin-bottom:6px}}
+.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:14px}
+.lab-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.lab-card h4{font-family:var(--display);font-size:19px;margin:0}.lab-card .sub{font-size:13px;color:var(--muted);margin:2px 0 8px}
+.lab-card svg{width:100%;height:auto;display:block;overflow:visible}.lab-card svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}.lab-card svg .lbl{fill:var(--ink);font-size:11.5px;font-weight:600}
+.lab-card .gr{stroke:var(--grid);stroke-width:1}.lab-card .ax{stroke:var(--line);stroke-width:1}.lab-card .ref{stroke:var(--muted);stroke-width:1;opacity:.6}
+.lab-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);margin:2px 0 6px}.lab-key i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}.lab-key i.dot{width:9px;height:9px;border-radius:50%}
+.lab-tools{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.lab-tools .btn{flex:none}
+.lab-card table td,.lab-card table th{font-size:12px;padding:5px 7px}
+.mini-mult{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.mini-mult>div{border:1px solid var(--line);border-radius:6px;padding:6px 8px}.mini-mult .nm{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mini-mult .rk{font-size:11px;color:var(--muted)}
+.heat td{padding:0!important;border:2px solid var(--panel)!important;height:22px;min-width:34px;text-align:center;font-size:11px}.heat th{font-size:10px;padding:3px 4px}.heat td.l{padding:0 8px!important;text-align:left;font-size:12px;border:0!important}
+.heat td.k5,.heat td.k6,.heat td.k7,.heat td.dx{color:#fff}.heat td.k1,.heat td.k2,.heat td.k3,.heat td.k4,.heat td.dm{color:#17202E}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .heat td.k1,:root:not([data-theme="light"]) .heat td.k2,:root:not([data-theme="light"]) .heat td.k3,:root:not([data-theme="light"]) .heat td.k4,:root:not([data-theme="light"]) .heat td.dm{color:#f0efec}:root:not([data-theme="light"]) .heat td.k5,:root:not([data-theme="light"]) .heat td.k6,:root:not([data-theme="light"]) .heat td.k7{color:#0b0b0b}}
+:root[data-theme="dark"] .heat td.k1,:root[data-theme="dark"] .heat td.k2,:root[data-theme="dark"] .heat td.k3,:root[data-theme="dark"] .heat td.k4,:root[data-theme="dark"] .heat td.dm{color:#f0efec}:root[data-theme="dark"] .heat td.k5,:root[data-theme="dark"] .heat td.k6,:root[data-theme="dark"] .heat td.k7{color:#0b0b0b}
 .today-news{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px}
 .call{font-family:var(--display);font-style:italic;font-weight:600;color:var(--ball)}
 .sug .who .expander.call{font-size:19px}td .call{font-size:16px}
@@ -414,6 +430,7 @@ html{scrollbar-gutter:stable}
       <button role="tab" id="tab-players" data-mode="season" aria-selected="false">Players</button>
       <button role="tab" id="tab-season" data-mode="season" aria-selected="false">Matchup</button>
       <button role="tab" id="tab-waivers" data-mode="season" aria-selected="false">Waivers</button>
+      <button role="tab" id="tab-lab" data-mode="season" aria-selected="false">Lab</button>
       <button role="tab" id="tab-trades" data-more="1" data-mode="season" aria-selected="false">Trades</button>
       <button role="tab" id="tab-rosters" data-more="1" data-mode="season" aria-selected="false">Rosters</button>
       <span class="tab-gap" aria-hidden="true"></span>
@@ -457,6 +474,7 @@ html{scrollbar-gutter:stable}
     <div id="view-waivers" hidden class="models"></div>
     <div id="view-trades" hidden class="models"></div>
     <div id="view-rosters" hidden class="models"></div>
+    <div id="view-lab" hidden class="models"></div>
     <div id="view-ana" hidden class="models"></div>
     <div id="view-models" hidden class="models"></div>
     <div id="view-news" hidden><div class="news" id="newsList"></div></div>

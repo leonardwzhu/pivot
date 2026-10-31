@@ -1664,7 +1664,7 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>Weeks, standings and playoffs</h3><p>Each week (Monday to Sunday) you play one team. All your starters' points for the week are added up, and the higher total wins. There are <b>19 regular-season weeks</b> (Nov 2 to Mar 14). The <b>top 4 records</b> make the playoffs, with seeding by head-to-head record. Playoffs are two rounds of <b>two weeks each</b>: semifinals Mar 15–28, final Mar 29–Apr 11. That's why the app weights playoff-week games: a player with 16 games in those four weeks is worth more to you then than one with 12.</p>
   <h3>Changing your team</h3><p>Free agents are added through <b>waivers</b>: a dropped player waits on waivers briefly, and claims go by waiver priority. There's no limit on adds. Trades are allowed until <b>${dl}</b>.</p>
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times, drawing each game from how far real games landed from their predictions over the last two seasons: a typical game misses by about half the prediction, and bad nights are more common than huge ones.</p></div>`}
-const TABS=["board","today","team","ana","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
+const TABS=["board","today","team","lab","ana","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
@@ -1827,6 +1827,77 @@ $("tab-team").addEventListener("click",renderTeam);
 $("tab-players").addEventListener("click",renderPlayers);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
 TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in")});
+// ---- Lab: the season as charts. Position colors (--s1..3) avoid orange, which marks Pivot's call; every chart has a table view
+const LAB_POS=[["G","Guards","--s1"],["F","Forwards","--s2"],["C","Centers","--s3"]];
+const labCard=(id,title,sub,chart,table,key="")=>`<div class="lab-card" id="lab-${id}"><div class="lab-tools"><h4>${title}</h4><button class="btn" data-labtbl="${id}">Table</button></div><div class="sub">${sub}</div>${key}<div class="lab-chart">${chart}</div><div class="lab-table" hidden>${table}</div></div>`;
+const labTable=(head,rows)=>`<div class="tablebox" style="max-height:360px;overflow:auto"><table><thead><tr>${head.map((h,i)=>`<th class="${i?"":"l"}">${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?"num":"l"}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+const posKey=()=>`<div class="lab-key">${LAB_POS.map(([,l,v])=>`<span><i class="dot" style="background:var(${v})"></i>${l}</span>`).join("")}</div>`;
+// a scatter: one dot per player (24px invisible hit area for the tooltip), a few labeled; optional reference line or quartering lines
+function labScatter(P,{x,y,xl,yl,label,diag,quarter,color}){const W=560,H=360,m={l:44,r:14,t:12,b:40},xs=P.map(x),ys=P.map(y);
+  const xr=[Math.min(...xs),Math.max(...xs)],yr=[Math.min(...ys),Math.max(...ys)],pad=(r,k)=>[r[0]-(r[1]-r[0])*k,r[1]+(r[1]-r[0])*k];
+  let [x0,x1]=pad(xr,.04),[y0,y1]=pad(yr,.06);if(diag){x0=y0=Math.min(x0,y0);x1=y1=Math.max(x1,y1)}
+  const X=sx([x0,x1],[m.l,W-m.r]),Y=sx([y0,y1],[H-m.b,m.t]);let g="";
+  ticks(y0,y1,5).forEach(t=>g+=`<line class="gr" x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${m.l-6}" y="${Y(t)+4}" text-anchor="end">${t}</text>`);
+  ticks(x0,x1,6).forEach(t=>g+=`<text x="${X(t)}" y="${H-m.b+16}" text-anchor="middle">${t}</text>`);
+  g+=`<line class="ax" x1="${m.l}" x2="${W-m.r}" y1="${H-m.b}" y2="${H-m.b}"/><text x="${(m.l+W-m.r)/2}" y="${H-6}" text-anchor="middle">${xl}</text><text transform="translate(12 ${(m.t+H-m.b)/2}) rotate(-90)" text-anchor="middle">${yl}</text>`;
+  if(diag)g+=`<line class="ref" x1="${X(x0)}" y1="${Y(x0)}" x2="${X(x1)}" y2="${Y(x1)}"/><text x="${X(x1)-4}" y="${Y(x1)+14}" text-anchor="end">same as preseason</text>`;
+  if(quarter){const mx=quant(xs,.5),my=quant(ys,.5);g+=`<line class="ref" x1="${X(mx)}" x2="${X(mx)}" y1="${m.t}" y2="${H-m.b}"/><line class="ref" x1="${m.l}" x2="${W-m.r}" y1="${Y(my)}" y2="${Y(my)}"/>`}
+  P.forEach(p=>{const cx=X(x(p)),cy=Y(y(p));g+=`<g data-tip="${esc(p.tip)}" data-open="${p.id}" style="cursor:pointer"><circle cx="${cx}" cy="${cy}" r="12" fill="transparent"/><circle cx="${cx}" cy="${cy}" r="4.5" style="fill:var(${color?color(p):"--s1"});stroke:var(--panel);stroke-width:2"/></g>`});
+  const placed=[];P.filter(label).forEach(p=>{const cx=X(x(p)),cy=Y(y(p)),r=cx>W-140,t=p.name.split(" ").filter(w=>!/^(Jr\.?|Sr\.?|II|III|IV)$/.test(w)).slice(-1)[0],w=t.length*6.6,bx=r?cx-8-w:cx+8;
+    if(placed.some(b=>bx<b[0]+b[2]+4&&bx+w+4>b[0]&&Math.abs(cy-b[1])<13))return;placed.push([bx,cy,w]);g+=`<text class="lbl" x="${cx+(r?-8:8)}" y="${cy+4}" text-anchor="${r?"end":"start"}">${esc(t)}</text>`});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(yl)} against ${esc(xl)}">${g}</svg>`}
+function labView(){const D=dayRanks(),top=players.filter(p=>seasonRank(p)<=220&&p.now&&p.now.gp>=3),gp=Math.round(quant(top.map(p=>p.now.gp),.5));
+  const pre=p=>p.proj.fp-paceDelta(p),mpos=p=>LAB_POS.find(x=>x[0]===posGroup(p))[2];let h="";
+  // tiles: one number each
+  const rise=[...top].map(p=>({p,m:moveOf(p,7)})).filter(x=>x.m).sort((a,b)=>b.m.dr-a.m.dr)[0],fall=[...top].map(p=>({p,m:moveOf(p,7)})).filter(x=>x.m).sort((a,b)=>a.m.dr-b.m.dr)[0];
+  const teams=Object.keys(SCHED).filter(t=>t!=="FA"),poG=t=>(SCHED[t]||[]).filter(q=>q>=WEEKS[19].p[0]&&q<=WEEKS[22].p[1]).length,bestPo=[...teams].sort((a,b)=>poG(b)-poG(a))[0];
+  h+=`<div class="kpis">${kpT("Games played so far",String(gp),"a typical regular, this season")}${rise?kpT("Biggest riser, 7 days",esc(rise.p.name),`▲${rise.m.dr} to #${seasonRank(rise.p)}`):""}${fall?kpT("Biggest faller, 7 days",esc(fall.p.name),`▼${-fall.m.dr} to #${seasonRank(fall.p)}`):""}${kpT("Most fantasy-playoff games",bestPo,`${poG(bestPo)} games, Mar 15–Apr 11 (fewest: ${poG([...teams].sort((a,b)=>poG(a)-poG(b))[0])})`)}</div>`;
+  h+=`<div class="lab-grid">`;
+  // 1. preseason vs so far
+  const P1=top.map(p=>({...p,id:p.id,name:p.name,tip:`${p.name}: ${f1(pre(p))} preseason → ${f1(p.nowFp)} so far in ${p.now.gp} games`})),d1=p=>p.nowFp-pre(p),s1=[...P1].sort((a,b)=>d1(b)-d1(a)),lab1=new Set([...s1.slice(0,5),...s1.slice(-4)].map(p=>p.id));
+  h+=labCard("over","Who's beating his projection",`Each dot is a player: preseason projection across, fantasy points per game so far up. Above the line he's beating it. Players with ${3}+ games, top ${220} by rank.`,
+    labScatter(P1,{x:pre,y:p=>p.nowFp,xl:"Preseason projection (FP/G)",yl:"This season so far (FP/G)",diag:1,label:p=>lab1.has(p.id),color:mpos}),
+    labTable(["Player","Preseason","So far","Games","Difference"],s1.map(p=>[esc(p.name),f1(pre(p)),f1(p.nowFp),p.now.gp,cpos(d1(p))])),posKey());
+  // 2. role vs efficiency
+  const P2=top.map(p=>({...p,id:p.id,name:p.name,tip:`${p.name}: ${f1(p.now.min)} min, ${(p.nowFp/p.now.min).toFixed(2)} FP per minute`})),fpm=p=>p.nowFp/Math.max(1,p.now.min);
+  const lab2=new Set([...P2].filter(p=>p.now.min<24).sort((a,b)=>fpm(b)-fpm(a)).slice(0,5).concat([...P2].sort((a,b)=>fpm(b)-fpm(a)).slice(0,3)).map(p=>p.id));
+  h+=labCard("role","Role and efficiency","Minutes per game across, fantasy points per minute up, this season. Top left: efficient players in small roles, who jump if their minutes grow. Lines mark the middle of the pack.",
+    labScatter(P2,{x:p=>p.now.min,y:fpm,xl:"Minutes per game",yl:"Fantasy points per minute",quarter:1,label:p=>lab2.has(p.id),color:mpos}),
+    labTable(["Player","Min","FP/min","FP/G"],[...P2].sort((a,b)=>fpm(b)-fpm(a)).map(p=>[esc(p.name),f1(p.now.min),fpm(p).toFixed(2),f1(p.nowFp)])),posKey());
+  // 3. positional scarcity: projected FP/G by rank within guards, forwards and centers
+  const curves=LAB_POS.map(([g,l,v])=>({g,l,v,ps:players.filter(p=>posGroup(p)===g&&p.projTot>0).sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,50)}));
+  {const W=560,H=300,m={l:40,r:70,t:12,b:36},n=50,all=curves.flatMap(c=>c.ps.map(p=>p.proj.fp)),y0=Math.floor(Math.min(...all)/5)*5,y1=Math.ceil(Math.max(...all)/5)*5,X=sx([1,n],[m.l,W-m.r]),Y=sx([y0,y1],[H-m.b,m.t]);let g="";
+    ticks(y0,y1,5).forEach(t=>g+=`<line class="gr" x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${m.l-6}" y="${Y(t)+4}" text-anchor="end">${t}</text>`);
+    [1,10,20,30,40,50].forEach(t=>g+=`<text x="${X(t)}" y="${H-m.b+16}" text-anchor="middle">${t}</text>`);g+=`<line class="ax" x1="${m.l}" x2="${W-m.r}" y1="${H-m.b}" y2="${H-m.b}"/><text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle">Rank at the position</text>`;
+    const ends=[];curves.forEach(c=>{g+=`<path d="${c.ps.map((p,i)=>(i?"L":"M")+X(i+1).toFixed(1)+" "+Y(p.proj.fp).toFixed(1)).join(" ")}" fill="none" style="stroke:var(${c.v})" stroke-width="2" stroke-linejoin="round"/>`;const e=c.ps[c.ps.length-1],ly=Y(e.proj.fp)+4;if(!ends.some(v=>Math.abs(v-ly)<12)){ends.push(ly);g+=`<text class="lbl" x="${X(c.ps.length)+6}" y="${ly}">${c.l}</text>`}});  // a label that would touch another is left to the legend
+    for(let i=1;i<=n;i++)g+=`<rect x="${X(i)-(X(2)-X(1))/2}" y="${m.t}" width="${X(2)-X(1)}" height="${H-m.b-m.t}" fill="transparent" data-tip="${esc(`#${i}: `+curves.map(c=>c.ps[i-1]?`${c.l.slice(0,-1)} ${c.ps[i-1].name} ${f1(c.ps[i-1].proj.fp)}`:"").filter(Boolean).join(" · "))}"/>`;
+    h+=labCard("scarcity","Positional scarcity","Projected FP/G for the rest of the season by rank at each position (main position). A steeper line means the position thins out faster, so its top players are worth more. Hover for names.",
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Projected fantasy points by rank at each position">${g}</svg>`,labTable(["Rank",...curves.map(c=>c.l)],Array.from({length:n},(_,i)=>[i+1,...curves.map(c=>c.ps[i]?`${esc(c.ps[i].name)} ${f1(c.ps[i].proj.fp)}`:"")])),posKey())}
+  // 4. movers since opening night, small multiples of rank paths
+  {const mv=players.map(p=>{const x=D.R.get(p.id);return x&&x.rank.length>1?{p,first:x.rank[0],last:x.rank[D.last],path:x.rank}:null}).filter(x=>x&&x.last<=150),up=[...mv].sort((a,b)=>(b.first-b.last)-(a.first-a.last)).slice(0,6),dn=[...mv].sort((a,b)=>(a.first-a.last)-(b.first-b.last)).slice(0,6);
+    const mini=x=>{const W=150,H=44,lo=Math.min(...x.path),hi=Math.max(...x.path),X=sx([0,x.path.length-1],[3,W-5]),Y=sx([lo,hi||lo+1],[5,H-5]);
+      return `<div data-open="${x.p.id}" style="cursor:pointer" data-tip="${esc(`${x.p.name}: #${x.first} on opening night, #${x.last} now`)}"><div class="nm">${esc(x.p.name)}</div><div class="rk">#${x.first} → <b style="color:var(--ink)">#${x.last}</b></div><svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${x.path.map((r,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(r).toFixed(1)).join(" ")}" fill="none" style="stroke:var(--s1)" stroke-width="2"/><circle cx="${X(x.path.length-1)}" cy="${Y(x.last)}" r="4" style="fill:var(--s1);stroke:var(--panel);stroke-width:2"/></svg></div>`};
+    h+=labCard("movers","Biggest movers since opening night",`Each player's rank on every day of the season (up is better). Ranks are Pivot's own, rebuilt day by day from his games. Players ranked in the top 150 now.`,
+      `<div class="mini-mult">${up.map(mini).join("")}</div><div class="mini-mult" style="margin-top:10px">${dn.map(mini).join("")}</div>`,labTable(["Player","Opening night","Now","Change"],[...up,...dn].map(x=>[esc(x.p.name),"#"+x.first,"#"+x.last,(x.first-x.last>0?"▲":"▼")+Math.abs(x.first-x.last)])))}
+  // 5. schedule heatmap
+  {const ws=WEEKS.map((w,i)=>i).filter(i=>WEEKS[i].p[1]>=CUR_PERIOD&&!WEEKS[i].po).slice(0,8).concat([19,20,21,22]),cnt=(t,i)=>(SCHED[t]||[]).filter(q=>q>=Math.max(CUR_PERIOD,WEEKS[i].p[0])&&q<=WEEKS[i].p[1]).length,
+      rows=[...teams].sort((a,b)=>poG(b)-poG(a)||a.localeCompare(b)),mx=Math.max(1,...rows.flatMap(t=>ws.map(i=>cnt(t,i))));
+    const cell=(t,i)=>{const v=cnt(t,i),k=[1,2,3,4,6,7,7][Math.min(6,v)];return `<td class="k${k}" style="background:var(--q${k})" data-tip="${t}, ${WEEKS[i].po?"playoff week "+(i-18):"week "+WEEKS[i].i}: ${v} games">${v}</td>`};
+    h+=labCard("sched","Schedule heatmap","Games each NBA team plays in the next eight matchup weeks and your four playoff weeks (P1–P4); darker means more games. Teams are sorted by games in your fantasy playoffs (the last four columns), where an extra game can decide a title.",
+      `<div style="overflow-x:auto"><table class="heat"><thead><tr><th class="l">Team</th>${ws.map(i=>`<th${WEEKS[i].po?' style="color:var(--ink)"':""}>${WEEKS[i].po?"P"+(i-18):WEEKS[i].i}</th>`).join("")}<th>Playoffs</th></tr></thead><tbody>${rows.map(t=>`<tr><td class="l">${t}</td>${ws.map(i=>cell(t,i)).join("")}<td class="l" style="text-align:right;font-weight:600">${poG(t)}</td></tr>`).join("")}</tbody></table></div>`,
+      labTable(["Team",...ws.map(i=>WEEKS[i].po?"P"+(i-18):"W"+WEEKS[i].i),"Playoffs"],rows.map(t=>[t,...ws.map(i=>cnt(t,i)),poG(t)])),
+      `<div class="lab-key"><span>fewer games</span>${[1,2,3,4,5,6,7].map(k=>`<i style="width:18px;height:10px;border-radius:2px;background:var(--q${k});margin:0"></i>`).join("")}<span>more games</span></div>`)}
+  // 6. defense vs position heatmap (diverging: blue holds a position below its usual, red gives up more)
+  {const rows=teams.map(t=>({t,f:LAB_POS.map(([g])=>defFactor(t,g))})).sort((a,b)=>mean(b.f)-mean(a.f)),col=f=>{const d=f-1,a=Math.min(1,Math.abs(d)/.12);return `color-mix(in oklab, var(${d<0?"--dv-lo":"--dv-hi"}) ${Math.round(a*100)}%, var(--dv-mid))`};
+    const cell=(r,i)=>{const d=Math.round((r.f[i]-1)*100);return `<td class="${Math.abs(d)>=7?"dx":"dm"}" style="background:${col(r.f[i])}" data-tip="${r.t} vs ${LAB_POS[i][1].toLowerCase()}: ${d>0?"+":""}${d}% fantasy points vs their usual">${d>0?"+":""}${d}%</td>`};
+    h+=labCard("def","Defense against each position","How many fantasy points each team gives up to guards, forwards and centers, compared with what those players usually score (last season carried in at a quarter weight, plus this season). Red is generous, blue is tough. Sorted from most generous.",
+      `<div style="overflow-x:auto"><table class="heat"><thead><tr><th class="l">Team</th>${LAB_POS.map(x=>`<th>${x[1]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr><td class="l">${r.t}</td>${r.f.map((f,i)=>cell(r,i)).join("")}</tr>`).join("")}</tbody></table></div>`,
+      labTable(["Team",...LAB_POS.map(x=>x[1])],rows.map(r=>[r.t,...r.f.map(f=>`${f>=1?"+":"−"}${Math.abs(Math.round((f-1)*100))}%`)])),
+      `<div class="lab-key"><span>tough</span>${[-.12,-.06,0,.06,.12].map(d=>`<i style="width:22px;height:10px;border-radius:2px;background:${col(1+d)};margin:0"></i>`).join("")}<span>generous</span></div>`)}
+  return h+`</div>`}
+function renderLab(){$("view-lab").innerHTML=labView()}
+$("tab-lab").addEventListener("click",renderLab);
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-labtbl]");if(!b)return;const c=$("lab-"+b.dataset.labtbl),t=c.querySelector(".lab-table"),ch=c.querySelector(".lab-chart");t.hidden=!t.hidden;ch.hidden=!t.hidden;b.textContent=t.hidden?"Table":"Chart"});
 // ---- what each tab is for, one line at the top, and the Guide (opened from "?" and once on a first visit)
 const INTRO={board:"Every draftable player, ranked. Press Draft for your picks and Taken for everyone else's; the Pick Advisor on the right recommends your next pick.",
   insights:"What the other teams are likely to take before your next pick, and where the value and risk sit on the board.",mock:"Practice a full draft against computer teams that draft the way real managers do.",
@@ -1835,6 +1906,7 @@ const INTRO={board:"Every draftable player, ranked. Press Draft for your picks a
   players:"Every player, ranked by the fantasy points he's projected to score from here. Switch the columns to see movers, next games, stats and more.",
   season:"This week's head-to-head: projected scores, your chance to win, and who starts for you each day.",
   waivers:"Free agents worth adding, for this week or the rest of the season, and who gains when a regular is hurt.",
+  lab:"The season as charts: who's beating his projection, roles and efficiency, positional scarcity, the biggest movers, the schedule and every defense. Each chart has a table view.",
   trades:"Try a trade with any team in your league and see what it does to both teams' starter points.",
   rosters:"Every team's roster. Record adds, drops and trades here; ESPN's rosters replace them each morning.",
   ana:"Grade a team from any league: how it ranks, its strengths and gaps, and trades and pickups that would help.",
@@ -1849,7 +1921,7 @@ const GUIDE=`<div class="row-btns" style="justify-content:space-between;align-it
 <li><b>Draft day:</b> Pivot opens Draft Day on its own 12 hours before. Press <b>Draft</b> for your picks and <b>Taken</b> for others'. The <b>Pick Advisor</b> recommends each pick.</li>
 <li><b>Every day after:</b> open <b>Today</b>. It tells you who to start tonight, what changed for your players, how your matchup stands and whether a pickup is worth it.</li></ol>
 <h3>The tabs</h3><dl>
-<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd>
+<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd><dt>Lab</dt><dd>${INTRO.lab}</dd>
 <dt>Team Analyzer</dt><dd>${INTRO.ana}</dd><dt>News</dt><dd>${INTRO.news}</dd><dt>More</dt><dd>Trades, Rosters, Models (accuracy) and Method & Import.</dd>
 <dt>Draft Day</dt><dd>Big Board, Insights and Mock Draft, for the draft itself. Switch at the top left.</dd></dl>
 <h3>Reading the screens</h3><dl>

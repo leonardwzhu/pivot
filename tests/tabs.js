@@ -10,7 +10,7 @@ const frame=()=>pg.evaluate(()=>{const R=s=>{const e=document.querySelector(s);i
   const tabs=[...document.querySelectorAll('.tabs [role=tab]')].filter(t=>!t.hidden).map(t=>{const r=t.getBoundingClientRect();return t.id+':'+Math.round(r.x)+','+Math.round(r.width)}).join(' ');
   const s=document.querySelector('main section').getBoundingClientRect();
   return {header:R('header.bar'),dock:R('.dock'),modes:R('.modes'),tabsbar:R('.tabs'),tabs,col:Math.round(s.x)+','+Math.round(s.width),rail:!document.getElementById('rail').hidden}});
-for(const [mode,tabs] of [['draft',['board','insights','mock','ana','models','news','how','board']],['season',['today','team','players','season','waivers','trades','rosters','ana','models','news']]]){
+for(const [mode,tabs] of [['draft',['board','insights','mock','ana','models','news','how','board']],['season',['today','team','players','season','waivers','lab','trades','rosters','ana','models','news']]]){
   await pg.click('#mode-'+mode);await pg.waitForTimeout(500);const f0=await frame();check(f0.rail===(mode==='draft'),`${mode}: sidebar ${mode==='draft'?'shown':'hidden'}`);
   for(const t of tabs){await openTab(pg,t);await pg.waitForTimeout(250);const f=await frame();const moved=Object.keys(f0).filter(k=>f[k]!==f0[k]);check(!moved.length,`${mode}: ${t} moves nothing${moved.length?' (moved: '+moved.join(', ')+')':''}`)}}
 await pg.click('#mode-draft');await pg.click('#tab-board');await pg.waitForTimeout(300);const f0=await frame();

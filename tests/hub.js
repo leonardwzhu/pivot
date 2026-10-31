@@ -33,5 +33,8 @@ const mv=await pg.evaluate(()=>{const D=dayRanks(),top=[...players].sort((a,b)=>
 check(mv.ok&&mv.days>=1&&mv.top===1&&mv.pos===1,`daily in-house ranks for every player over ${mv.days} days`);check(mv.today<.05,"the latest day's rebuilt projection matches the projection shown");check(mv.rows>20,'Movers view lists players');
 check(await pg.evaluate(()=>{const t=TABS.filter(x=>!$("tab-"+x).hidden);return t.every(x=>{$("tab-"+x).click();return $("tabIntro").textContent.length>40})}),'every visible tab has a one-line description');
 await pg.click('#guideBtn');await pg.waitForTimeout(200);check(await pg.evaluate(()=>!$("guide").hidden&&/Glossary/.test($("guide").innerText)&&/Season FP/.test($("guide").innerText)),'the Guide opens with the glossary');await pg.keyboard.press('Escape');
+await pg.click('#tab-lab');await pg.waitForTimeout(300);
+const lab=await pg.evaluate(()=>{const cards=document.querySelectorAll('#view-lab .lab-card').length;document.querySelector('[data-labtbl="over"]').click();const t=!document.querySelector('#lab-over .lab-table').hidden&&document.querySelector('#lab-over .lab-chart').hidden;return {cards,t,svg:document.querySelectorAll('#view-lab svg circle').length}});
+check(lab.cards===6&&lab.t&&lab.svg>100,`Lab draws six charts, each with a table view (${lab.cards} charts, ${lab.svg} dots)`);
 check(/updated /.test(await pg.evaluate(()=>document.getElementById('asof').textContent)),'header says when the data was updated');
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();
