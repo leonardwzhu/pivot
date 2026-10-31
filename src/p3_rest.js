@@ -70,6 +70,12 @@ function sparkTrend(p){
   const tip=p.hist.map(h=>`${SEAS[h.i]}: ${f1(h.fp)}`).join(" · ")+` · 2026-27 proj: ${f1(p.proj.fp)}`;
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-tip="${esc(tip)}"><rect class="hit" width="${W}" height="${H}"/>${pth?`<path class="ln" d="${pth}"/>`:""}${last?`<path class="ln proj" d="M${X(last.x)} ${Y(last.y)} L${X(3)} ${Y(p.proj.fp)}"/>`:""}<circle class="dot hollow" cx="${X(3)}" cy="${Y(p.proj.fp)}" r="3"/></svg>`;
 }
+// Season-mode trend: the Draft Day sparkline plus this season so far (dark dot) before the rest-of-season projection
+function sparkSeasons(p){const W=96,H=24,vals=p.hist.map(h=>({x:h.i,y:h.fp})),now=p.now&&p.now.gp?p.nowFp:null;
+  const all=[...vals.map(v=>v.y),p.proj.fp,...(now!=null?[now]:[])],lo=Math.min(...all),hi=Math.max(...all),X=sx([0,3.7],[4,W-5]),Y=sx([lo-1,hi+1],[H-4,4]);
+  const pth=vals.map((v,i)=>(i?"L":"M")+X(v.x)+" "+Y(v.y)).join(" "),last=vals[vals.length-1],from=now!=null?{x:3,y:now}:last;
+  const tip=p.hist.map(h=>`${SEAS[h.i]}: ${f1(h.fp)}`).join(" · ")+(now!=null?` · 2026-27 so far: ${f1(now)} in ${p.now.gp} g`:"")+` · rest-of-season projection: ${f1(p.proj.fp)}`;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-tip="${esc(tip)}"><rect class="hit" width="${W}" height="${H}"/>${pth?`<path class="ln" d="${pth}"/>`:""}${last&&now!=null?`<path class="ln" style="opacity:.45" d="M${X(last.x)} ${Y(last.y)} L${X(3)} ${Y(now)}"/>`:""}${from?`<path class="ln proj" d="M${X(from.x)} ${Y(from.y)} L${X(3.7)} ${Y(p.proj.fp)}"/>`:""}${now!=null?`<circle class="dot" cx="${X(3)}" cy="${Y(now)}" r="2.6" style="fill:var(--ink);stroke:none"/>`:""}<circle class="dot hollow" cx="${X(3.7)}" cy="${Y(p.proj.fp)}" r="3"/></svg>`}
 let RLO,RHI;
 function whisker(p){const W=96,H=16,X=sx([RLO,RHI],[4,W-4]);
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" data-tip="80% range: ${f1(p.lo)}–${f1(p.hi)} FP/G"><rect class="hit" width="${W}" height="${H}"/><line class="whisk" x1="${X(Math.max(RLO,p.lo))}" x2="${X(p.hi)}" y1="8" y2="8"/><circle class="dot" cx="${X(p.proj.fp)}" cy="8" r="4"/></svg>`}
@@ -660,18 +666,20 @@ function seriesChart(p){
   const W=560,H=230,m={l:40,r:16,t:22,b:40};
   const pts=p.hist.map(h=>({x:h.i,y:h.fp,tip:`${SEAS[h.i]}: ${f1(h.fp)} FP/G in ${h.gp} games`,lab:SEAS[h.i],gp:h.gp}));
   if(p.college)pts.push({x:2,y:fpOf(p.college),tip:`College 2025-26: ${f1(fpOf(p.college))} FP/G (college stats, before NBA translation)`,lab:"NCAA 25-26",gp:null});
-  const lo=Math.max(0,Math.min(p.lo,...pts.map(v=>v.y))-4),hi=Math.max(p.hi,...pts.map(v=>v.y))+4;
+  const now=p.now&&p.now.gp?p.nowFp:null,lo=Math.max(0,Math.min(p.lo,...pts.map(v=>v.y),...(now!=null?[now]:[]))-4),hi=Math.max(p.hi,...pts.map(v=>v.y),...(now!=null?[now]:[]))+4;
   const X=sx([-.4,3.4],[m.l,W-m.r]),Y=sx([lo,hi],[H-m.b,m.t]);let g="";
   ticks(lo,hi,4).forEach(t=>g+=`<line class="gr" x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${m.l-6}" y="${Y(t)+3}" text-anchor="end">${t}</text>`);
   g+=`<rect class="band" x="${X(3)-16}" width="32" y="${Y(p.hi)}" height="${Y(p.lo)-Y(p.hi)}" rx="4"/>`;
   const real=pts.filter(v=>v.gp!==null);
   if(real.length>1)g+=`<path class="ln" d="${real.map((v,i)=>(i?"L":"M")+X(v.x)+" "+Y(v.y)).join(" ")}"/>`;
   const last=pts[pts.length-1];if(last)g+=`<path class="ln proj" d="M${X(last.x)} ${Y(last.y)} L${X(3)} ${Y(p.proj.fp)}"/>`;
+  // this season so far, just left of the projection it feeds into
+  if(now!=null)g+=`<circle cx="${X(2.72)}" cy="${Y(now)}" r="5" style="fill:var(--ink)" data-tip="2026-27 so far: ${f1(now)} FP/G in ${p.now.gp} games"/><text class="lbl" x="${X(2.72)-9}" y="${Y(now)+3}" text-anchor="end">${f1(now)}</text>`;
   pts.forEach(v=>g+=`<circle class="dot${v.gp===null?" hollow":""}" cx="${X(v.x)}" cy="${Y(v.y)}" r="5" data-tip="${esc(v.tip)}"/><text class="lbl" x="${X(v.x)}" y="${Y(v.y)-10}" text-anchor="middle">${f1(v.y)}</text>`);
   g+=`<circle class="dot hollow" cx="${X(3)}" cy="${Y(p.proj.fp)}" r="6" data-tip="2026-27 projection: ${f1(p.proj.fp)} FP/G (80% range ${f1(p.lo)}–${f1(p.hi)})"/><text class="lbl" x="${X(3)+20}" y="${Y(p.proj.fp)+3}">${f1(p.proj.fp)}</text>`;
   g+=`<text x="${X(3)+20}" y="${Y(p.hi)+3}">${f1(p.hi)}</text><text x="${X(3)+20}" y="${Y(p.lo)+3}">${f1(p.lo)}</text>`;
   const labs=["2023-24","2024-25",p.college?"NCAA 25-26":"2025-26","2026-27 proj"];
-  labs.forEach((l,i)=>{const v=pts.find(q=>q.x===i);const sub=i===3?`~${Math.round(p.projGP)} GP left`:v&&v.gp?`${v.gp} GP`:i<3&&!v?(p.seasons[i]&&p.seasons[i].gp===0?"0 GP (injured)":"—"):"";
+  labs.forEach((l,i)=>{const v=pts.find(q=>q.x===i);const sub=i===3?(now!=null?`${p.now.gp} GP so far · ~${Math.round(p.projGP)} left`:`~${Math.round(p.projGP)} GP left`):v&&v.gp?`${v.gp} GP`:i<3&&!v?(p.seasons[i]&&p.seasons[i].gp===0?"0 GP (injured)":"—"):"";
     g+=`<text x="${X(i)}" y="${H-m.b+16}" text-anchor="middle" class="lbl">${l}</text><text x="${X(i)}" y="${H-m.b+29}" text-anchor="middle">${sub}</text>`});
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Fantasy points per game by season for ${esc(p.name)}">${g}</svg>`;
 }
@@ -995,6 +1003,7 @@ function plCols(view){const w0=Math.max(0,CUR_WEEK),N=+S.pl.rn,line=(get,lab)=>[
     {k:"l5",h:"Last 5",v:p=>p._l5??-1,d:p=>nv(p._l5)},{k:"trend",h:"Trend",v:p=>p._l5!=null&&p.nowFp!=null&&p.now&&p.now.gp>5?p._l5-p.nowFp:-99,d:p=>{if(p._l5==null||p.nowFp==null||!p.now||p.now.gp<=5)return dash;const d=p._l5-p.nowFp;return Math.abs(d)<2?'<span class="mut">steady</span>':`<span class="${d>0?"zpos":"zneg"}">${d>0?"▲":"▼"} ${f1(Math.abs(d))}</span>`}},
     {k:"form",h:"Last 10",t:"Fantasy points in his team's last 10 games (lighter bars are last season)",v:p=>p._l5??-1,d:formSpark},{k:"min",h:"Min",v:p=>p._min??-1,d:p=>nv(p._min)},{k:"wk",h:"This week",v:p=>p._wk,d:p=>String(p._wk)},
     {k:"left",h:"Games left",v:p=>p.avail,d:p=>String(p.avail)},{k:"ros",h:"Season FP",t:"Projected fantasy points for the rest of the season: Proj FP/G × games he's expected to play. This sets the # rank",v:p=>p.projTot,d:p=>f0(p.projTot)},
+    {k:"seas",h:"Seasons",t:"FP/G in each of the last three seasons, this season so far (dark dot) and the rest-of-season projection (hollow)",v:p=>{const l=p.hist[p.hist.length-1];return l?p.proj.fp-l.fp:-99},d:sparkSeasons},
     {k:"m7",h:"7-day move",t:"Places gained or lost in the # rank over the last 7 days",v:p=>(moveOf(p,7)||{dr:0}).dr,d:p=>moveTag(moveOf(p,7),1)},
     {k:"pre",h:"Preseason",t:"His rank on the Draft Day board",v:p=>p.disp??p.rank,d:p=>`<span class="mut">#${p.disp??p.rank}</span>`}]}
 function playersView(){computeDisp();const L=leagueRosters(),owner={};for(const t in L)L[t].forEach(id=>owner[id]=+t);const w=Math.max(0,CUR_WEEK),q=S.pl.q.trim().toLowerCase(),N=+S.pl.rn;
@@ -1108,6 +1117,7 @@ function openPlayer(id){
   <div class="dtabs" role="tablist" aria-label="Player sections">${DTABS.map(([k,lab])=>`<button role="tab" data-dtab="${k}" aria-selected="${k===tab}"><span class="tl" data-label="${lab}">${lab}</span></button>`).join("")}</div>
   ${tab==="overview"?`
   <div class="dr-sec"><h3>Insights</h3>${(()=>{const I=insightsOf(p);return I.length?`<ul class="heads">${I.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing stands out: his recent games, minutes and schedule are in line with his projection.</p>'})()}</div>
+  ${S.mode==="season"?`<div class="dr-sec"><h3>Season by season</h3>${seriesChart(p)}<p class="empty">Line: his last three seasons. Dark dot: 2026-27 so far. Hollow: the rest-of-season projection, with its 80% range shaded.</p></div>`:""}
   <div class="dr-sec"><h3>Recent games</h3>${recentSection(p)}</div>
   <div class="dr-sec"><h3>Schedule</h3>${scheduleSection(p)}</div>
   <div class="dr-sec"><h3>Teammates</h3>${matesSection(p)}</div>
