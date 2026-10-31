@@ -1,10 +1,11 @@
 // Scorecard, injury fallout and teammate splits: each renders with content, the numbers are sane, and phones fit.
 // Usage: node tests/hub.js [build/draft-room.html]
 const {chromium}=require('playwright');const fs=require('fs');const path=require('path');
+const openTab=async(pg,t)=>{if(await pg.$eval('#tab-'+t,e=>e.hasAttribute('data-more'))){await pg.click('#moreBtn');await pg.click('[data-moretab="'+t+'"]')}else await pg.click('#tab-'+t)};  // Trades, Rosters, Models and Method open from the More menu
 (async()=>{const b=await chromium.launch();const pg=await b.newPage({viewport:{width:1280,height:900}});const errs=[];pg.on('pageerror',e=>errs.push(e.message));
 await pg.setContent(fs.readFileSync(process.argv[2]||path.join(__dirname,'../build/draft-room.html'),'utf8'),{waitUntil:'load'});await pg.waitForTimeout(4500);
 let fail=0;const check=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)fail++};
-await pg.click('#mode-season');await pg.click('#tab-models');await pg.waitForTimeout(300);
+await pg.click('#mode-season');await openTab(pg,'models');await pg.waitForTimeout(300);
 const sc=await pg.evaluate(()=>({txt:document.getElementById('view-models').innerText,P:typeof PREDS!=='undefined'?PREDS:null}));
 check(/Prediction scorecard/.test(sc.txt),'Models tab shows the prediction scorecard');
 if(sc.P&&sc.P.n)check(sc.P.mae>3&&sc.P.mae<25&&sc.P.cover>.5&&sc.P.cover<.98,`scorecard numbers are sane (miss ${sc.P.mae}, in range ${sc.P.cover})`);
@@ -16,7 +17,7 @@ const tm=await pg.evaluate(()=>{const p=players.filter(p=>MATES[p.espnId]&&MATES
 check(tm&&tm.sec,`teammate splits show on a profile${tm?' ('+tm.name+')':''}`);check(tm&&tm.fin,'teammate adjustments are finite and never exceed his form');
 await pg.setViewportSize({width:390,height:800});await pg.waitForTimeout(200);
 check(await pg.evaluate(()=>{const d=document.getElementById('drawer');return d.scrollWidth<=d.clientWidth+1}),'phone: profile with teammate tables fits');
-await pg.keyboard.press('Escape');await pg.click('#tab-models');await pg.waitForTimeout(300);
+await pg.keyboard.press('Escape');await openTab(pg,'models');await pg.waitForTimeout(300);
 check(await pg.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'phone: Models tab fits');
 await pg.setViewportSize({width:1280,height:900});await pg.click('#tab-today');await pg.waitForTimeout(300);
 check(/After your draft|Your draft is|Tonight's lineup/.test(await pg.evaluate(()=>document.getElementById('view-today').innerText)),'Today screen renders');

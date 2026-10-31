@@ -6,13 +6,13 @@
 <style>
 /* Layout: draft-room console (sticky pick bar, big board left, war-room rail right, player lab drawer from the right).
    Look: hardwood. Maple floor, navy court lines, painted-key blue, basketball orange; Caslon serif with italics kept for emphasis. */
-:root{--bg:#E8D7B9;--panel:#FBF5EA;--ink:#17202E;--muted:#6A5E4B;--line:#D8C39C;--soft:#F3E8D4;--grid:#E6D5B5;
+:root{--bg:#E8D7B9;--panel:#FBF5EA;--ink:#17202E;--muted:#594D3B;--line:#D8C39C;--soft:#F3E8D4;--grid:#E6D5B5;
  --accent:#1E5AA8;--accent-ink:#FFFFFF;--accent-soft:#DCE6F4;--band:rgba(30,90,168,.16);--ball:#E06A1B;
  --ok:#2F7D4F;--warn:#A86A12;--bad:#B3261E;--ok-soft:#E1EEDD;--warn-soft:#F6E6C4;--bad-soft:#F6DCD6;--mine:#B34A12;--mine-soft:#F7E1CF;--seam:#2A1A0E;--scrim:rgba(23,32,46,.4);--display:"Libre Caslon Text","Big Caslon",Georgia,serif;--body:"Source Sans 3",system-ui,sans-serif;--mono:"Source Sans 3",system-ui,sans-serif;
  }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#B3A188;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#C6B59B;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
  --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#B3A188;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
+:root[data-theme="dark"]{--bg:#15110C;--panel:#1F1912;--ink:#F2E7D3;--muted:#C6B59B;--line:#3A2F22;--soft:#2A2218;--grid:#30271C;
  --accent:#6FA4F2;--accent-ink:#0B1424;--accent-soft:#1B2A40;--band:rgba(111,164,242,.2);--ball:#F2873D;--ok:#6CC28F;--warn:#E2AE55;--bad:#F07A6E;--ok-soft:#173022;--warn-soft:#3A2B12;--bad-soft:#3D1C18;--mine:#F2A066;--mine-soft:#3A2414;--scrim:rgba(0,0,0,.55);color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -256,6 +256,18 @@ header.bar{border-bottom:2px solid var(--ink)}
 .today-tbl td{vertical-align:middle}@media (max-width:600px){.today-tbl .meta{display:block;font-size:12px}.today-tbl .rng{display:none}}
 .ana-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}.ana-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:3px 4px 3px 10px;font-size:13px}
 .ana-chip button{border:0;background:none;color:var(--muted);font-size:15px;line-height:1;padding:0 4px;cursor:pointer}.ana-sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+/* cleaner by default: long method notes fold into "How this works", rail cards and profile sections fold, rarer tabs live under More */
+details.how{margin-top:6px;font-size:13px;color:var(--muted)}details.how>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+details.how>summary::-webkit-details-marker{display:none}details.how>summary::before{content:"ⓘ";font-weight:400}details.how[open]>summary{margin-bottom:4px}details.how>p{margin:0;font-style:normal;font-size:13px;line-height:1.5}
+.card[data-fold]>h2:first-child,.dr-sec>h3{cursor:pointer;user-select:none}.card[data-fold]>h2:first-child::after,.dr-sec>h3::after{content:"▾";font-size:12px;color:var(--muted);margin-left:auto;font-style:normal}
+.card.folded>h2:first-child::after,.dr-sec.folded>h3::after{content:"▸"}.card.folded>:not(:first-child),.dr-sec.folded>:not(h3){display:none!important}.card.folded>h2:first-child,.dr-sec.folded>h3{margin-bottom:0}
+.dr-sec>h3{display:flex;align-items:baseline}
+.tabs [data-more]{display:none!important}
+.more-btn{border:0;background:none;padding:8px 10px;font-family:var(--display);font-size:18px;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;cursor:pointer}
+.more-btn.on{color:var(--ink);font-style:italic;font-weight:700;border-bottom-color:var(--ball)}
+.more-menu{position:fixed;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:4px;min-width:200px}
+.more-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;font-family:var(--display);font-size:16px;color:var(--ink);border-radius:5px;cursor:pointer}.more-menu button:hover,.more-menu button[aria-current=true]{background:var(--soft)}
+.chart-card p{font-size:13px}
 .today-news{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px}
 .call{font-family:var(--display);font-style:italic;font-weight:600;color:var(--ball)}
 .sug .who .expander.call{font-size:19px}td .call{font-size:16px}
@@ -394,14 +406,16 @@ html{scrollbar-gutter:stable}
       <button role="tab" id="tab-players" data-mode="season" aria-selected="false">Players</button>
       <button role="tab" id="tab-season" data-mode="season" aria-selected="false">Matchup</button>
       <button role="tab" id="tab-waivers" data-mode="season" aria-selected="false">Waivers</button>
-      <button role="tab" id="tab-trades" data-mode="season" aria-selected="false">Trades</button>
-      <button role="tab" id="tab-rosters" data-mode="season" aria-selected="false">Rosters</button>
+      <button role="tab" id="tab-trades" data-more="1" data-mode="season" aria-selected="false">Trades</button>
+      <button role="tab" id="tab-rosters" data-more="1" data-mode="season" aria-selected="false">Rosters</button>
       <span class="tab-gap" aria-hidden="true"></span>
       <button role="tab" id="tab-ana" aria-selected="false">Team Analyzer</button>
-      <button role="tab" id="tab-models" aria-selected="false">Models</button>
+      <button role="tab" id="tab-models" data-more="1" aria-selected="false">Models</button>
       <button role="tab" id="tab-news" aria-selected="false">News <span class="count" id="newsCount"></span></button>
-      <button role="tab" id="tab-how" aria-selected="false">Method &amp; Import</button>
+      <button role="tab" id="tab-how" data-more="1" aria-selected="false">Method &amp; Import</button>
+      <button class="more-btn" id="moreBtn" aria-haspopup="menu" aria-expanded="false"><span class="tl" data-label="More">More</span> ▾</button>
     </div>
+  <div class="more-menu" id="moreMenu" role="menu" hidden></div>
   <section style="min-width:0">
 
     <div id="view-board">
@@ -482,11 +496,11 @@ html{scrollbar-gutter:stable}
       <h2>Pick Advisor <small id="advNote"></small></h2>
       <div id="adv"></div>
     </div>
-    <div class="card" id="mixCard">
+    <div class="card" id="mixCard" data-fold="mix">
       <h2>Your projection mix <small>how much each source counts</small></h2>
       <div id="mixBody"></div>
     </div>
-    <div class="card">
+    <div class="card" data-fold="team">
       <h2>My Team <small id="myCount">0 / 13</small></h2>
       <div class="slots" id="slots"></div>
       <ul class="roster" id="roster"></ul>
@@ -496,11 +510,11 @@ html{scrollbar-gutter:stable}
       <div class="stat-row"><span>Projected season FP (top 10)</span><b id="teamTot">0</b></div>
       <div class="stat-row"><span>8-Cat strengths</span><b id="teamCats">–</b></div>
     </div>
-    <div class="card">
+    <div class="card" data-fold="ba">
       <h2>Best Available <small id="baNote">by board rank</small></h2>
       <ol class="ba" id="ba"></ol>
     </div>
-    <div class="card" id="settingsCard">
+    <div class="card" id="settingsCard" data-fold="settings">
       <h2>Draft settings <small>loaded from your ESPN league</small></h2>
       <div class="settings">
         <label for="teams">Teams <select id="teams"></select></label>
