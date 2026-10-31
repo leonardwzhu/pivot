@@ -1757,8 +1757,11 @@ BOOT=false;
 (async()=>{try{if(!window.claude||!window.claude.use)return;const db=await window.claude.use("db"),user=await window.claude.use("user");if(!db||!user)return;const uid=await user.id();if(!uid)return;
   let dev=null;try{dev=localStorage.getItem("pivot.device")||Math.random().toString(36).slice(2);localStorage.setItem("pivot.device",dev)}catch(e){dev=Math.random().toString(36).slice(2)}
   const ref=db.doc("data/users/"+uid+"/state"),sc=()=>{try{return localStorage.getItem("hoopsDraftRoom.scoring")}catch(e){return null}};
-  const adopt=d=>{try{localStorage.setItem(LS,d.s);if(d.sc)localStorage.setItem("hoopsDraftRoom.scoring",d.sc);else localStorage.removeItem("hoopsDraftRoom.scoring")}catch(e){}location.reload()};
-  SYNC.ref=ref;SYNC.dev=dev;SYNC.push=()=>ref.set({t:S._t||Date.now(),dev,s:JSON.stringify(S),sc:sc()}).catch(()=>{});
+  // the adopted copy carries its own time, so after the reload it no longer looks newer; at most one reload per copy, and none
+  // when this browser can't keep it (storage blocked), so the page can never get stuck reloading
+  const adopt=d=>{try{const s=JSON.parse(d.s);s._t=d.t;const v=JSON.stringify(s);localStorage.setItem(LS,v);if(d.sc)localStorage.setItem("hoopsDraftRoom.scoring",d.sc);else localStorage.removeItem("hoopsDraftRoom.scoring");
+    if(localStorage.getItem(LS)!==v||sessionStorage.getItem("pivot.adopted")===String(d.t))return;sessionStorage.setItem("pivot.adopted",String(d.t))}catch(e){return}location.reload()};
+  SYNC.ref=ref;SYNC.dev=dev;SYNC.push=()=>{S._t=S._t||Date.now();return ref.set({t:S._t,dev,s:JSON.stringify(S),sc:sc()}).catch(()=>{})};
   const snap=await ref.get(),r=snap.exists?snap.data():null;
   if(r&&r.t>(S._t||0)&&r.dev!==dev){adopt(r);return}
   if(!r||(S._t||0)>r.t)SYNC.push();
