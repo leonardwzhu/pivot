@@ -344,6 +344,8 @@ players.forEach(p=>{const e=ENT_BY_ID[p.id]||{mUse:1,mMin:1};
   p.fitSteps=[...p.steps0,...(BTALL.betaU>0?[["Team fit: usage",fpU-p.histFp]]:[]),...(BTALL.betaM>0?[["Team fit: minutes",fpM-fpU]]:[])];
   const s3=p.seasons[2];p.lastMpg=s3&&s3.gp>0&&s3.min?s3.min:null;
   p.hist=p.seasons.map((s,i)=>s&&s.gp>0?{i,fp:fpOf(s),gp:s.gp,s}:null).filter(Boolean);
+  // this season from our own box scores (fetched three times a day) once they count more games than the season table
+  const sl=typeof SLINE!=="undefined"&&SLINE?SLINE[p.espnId]:null;if(sl&&sl.gp>=(p.now&&p.now.gp||0))p.now={...(p.now||{}),...sl,y:CUR,fg:sl.fga?sl.fgm/sl.fga:0,ft:sl.fta?sl.ftm/sl.fta:0};
   p.nowFp=p.now&&p.now.gp?fpOf(p.now):null;p.fp36Last=p.lastMpg?fpOf(s3)/p.lastMpg*36:null;
 });
 

@@ -1,6 +1,8 @@
 # Teammate splits for this season, plus last season's when the pair is still together: how each player did with and without
 # each regular teammate, and how much of his recent form came without him (so a bump already in his form isn't counted twice).
 # MATES[B] = [[A, games with A, FP/G with, games without, FP/G without, min/G with, min/G without, share of B's recent games without A]]
+# Also this season from our own box scores, for the in-house season line and daily ranks:
+# SLOG[espnId] = [[scoring period, FP (ESPN default scoring), minutes], ...] oldest first; SLINE[espnId] = season per-game averages
 import json,re,datetime as D
 from collections import defaultdict
 MAP={"NY":"NYK","UTAH":"UTA","WSH":"WAS","SA":"SAS","NO":"NOP","GS":"GSW","BKN":"BRK","PHX":"PHO","CHA":"CHO"}
@@ -11,7 +13,7 @@ T=json.load(open('work/sched.json'))['settings']['proTeams'];ab={t['id']:MAP.get
 for t in T:
   for gs in (t.get('proGamesByScoringPeriod') or {}).values():
     for g in gs:G[str(g['id'])]=(D.datetime.fromtimestamp(g['date']/1000,D.UTC)-D.timedelta(hours=5)).date().isoformat()
-games=defaultdict(dict);tdates=defaultdict(set);teams=defaultdict(set)  # games[pid][date]=(fp,min); a player's teams this season
+games=defaultdict(dict);tdates=defaultdict(set);teams=defaultdict(set);lines=defaultdict(list)  # games[pid][date]=(fp,min); a player's teams this season
 for x in json.load(open('work/season_logs.json'))['players']:
   p=x['player']
   for st in p.get('stats',[]):
@@ -19,6 +21,7 @@ for x in json.load(open('work/season_logs.json'))['players']:
     d=G.get(st.get('externalId') or str(st['id'])[2:]);v=st['stats']
     if not d or v.get('40',0)<=0:continue
     t=ab.get(st['proTeamId']);games[p['id']][d]=(sum(SC[k]*v.get(i,0) for k,i in K.items()),v['40'],t);tdates[t].add(d);teams[p['id']].add(t)
+    lines[p['id']].append({k:v.get(i,0) for k,i in K.items()}|{'min':v['40']})
 def span(a,t):  # the dates a was on team t: his whole season if he's there now and played nowhere else, else first to last game there
   ds=[d for d,g in games[a].items() if g[2]==t]
   if pool.get(a)==t and teams[a]<={t}:return tdates[t]
@@ -50,4 +53,8 @@ for t,R in roster.items():
       out[b].append([a,nW,round(sW/nW,1) if nW else None,nO,round(sO/nO,1) if nO else None,round(mW,1) if mW else None,round(mO,1) if mO else None,round(sh,2)])
 n=sum(len(v) for v in out.values());print('teammate pairs',n,'for',len(out),'players')
 if n<500:raise SystemExit('too few teammate pairs; keeping the last good file')
-open('work/p2_mates.js','w').write("// Teammate splits (tools/build_mates.py): MATES[B] = [[A, games with A, FP/G with, games without, FP/G without, min/G with (this season), min/G without, share of B's recent games without A]]\nconst MATES="+json.dumps(out,separators=(',',':'))+";\n")
+P0=D.date(2026,10,19)
+SLOG={e:[[(D.date.fromisoformat(d)-P0).days,round(g[0],1),round(g[1])] for d,g in sorted(games[e].items())] for e in pool if games.get(e)}
+SLINE={e:{k:round(sum(x[k] for x in L)/len(L),2) for k in list(K)+['min']}|{'gp':len(L)} for e,L in lines.items() if e in pool and L}
+print('season logs for',len(SLOG),'players')
+open('work/p2_mates.js','w').write("// Teammate splits (tools/build_mates.py): MATES[B] = [[A, games with A, FP/G with, games without, FP/G without, min/G with (this season), min/G without, share of B's recent games without A]]\nconst MATES="+json.dumps(out,separators=(',',':'))+";\nconst SLOG="+json.dumps(SLOG,separators=(',',':'))+";\nconst SLINE="+json.dumps(SLINE,separators=(',',':'))+";\n")

@@ -27,5 +27,8 @@ const ana=await pg.evaluate(()=>{S.ana={n:10,ids:[...players].sort((a,b)=>a.rank
 check(ana.grade&&ana.todo&&ana.rows===13,'Team Analyzer grades a pasted 13-man team and suggests moves');
 const tr=await pg.evaluate(()=>{const b=document.querySelector('[data-anatry]');if(!b)return {n:0};b.click();const t=document.getElementById('view-ana').innerText;return {n:document.querySelectorAll('[data-anatry]').length,v:/Good for you|Close to even|Bad for you/.test(t),calls:document.querySelectorAll('#view-ana .call').length}});
 check(tr.n>0&&tr.v,'Team Analyzer suggests trades and scores one');check(tr.calls<=1,`one orange "call" on the analyzer at most (${tr.calls})`);
+const mv=await pg.evaluate(()=>{const D=dayRanks(),top=[...players].sort((a,b)=>seasonRank(a)-seasonRank(b))[0],ok=players.every(p=>{const x=D.R.get(p.id);return x&&x.rank.every(r=>r>=1&&r<=players.length)&&x.fp.every(isFinite)});
+  S.pl.view='mv';renderPlayers();return {ok,days:D.Q.length,top:seasonRank(top),pos:posRank(top),rows:document.querySelectorAll('#view-players tbody tr').length,today:Math.abs(top.proj.fp-D.R.get(top.id).fp[D.last])}});
+check(mv.ok&&mv.days>=1&&mv.top===1&&mv.pos===1,`daily in-house ranks for every player over ${mv.days} days`);check(mv.today<.05,"the latest day's rebuilt projection matches the projection shown");check(mv.rows>20,'Movers view lists players');
 check(/updated /.test(await pg.evaluate(()=>document.getElementById('asof').textContent)),'header says when the data was updated');
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();
