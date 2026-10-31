@@ -1613,7 +1613,7 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>Weeks, standings and playoffs</h3><p>Each week (Monday to Sunday) you play one team. All your starters' points for the week are added up, and the higher total wins. There are <b>19 regular-season weeks</b> (Nov 2 to Mar 14). The <b>top 4 records</b> make the playoffs, with seeding by head-to-head record. Playoffs are two rounds of <b>two weeks each</b>: semifinals Mar 15–28, final Mar 29–Apr 11. That's why the app weights playoff-week games: a player with 16 games in those four weeks is worth more to you then than one with 12.</p>
   <h3>Changing your team</h3><p>Free agents are added through <b>waivers</b>: a dropped player waits on waivers briefly, and claims go by waiver priority. There's no limit on adds. Trades are allowed until <b>${dl}</b>.</p>
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times, drawing each game from how far real games landed from their predictions over the last two seasons: a typical game misses by about half the prediction, and bad nights are more common than huge ones.</p></div>`}
-const TABS=["board","today","team","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
+const TABS=["board","today","team","ana","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
@@ -1659,6 +1659,66 @@ function todayDigest(){const my=myRoster();if(!my.length)return "";const T=tonig
   out.push(`${T.starters.length} starting tonight${T.open?`, ${T.open} open slot${T.open>1?"s":""}`:""}`);
   if(M)out.push(`Win chance this week ${pc(M.p)}`);if(mv)out.push(`Pickup: ${mv.p.name} (+${f0(mv.g)} FP this week)`);return out.join(". ")+"."}
 $("tab-today").addEventListener("click",renderToday);
+// ---- Team Analyzer: any team from any league. It's graded against a league of the same size drafted by ESPN average
+// draft position, and pickups come from players on under 40% of ESPN rosters (likely free in most leagues)
+S.ana=S.ana||{n:10,ids:[]};
+const anaRoster=()=>S.ana.ids.map(e=>players[BY_ESPN.get(e)]).filter(Boolean);
+function anaPeers(n){const pool=[...players].sort((a,b)=>(a.adp??a.rank+15)-(b.adp??b.rank+15)).slice(0,n*13),T=Array.from({length:n},()=>[]);
+  pool.forEach((p,i)=>{const r=Math.floor(i/n),k=i%n;T[r%2?n-1-k:k].push(p)});return T}
+const anaPool=R=>players.filter(p=>(p.own??0)<40&&!R.includes(p)&&p.projTot>0);
+function anaPickups(R){const base=h2hValue(R).total,wk=REMAIN_WEEKS(),full=R.length>=13,drop=[...R].sort((a,b)=>a.projTot-b.projTot)[0];
+  return anaPool(R).sort((a,b)=>b.projTot-a.projTot).slice(0,40).map(p=>{const X=full?R.filter(q=>q!==drop).concat(p):R.concat(p);return {p,drop:full?drop:null,g:(h2hValue(X).total-base)/wk}}).filter(x=>x.g>.5).sort((a,b)=>b.g-a.g).slice(0,3)}
+function anaView(){const R=anaRoster(),n=S.ana.n;
+  let h=`<div class="chart-card"><h4>Team Analyzer</h4><p class="empty" style="margin:2px 0 10px">For any ESPN-style head-to-head points team, in any league. Add your players, set your league size, and see how the team stacks up and what to do next.</p>
+    <div class="row-btns" style="align-items:center"><input type="search" id="anaQ" placeholder="Add a player" autocomplete="off" style="flex:1 1 220px;max-width:340px">
+      <label class="chk" for="anaN">League size <select id="anaN">${[8,10,12,14,16].map(k=>`<option ${k===n?"selected":""}>${k}</option>`).join("")}</select></label>
+      ${myRoster().length?'<button class="btn" id="anaMine">Use my league team</button>':""}${R.length?'<button class="btn" id="anaClear">Clear</button>':""}</div>
+    <div class="ana-sug" id="anaSug"></div>
+    <details style="margin-top:8px"><summary class="mut" style="cursor:pointer;font-size:13px">Paste a roster instead</summary><textarea id="anaPaste" placeholder="One player per line, e.g. copied from your ESPN team page" style="min-height:100px;margin-top:6px"></textarea><button class="btn primary" id="anaPasteBtn" style="margin-top:6px">Add these players</button> <span class="mut" id="anaMsg" style="font-size:12px"></span></details>
+    <div class="ana-chips">${R.map(p=>`<span class="ana-chip">${esc(p.name)} <span class="mut">${p.team}</span><button data-anadel="${p.espnId}" aria-label="Remove ${esc(p.name)}">×</button></span>`).join("")}</div>
+    <p class="empty" style="margin-top:6px">${R.length}/13 players${R.length<8?" · add at least 8 for a full analysis":""}</p></div>`;
+  if(R.length<8)return h;
+  const P=anaPeers(n),tw=P.map(teamWeekly),me=teamWeekly(R),place=tw.filter(t=>t.mu>me.mu).length+1,avg=mean(tw.map(t=>t.mu)),poMe=R.reduce((s,p)=>s+p.poGames,0),poAvg=mean(P.map(T=>T.reduce((s,p)=>s+p.poGames,0)));
+  h+=`<div class="kpis">${kpT("Starter points / week",f0(me.mu),`typical team in a ${n}-team league: ${f0(avg)}`)}${kpT("Would rank",`<span class="call">${ordinal(place)} of ${n+1}</span>`,`among ${n} teams drafted by ESPN average draft position, plus yours`)}
+    ${kpT("Playoff-week games",String(poMe),`Mar 15–Apr 11 · typical team ${f0(poAvg)}`)}${kpT("Injured",String(R.filter(p=>p.out).length),R.filter(p=>p.out).map(p=>esc(p.name.split(" ").filter(w=>!/^(Jr\.?|Sr\.?|II|III|IV)$/.test(w)).pop())).join(", ")||"everyone is healthy")}</div>`;
+  // where the points come from, against the typical team
+  const sm=sourcesOf(R),sp=Object.fromEntries(SRC.map(([k])=>[k,mean(P.map(T=>sourcesOf(T)[k]))])),D=SRC.map(([k,lab])=>({lab,d:sm[k]-sp[k]})),mx=Math.max(1,...D.map(x=>Math.abs(x.d))),srt=[...D].sort((a,b)=>b.d-a.d);
+  h+=`<div class="chart-grid"><div class="chart-card"><h4>Where your points come from</h4><div class="eq">your top 10 vs the typical team, fantasy points per week</div><div class="wf" style="margin-top:8px">${D.map(x=>`<div class="wf-row"><span>${x.lab}</span><div class="wf-track"><span style="${x.d>=0?`left:50%;width:${x.d/mx*50}%`:`right:50%;width:${-x.d/mx*50}%`};background:${x.d>=0?"var(--ok)":"var(--bad)"}"></span></div><span class="amt">${x.d>=0?"+":"−"}${f0(Math.abs(x.d))}</span></div>`).join("")}</div>
+    <p>Biggest edge: <b>${srt[0].lab.toLowerCase()}</b>. Biggest gap: <b>${srt[srt.length-1].lab.toLowerCase()}</b>. In points leagues every source counts the same, so a gap only matters if a pickup can close it cheaply.</p></div>`;
+  const A=assignLineup(R),depth=["PG","SG","SF","PF","C"].map(Q=>({Q,k:R.filter(p=>p.pos.includes(Q)).length,lg:mean(P.map(T=>T.filter(p=>p.pos.includes(Q)).length))}));
+  h+=`<div class="chart-card"><h4>Lineup and depth</h4><div class="tablebox"><table><thead><tr><th class="l">Slot</th><th class="l">Player</th><th>FP/G</th><th>Games left</th></tr></thead><tbody>${LINEUP.map(([lab],i)=>{const p=A.slot[i];return `<tr><td class="l">${lab}</td><td class="l">${p?pBtn(p):'<span style="color:var(--bad)">Empty</span>'}</td><td class="num">${p?f1(p.proj.fp):"–"}</td><td class="num">${p?f0(p.avail*p.rate):"–"}</td></tr>`}).join("")}</tbody></table></div>
+    <div class="needs" style="margin-top:8px">${depth.map(d=>`<span class="need-chip ${d.k<2?"high":d.k<d.lg-1?"med":"ok"}">${d.Q}: ${d.k} (typical ${f1(d.lg)})</span>`).join("")}</div></div></div>`;
+  // every player: value against the best player likely on waivers
+  const pool=anaPool(R).sort((a,b)=>b.projTot-a.projTot),repl=pool[0]?pool[0].projTot:0,core=[...R].sort((a,b)=>b.projTot-a.projTot);
+  const verdict=p=>p.out&&p.retP-CUR_PERIOD>=14?'<span class="chip out">IR candidate</span>':p.projTot<repl?'<span class="chip dtd">Replaceable</span>':core.indexOf(p)<4?'<span class="chip hot">Core</span>':'<span class="mut">Keep</span>';
+  h+=`<div class="chart-card"><h4>Your players</h4><div class="tablebox"><table><thead><tr><th class="l">Player</th><th>Proj FP/G</th><th>Games left</th><th title="Projected fantasy points for the rest of the season">Season FP</th><th title="How much this season's games have moved his projection">Since preseason</th><th class="l">Verdict</th></tr></thead><tbody>
+    ${core.map(p=>`<tr><td class="l">${pBtn(p)} <span class="mut">${p.team} · ${p.pos.join("/")}</span>${p.out?' <span class="chip out">Out</span>':p.dtd?' <span class="chip dtd">GTD</span>':""}</td><td class="num">${f1(p.proj.fp)}</td><td class="num">${f0(p.projGP)}</td><td class="num">${f0(p.projTot)}</td><td class="num">${cpos(paceDelta(p))}</td><td class="l">${verdict(p)}</td></tr>`).join("")}</tbody></table></div>
+    <p>Replaceable means the best player on fewer than 40% of ESPN rosters${pool[0]?` (${esc(pool[0].name)}, ${f0(repl)} season FP)`:""} is projected to outscore him from here.</p></div>`;
+  // what to do
+  const tips=[],pk=anaPickups(R),out=R.filter(p=>p.out&&p.retP-CUR_PERIOD>=14).sort((a,b)=>b.projTot-a.projTot)[0],hot=R.filter(p=>p.nowFp&&p.now.gp>=5&&p.nowFp>p.proj.fp*1.15).sort((a,b)=>(b.nowFp-b.proj.fp)-(a.nowFp-a.proj.fp))[0],
+    cold=players.filter(p=>!R.includes(p)&&(p.own??0)>=90&&p.now&&p.now.gp>=5&&p.nowFp<p.proj.fp*.85&&p.proj.fp>=30).sort((a,b)=>b.proj.fp-a.proj.fp)[0];
+  if(out)tips.push(`<b>Put ${pBtn(out)} on IR</b> if your league has an IR slot: he's out until about ${dayLabel(out.retP)}, and the open roster spot is a free pickup.`);
+  pk.forEach((x,i)=>tips.push(`<b>${i?"Also worth a look":"Best pickup"}: ${i?pBtn(x.p):pBtn(x.p,"call")}</b> (${x.p.pos.join("/")}, ${x.p.team}, on ${f0(x.p.own||0)}% of ESPN rosters)${x.drop?`, dropping ${pBtn(x.drop)}`:""}: +${f1(x.g)} starter points a week. Check he's free in your league first.`));
+  if(hot)tips.push(`<b>Sell high on ${pBtn(hot)}</b>: ${f1(hot.nowFp)} FP/G so far against a ${f1(hot.proj.fp)} projection. Hot starts usually cool off, so his trade value may never be higher.`);
+  if(cold)tips.push(`<b>Buy low on ${pBtn(cold)}</b>: ${f1(cold.nowFp)} FP/G so far, but still projected for ${f1(cold.proj.fp)}. A frustrated manager may sell below his value.`);
+  h+=`<div class="chart-card"><h4>What to do</h4>${tips.length?`<ul class="today-news">${tips.map(t=>`<li>${t}</li>`).join("")}</ul>`:'<p class="empty">Nothing stands out: no pickup beats your weakest player and nobody needs a move.</p>'}
+    <p>Pickups assume players on fewer than 40% of ESPN rosters are free in your league; your league's actual free agents may differ.</p></div>`;
+  return h}
+function renderAna(){$("view-ana").innerHTML=anaView()}
+$("tab-ana").addEventListener("click",renderAna);
+const anaAdd=ids=>{ids.forEach(e=>{if(!S.ana.ids.includes(e)&&S.ana.ids.length<16)S.ana.ids.push(e)});save();renderAna()};
+document.addEventListener("input",e=>{if(e.target.id!=="anaQ")return;const t=norm2(e.target.value.trim()),R=anaRoster();
+  $("anaSug").innerHTML=t.length<2?"":players.filter(p=>!R.includes(p)&&norm2(p.name).includes(t)).sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,6).map(p=>`<button class="btn" data-anaadd="${p.espnId}">${esc(p.name)} <span class="mut">${p.team}</span></button>`).join("")});
+document.addEventListener("keydown",e=>{if(e.target.id==="anaQ"&&e.key==="Enter"){const b=document.querySelector("[data-anaadd]");if(b)b.click()}});
+document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("[data-anaadd],[data-anadel],#anaMine,#anaClear,#anaPasteBtn");if(!t)return;
+  if(t.dataset.anaadd){anaAdd([+t.dataset.anaadd]);const q=$("anaQ");if(q)q.focus()}
+  else if(t.dataset.anadel){S.ana.ids=S.ana.ids.filter(x=>x!==+t.dataset.anadel);save();renderAna()}
+  else if(t.id==="anaMine"){S.ana.ids=myRoster().map(p=>p.espnId);save();renderAna()}
+  else if(t.id==="anaClear"){S.ana.ids=[];save();renderAna()}
+  else{const keys=players.map(p=>({e:p.espnId,k:norm(p.name)})).sort((a,b)=>b.k.length-a.k.length),got=[];
+    $("anaPaste").value.split(/\n/).map(norm).filter(Boolean).forEach(l=>{const hit=keys.find(x=>l.includes(x.k)&&!got.includes(x.e));if(hit)got.push(hit.e)});
+    anaAdd(got);const m=$("anaMsg");if(m)m.textContent=got.length?`Added ${got.length} player${got.length>1?"s":""}.`:"No names matched. Put one player per line."}});
+document.addEventListener("change",e=>{if(e.target.id==="anaN"){S.ana.n=+e.target.value;save();renderAna()}});
 // ---- find a player from anywhere: the search button or "/" opens it, arrows move, Enter opens his profile ----
 (()=>{const box=document.createElement("div");box.className="finder";box.id="finder";box.hidden=true;box.setAttribute("role","dialog");box.setAttribute("aria-label","Find a player");
   box.innerHTML='<div class="finder-box"><input id="findQ" placeholder="Find a player or team (e.g. DEN)" autocomplete="off" spellcheck="false" aria-controls="findList"><div id="findList" role="listbox"></div></div>';document.body.appendChild(box);

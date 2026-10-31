@@ -254,6 +254,8 @@ header.bar{border-bottom:2px solid var(--ink)}
 .finder .hit{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);padding:10px 16px;cursor:pointer;font-size:15px}.finder .hit[aria-selected=true],.finder .hit:hover{background:var(--soft)}
 .finder .hint{padding:10px 16px;font-size:12px;color:var(--muted)}
 .today-tbl td{vertical-align:middle}@media (max-width:600px){.today-tbl .meta{display:block;font-size:12px}.today-tbl .rng{display:none}}
+.ana-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}.ana-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:3px 4px 3px 10px;font-size:13px}
+.ana-chip button{border:0;background:none;color:var(--muted);font-size:15px;line-height:1;padding:0 4px;cursor:pointer}.ana-sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .today-news{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px}
 .call{font-family:var(--display);font-style:italic;font-weight:600;color:var(--ball)}
 .sug .who .expander.call{font-size:19px}td .call{font-size:16px}
@@ -395,6 +397,7 @@ html{scrollbar-gutter:stable}
       <button role="tab" id="tab-trades" data-mode="season" aria-selected="false">Trades</button>
       <button role="tab" id="tab-rosters" data-mode="season" aria-selected="false">Rosters</button>
       <span class="tab-gap" aria-hidden="true"></span>
+      <button role="tab" id="tab-ana" aria-selected="false">Team Analyzer</button>
       <button role="tab" id="tab-models" aria-selected="false">Models</button>
       <button role="tab" id="tab-news" aria-selected="false">News <span class="count" id="newsCount"></span></button>
       <button role="tab" id="tab-how" aria-selected="false">Method &amp; Import</button>
@@ -431,6 +434,7 @@ html{scrollbar-gutter:stable}
     <div id="view-waivers" hidden class="models"></div>
     <div id="view-trades" hidden class="models"></div>
     <div id="view-rosters" hidden class="models"></div>
+    <div id="view-ana" hidden class="models"></div>
     <div id="view-models" hidden class="models"></div>
     <div id="view-news" hidden><div class="news" id="newsList"></div></div>
 
