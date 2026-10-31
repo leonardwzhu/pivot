@@ -16,8 +16,8 @@ const A=await device();
 check(!store['data/users/me/state']||!JSON.parse(store['data/users/me/state'].s).adj?.['4278073'],'a fresh device saves nothing that looks like an edit');
 await A.pg.evaluate(()=>{const p=players.find(p=>p.name==="Nikola Jokic");S.adj[p.espnId]={m:.1};save()});await A.pg.waitForTimeout(2000);
 const saved=store['data/users/me/state'];check(saved&&JSON.parse(saved.s).adj&&Object.keys(JSON.parse(saved.s).adj).length===1,'an edit on device A is saved to the store');
-const B=await device();await B.pg.waitForTimeout(1500);await B.pg.waitForLoadState('load');await B.pg.waitForFunction(()=>typeof S!=='undefined'&&typeof BOOT!=='undefined'&&!BOOT,null,{timeout:20000});  // B may still be reloading into the synced copy
-check(await B.pg.evaluate(()=>Object.keys(S.adj||{}).length===1),'a fresh device B loads that edit');
+const B=await device();await B.pg.waitForTimeout(1500);let got=false;for(let i=0;i<30&&!got;i++){got=await B.pg.evaluate(()=>typeof BOOT!=='undefined'&&!BOOT&&Object.keys(S.adj||{}).length===1).catch(()=>false);if(!got)await B.pg.waitForTimeout(700)}  // B reloads into the synced copy after its first load
+await B.pg.waitForTimeout(1500);check(got,'a fresh device B loads that edit');
 check(Object.keys(JSON.parse(store['data/users/me/state'].s).adj||{}).length===1,"device B's boot didn't overwrite it");
 await B.pg.evaluate(()=>{S.adj={};save()});await B.pg.waitForTimeout(2500);
 check(await A.pg.evaluate(()=>!!document.getElementById('syncBar')),'device A, still open, is offered a reload');

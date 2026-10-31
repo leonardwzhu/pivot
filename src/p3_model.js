@@ -350,7 +350,7 @@ players.forEach(p=>{const e=ENT_BY_ID[p.id]||{mUse:1,mMin:1};
 });
 
 // ================= YOUR MIX: how much each source counts, plus your own player takes =================
-const MIX_DEFAULT={espn:OMEGA,cur:.5,fpro:0,curK:10};
+const MIX_DEFAULT={espn:OMEGA,cur:.45,fpro:0,curK:10};  // cur: walk-forward tuned on 2024-25 game logs, best again on 2025-26 (tools/season_weight.py)
 // slider 0..1 sets how many games until this season counts half: 50% -> 10 games, 100% -> 2.5 games, 0% -> off
 const curK=c=>10*Math.pow(4,(.5-c)*2);
 const curWeight=(p,mix)=>{const g=p.now&&p.now.gp?p.now.gp:0;return g&&!p.baseProj.rookie&&mix.cur>0?g/(g+curK(mix.cur)):0};
