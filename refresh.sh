@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Pivot refresh. `bash refresh.sh` is the morning run: every source, plus the prediction scorecard.
 # `bash refresh.sh injuries` is the pre-game run: only ESPN players, injuries and news, everything else from last/.
+# `bash refresh.sh night` is the after-the-last-game run: ESPN only (players, injuries, league, schedule, box scores), then it
+# scores the night's predictions without logging new ones, so tomorrow's are still made in the morning with that day's news.
 # Fetches the data, rebuilds the data files, assembles build/draft-room.html and smoke-tests it.
 # Any source that fails falls back to its last good copy in last/, so one broken site never blocks the update.
 # Exit code: 0 = page built and passed the smoke test (see WARN lines for fallbacks), 1 = nothing publishable.
@@ -42,7 +44,7 @@ if [ "$c1$c2$c3" = 200200200 ] && python3 -P tools/build_espn.py; then STATUS+=(
 elif [ "$MODE" = injuries ]; then echo "BUILD FAILED: ESPN injuries unavailable, nothing new to publish"; exit 1
 else use_last p2_espn.js "ESPN"; STATUS+=("ESPN: last good"); fi
 
-if [ "$MODE" = daily ]; then
+if [ "$MODE" != injuries ]; then
 # 4a) Your league: teams, draft order, picks, rosters and matchups (public league, no login)
 c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup" work/league.json)
 if [ "$c" = 200 ] && python3 -P tools/build_league.py "$MY_TEAM"; then cp work/league.json last/league.json; STATUS+=("league: fresh"); else rm -f work/league.json; use_last p2_league.js "league"; STATUS+=("league: last good"); fi
@@ -60,9 +62,9 @@ c=$(fetch "$ESPN/segments/0/leaguedefaults/3?view=kona_player_info" work/season_
 if [ "$c" = 200 ] && python3 -P tools/build_mates.py; then STATUS+=("teammates: fresh"); else [ -f last/p2_mates.js ] || echo "const MATES={};" > last/p2_mates.js; use_last p2_mates.js "teammates"; STATUS+=("teammates: last good"); fi
 [ -f last/p2_preds.js ] || echo "const PREDS=null;" > last/p2_preds.js; cp last/p2_preds.js work/p2_preds.js
 
-# 5) FantasyPros expert consensus (robots.txt asks for 5 seconds between requests)
-c=$(fetch "https://www.fantasypros.com/nba/rankings/overall.php" work/fp.html)
-if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: fresh"); else use_last p2_fp.js "FantasyPros"; STATUS+=("FantasyPros: last good"); fi
+# 5) FantasyPros expert consensus (robots.txt asks for 5 seconds between requests); its ranks don't change overnight
+if [ "$MODE" = daily ]; then c=$(fetch "https://www.fantasypros.com/nba/rankings/overall.php" work/fp.html)
+if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: fresh"); else use_last p2_fp.js "FantasyPros"; STATUS+=("FantasyPros: last good"); fi; else keep_last p2_fp.js; fi
 else keep_last p2_fp.js p2_sched.js p2_league.js p2_games.js p2_mates.js p2_preds.js; fi
 printf '%s\n' "${STATUS[@]}" | python3 -P tools/build_status.py "$MODE" work
 
@@ -71,8 +73,9 @@ assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "
 # 6) Assemble and smoke-test; if today's data breaks the page, fall back to the last good data set
 assemble work
 if node tools/smoke_test.js "$(pwd)/build/draft-room.html"; then
-  # 7) Scorecard (morning run only): log today's predictions from the page just built, score earlier ones, rebuild with the new summary
-  if [ "$MODE" = daily ]; then if node tools/log_preds.js "$(pwd)/build/draft-room.html" last/preds_log.json && assemble work && node tools/smoke_test.js "$(pwd)/build/draft-room.html" >/dev/null; then cp work/preds_log.json last/; STATUS+=("scorecard: updated")
+  # 7) Scorecard: the morning run logs today's predictions from the page just built and scores earlier ones; the night run only
+  # scores; then rebuild with the new summary
+  if [ "$MODE" != injuries ]; then if node tools/log_preds.js "$(pwd)/build/draft-room.html" last/preds_log.json $([ "$MODE" = night ] && echo --score-only) && assemble work && node tools/smoke_test.js "$(pwd)/build/draft-room.html" >/dev/null; then cp work/preds_log.json last/; STATUS+=("scorecard: updated")
   else echo "WARN scorecard: not updated today"; cp last/p2_preds.js work/p2_preds.js; assemble work; STATUS+=("scorecard: last good"); fi; fi
   cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js work/p2_mates.js work/p2_preds.js work/p2_build.js work/sources.json last/ 2>/dev/null; cp work/contracts.json last/ 2>/dev/null
   echo "BUILD OK: ${STATUS[*]}"
