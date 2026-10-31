@@ -15,7 +15,7 @@ const r=await pg.evaluate(([log,scoreOnly])=>{const today=PDATE(CUR_PERIOD),keep
   if(!log.length&&!scoreOnly){const D=[...new Set(players.flatMap(p=>SEASON_GAMES(p).map(g=>g.date)))].filter(d=>d<today).sort();
     for(const d of D){ASOF=d;FB.clear();DEF_NOW=null;players.filter(keep).forEach(p=>{const G=gamesOf(p).find(x=>x.date===d&&!x.dnp);if(!G)return;
       const o=G.opp,opp=o.replace(/^@/,""),f=defFactor(opp,posGroup(p)),q=Math.round((new Date(d+"T00:00:00Z")-new Date(PERIOD0+"T00:00:00Z"))/864e5),S=SCHED[p.team]||[],fp=formBase(p)*Math.max(.5,f)**MP.a*(o[0]!=="@"?1+MP.hm:1-MP.hm)*(S.includes(q-1)?1-MP.b2:1);
-      add.push(row(p,{date:d,fp,lo:fp*MATCHUP.Q[0],hi:fp*MATCHUP.Q[1]},1))})}
+      add.push(row(p,{date:d,fp,lo:rangeOf(fp)[0],hi:rangeOf(fp)[1]},1))})}
     ASOF=null;FB.clear();DEF_NOW=null}
   if(!scoreOnly)players.filter(keep).forEach(p=>{const g=nextGames(p,1)[0];if(g&&!g.out&&g.date===today&&!have.has(today+"|"+p.espnId))add.push(row(p,g))});
   const rows=log.concat(add),byE=new Map(players.map(p=>[String(p.espnId),p]));
