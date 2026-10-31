@@ -31,5 +31,7 @@ check(tr.n>0&&tr.v,'Team Analyzer suggests trades and scores one');check(tr.call
 const mv=await pg.evaluate(()=>{const D=dayRanks(),top=[...players].sort((a,b)=>seasonRank(a)-seasonRank(b))[0],ok=players.every(p=>{const x=D.R.get(p.id);return x&&x.rank.every(r=>r>=1&&r<=players.length)&&x.fp.every(isFinite)});
   S.pl.view='mv';renderPlayers();return {ok,days:D.Q.length,top:seasonRank(top),pos:posRank(top),rows:document.querySelectorAll('#view-players tbody tr').length,today:Math.abs(top.proj.fp-D.R.get(top.id).fp[D.last])}});
 check(mv.ok&&mv.days>=1&&mv.top===1&&mv.pos===1,`daily in-house ranks for every player over ${mv.days} days`);check(mv.today<.05,"the latest day's rebuilt projection matches the projection shown");check(mv.rows>20,'Movers view lists players');
+check(await pg.evaluate(()=>{const t=TABS.filter(x=>!$("tab-"+x).hidden);return t.every(x=>{$("tab-"+x).click();return $("tabIntro").textContent.length>40})}),'every visible tab has a one-line description');
+await pg.click('#guideBtn');await pg.waitForTimeout(200);check(await pg.evaluate(()=>!$("guide").hidden&&/Glossary/.test($("guide").innerText)&&/Season FP/.test($("guide").innerText)),'the Guide opens with the glossary');await pg.keyboard.press('Escape');
 check(/updated /.test(await pg.evaluate(()=>document.getElementById('asof').textContent)),'header says when the data was updated');
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();

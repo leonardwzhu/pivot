@@ -1827,6 +1827,66 @@ $("tab-team").addEventListener("click",renderTeam);
 $("tab-players").addEventListener("click",renderPlayers);
 ["season","waivers","trades","rosters"].forEach(t=>$("tab-"+t).addEventListener("click",()=>renderSeason(t)));
 TABS.forEach(t=>$("tab-"+t).onclick=()=>{TABS.forEach(u=>{$("view-"+u).hidden=u!==t;$("tab-"+u).setAttribute("aria-selected",u===t)});replay($("view-"+t),"view-in")});
+// ---- what each tab is for, one line at the top, and the Guide (opened from "?" and once on a first visit)
+const INTRO={board:"Every draftable player, ranked. Press Draft for your picks and Taken for everyone else's; the Pick Advisor on the right recommends your next pick.",
+  insights:"What the other teams are likely to take before your next pick, and where the value and risk sit on the board.",mock:"Practice a full draft against computer teams that draft the way real managers do.",
+  today:"Your daily checklist: who to start tonight, news about your players, how your matchup stands and the one move worth making.",
+  team:"How your team stacks up for the rest of the season: standing, playoff odds, strengths and gaps, and moves that would help.",
+  players:"Every player, ranked by the fantasy points he's projected to score from here. Switch the columns to see movers, next games, stats and more.",
+  season:"This week's head-to-head: projected scores, your chance to win, and who starts for you each day.",
+  waivers:"Free agents worth adding, for this week or the rest of the season, and who gains when a regular is hurt.",
+  trades:"Try a trade with any team in your league and see what it does to both teams' starter points.",
+  rosters:"Every team's roster. Record adds, drops and trades here; ESPN's rosters replace them each morning.",
+  ana:"Grade a team from any league: how it ranks, its strengths and gaps, and trades and pickups that would help.",
+  models:"How accurate Pivot is: tests on past seasons, and a live scorecard of this season's predictions.",
+  news:"The latest injuries and headlines from ESPN, with a short summary at the top.",how:"Where the data comes from, how the models work, your league's scoring, and importing your own rankings."};
+const showIntro=t=>{const el=$("tabIntro");if(el)el.innerHTML=INTRO[t]?`${INTRO[t]} <button data-guide>Guide</button>`:""};
+TABS.forEach(t=>$("tab-"+t).addEventListener("click",()=>showIntro(t)));
+const GUIDE=`<div class="row-btns" style="justify-content:space-between;align-items:baseline"><h2>Piv<span style="font-style:italic;color:var(--ball)">o</span>t guide</h2><button class="btn" id="guideClose">Close ✕</button></div>
+<p>Pivot helps you draft and run a team in an ESPN head-to-head points league. Its numbers come from its own models, built on real box scores and tested on past seasons, with ESPN's season projections blended in where those tests showed they help.</p>
+<h3>Getting started</h3><ol>
+<li><b>Before your draft:</b> practice in <b>Mock Draft</b>, and browse the <b>Big Board</b>. Click any name for his full profile, or search with the magnifier (or press /).</li>
+<li><b>Draft day:</b> Pivot opens Draft Day on its own 12 hours before. Press <b>Draft</b> for your picks and <b>Taken</b> for others'. The <b>Pick Advisor</b> recommends each pick.</li>
+<li><b>Every day after:</b> open <b>Today</b>. It tells you who to start tonight, what changed for your players, how your matchup stands and whether a pickup is worth it.</li></ol>
+<h3>The tabs</h3><dl>
+<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd>
+<dt>Team Analyzer</dt><dd>${INTRO.ana}</dd><dt>News</dt><dd>${INTRO.news}</dd><dt>More</dt><dd>Trades, Rosters, Models (accuracy) and Method & Import.</dd>
+<dt>Draft Day</dt><dd>Big Board, Insights and Mock Draft, for the draft itself. Switch at the top left.</dd></dl>
+<h3>Reading the screens</h3><dl>
+<dt><span class="call">Orange italic</span></dt><dd>Pivot's recommendation on that screen: the pick, move or number to act on. There's at most one per screen.</dd>
+<dt>▲ 5 / ▼ 3</dt><dd>Places a player climbed or slid in the rankings over the period shown.</dd>
+<dt>Green / red numbers</dt><dd>Better / worse than the comparison next to them (his projection, last week, a typical team).</dd>
+<dt>Last 10 bars</dt><dd>Fantasy points in his team's last 10 games. Lighter bars are last season; a red dash means he didn't play.</dd>
+<dt>Seasons line</dt><dd>His fantasy points per game in each of the last three seasons, then a dark dot for this season so far, then a hollow dot for his projection from here.</dd>
+<dt>ⓘ How this works</dt><dd>Opens the method behind a table or chart.</dd>
+<dt>Headings with ▾</dt><dd>Click to fold or open a section; Pivot remembers.</dd>
+<dt>Header time</dt><dd>When the data last updated (6:47am, 5:11pm and about 1:23am ET). A yellow note appears if something is out of date.</dd></dl>
+<h3>Glossary</h3><dl>
+<dt>FP</dt><dd>Fantasy points. Your league's scoring: points 1, rebounds 1, assists 2, steals 4, blocks 4, threes 1, turnovers −2. Shots count too: each field goal made is +2 and each attempt −1 (a make nets +1, a miss −1), and each free throw made is +1 and each attempt −1.</dd>
+<dt>FP/G</dt><dd>Fantasy points per game.</dd>
+<dt>Proj FP/G</dt><dd>What Pivot expects him to average per game for the rest of the season: his preseason projection blended with this season's games.</dd>
+<dt>Season FP</dt><dd>Fantasy points he's projected to score from here: Proj FP/G × the games he's expected to play (injuries and schedule included). It sets the rank.</dd>
+<dt># / rank</dt><dd>His place by Season FP. <b>Pos rank</b> is the same among players at his main position.</dd>
+<dt>Expected FP</dt><dd>The prediction for one game: his recent minutes × his points per minute, adjusted for teammates who are out, the opponent's defense, home court and back-to-backs.</dd>
+<dt>80% range</dt><dd>8 games in 10 should land inside it. Bench players' ranges are wider than stars'.</dd>
+<dt>Chance he plays</dt><dd>How often he's suited up over the last three seasons. Players who miss games are projected for fewer.</dd>
+<dt>Out / GTD</dt><dd>Out: injured, with ESPN's expected return. GTD: game-time decision.</dd>
+<dt>Hot / Cold</dt><dd>His recent games are well above or below his projection.</dd>
+<dt>b2b, @</dt><dd>Second night of a back-to-back (players score a little less); @ means an away game.</dd>
+<dt>Starter points</dt><dd>Points from the 10 players you start each day. Bench points don't count in head-to-head.</dd>
+<dt>Win chance</dt><dd>How often you win the week when Pivot replays it hundreds of times with realistic game-to-game swings.</dd>
+<dt>Replaceable</dt><dd>A free agent is projected to outscore him from here.</dd>
+<dt>ADP</dt><dd>Average draft position in ESPN drafts.</dd>
+<dt>Tier (T1, T2…)</dt><dd>Groups of players with similar projections on the Big Board; a new tier means a drop-off.</dd>
+<dt>Average miss</dt><dd>On the Models tab: how far predictions landed from what happened, on average. Smaller is better.</dd></dl>`;
+(()=>{const box=document.createElement("div");box.className="guide";box.id="guide";box.hidden=true;box.setAttribute("role","dialog");box.setAttribute("aria-label","Pivot guide");
+  box.innerHTML=`<div class="guide-box">${GUIDE}</div>`;document.body.appendChild(box);
+  const open=()=>{box.hidden=false;S.guideSeen=1;save()},close=()=>{box.hidden=true};
+  $("guideBtn").onclick=open;box.onclick=e=>{if(e.target===box||e.target.id==="guideClose")close()};
+  document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-guide]"))open()});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!box.hidden)close()});
+  // a first visit opens it once (not for automated checks, which would have to dismiss it)
+  if(!S.guideSeen&&!navigator.webdriver)setTimeout(open,600)})();
 // ---- More: the rarer tabs sit in a menu; the More button takes the selected style while one of them is open
 const MORE=["trades","rosters","models","how"],moreMenu=$("moreMenu"),moreBtn=$("moreBtn"),curTab=()=>TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");
 const markMore=()=>moreBtn.classList.toggle("on",MORE.includes(curTab())),closeMore=()=>{moreMenu.hidden=true;moreBtn.setAttribute("aria-expanded","false")};
