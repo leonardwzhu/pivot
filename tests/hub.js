@@ -25,5 +25,7 @@ check(await pg.evaluate(()=>document.getElementById('finder').hidden&&/Jokic/.te
 await pg.click('#tab-ana');await pg.waitForTimeout(200);
 const ana=await pg.evaluate(()=>{S.ana={n:10,ids:[...players].sort((a,b)=>a.rank-b.rank).filter((_,i)=>i%10===3).slice(0,13).map(p=>p.espnId)};renderAna();const t=document.getElementById('view-ana').innerText;return {grade:/Would rank/i.test(t),todo:/What to do/.test(t),rows:document.querySelectorAll('#view-ana .tablebox')[1].querySelectorAll('tbody tr').length}});
 check(ana.grade&&ana.todo&&ana.rows===13,'Team Analyzer grades a pasted 13-man team and suggests moves');
+const tr=await pg.evaluate(()=>{const b=document.querySelector('[data-anatry]');if(!b)return {n:0};b.click();const t=document.getElementById('view-ana').innerText;return {n:document.querySelectorAll('[data-anatry]').length,v:/Good for you|Close to even|Bad for you/.test(t),calls:document.querySelectorAll('#view-ana .call').length}});
+check(tr.n>0&&tr.v,'Team Analyzer suggests trades and scores one');check(tr.calls<=1,`one orange "call" on the analyzer at most (${tr.calls})`);
 check(/updated /.test(await pg.evaluate(()=>document.getElementById('asof').textContent)),'header says when the data was updated');
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();

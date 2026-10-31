@@ -1661,14 +1661,14 @@ function todayDigest(){const my=myRoster();if(!my.length)return "";const T=tonig
 $("tab-today").addEventListener("click",renderToday);
 // ---- Team Analyzer: any team from any league. It's graded against a league of the same size drafted by ESPN average
 // draft position, and pickups come from players on under 40% of ESPN rosters (likely free in most leagues)
-S.ana=S.ana||{n:10,ids:[]};
+S.ana=S.ana||{n:10,ids:[]};S.ana.give=S.ana.give||[];S.ana.get=S.ana.get||[];
 const anaRoster=()=>S.ana.ids.map(e=>players[BY_ESPN.get(e)]).filter(Boolean);
 function anaPeers(n){const pool=[...players].sort((a,b)=>(a.adp??a.rank+15)-(b.adp??b.rank+15)).slice(0,n*13),T=Array.from({length:n},()=>[]);
   pool.forEach((p,i)=>{const r=Math.floor(i/n),k=i%n;T[r%2?n-1-k:k].push(p)});return T}
 const anaPool=R=>players.filter(p=>(p.own??0)<40&&!R.includes(p)&&p.projTot>0);
 function anaPickups(R){const base=h2hValue(R).total,wk=REMAIN_WEEKS(),full=R.length>=13,drop=[...R].sort((a,b)=>a.projTot-b.projTot)[0];
   return anaPool(R).sort((a,b)=>b.projTot-a.projTot).slice(0,40).map(p=>{const X=full?R.filter(q=>q!==drop).concat(p):R.concat(p);return {p,drop:full?drop:null,g:(h2hValue(X).total-base)/wk}}).filter(x=>x.g>.5).sort((a,b)=>b.g-a.g).slice(0,3)}
-function anaView(){const R=anaRoster(),n=S.ana.n;
+function anaView(){S.ana.give=S.ana.give||[];S.ana.get=S.ana.get||[];const R=anaRoster(),n=S.ana.n;  // older saved copies lack the trade fields
   let h=`<div class="chart-card"><h4>Team Analyzer</h4><p class="empty" style="margin:2px 0 10px">For any ESPN-style head-to-head points team, in any league. Add your players, set your league size, and see how the team stacks up and what to do next.</p>
     <div class="row-btns" style="align-items:center"><input type="search" id="anaQ" placeholder="Add a player" autocomplete="off" style="flex:1 1 220px;max-width:340px">
       <label class="chk" for="anaN">League size <select id="anaN">${[8,10,12,14,16].map(k=>`<option ${k===n?"selected":""}>${k}</option>`).join("")}</select></label>
@@ -1698,27 +1698,66 @@ function anaView(){const R=anaRoster(),n=S.ana.n;
   const tips=[],pk=anaPickups(R),out=R.filter(p=>p.out&&p.retP-CUR_PERIOD>=14).sort((a,b)=>b.projTot-a.projTot)[0],hot=R.filter(p=>p.nowFp&&p.now.gp>=5&&p.nowFp>p.proj.fp*1.15).sort((a,b)=>(b.nowFp-b.proj.fp)-(a.nowFp-a.proj.fp))[0],
     cold=players.filter(p=>!R.includes(p)&&(p.own??0)>=90&&p.now&&p.now.gp>=5&&p.nowFp<p.proj.fp*.85&&p.proj.fp>=30).sort((a,b)=>b.proj.fp-a.proj.fp)[0];
   if(out)tips.push(`<b>Put ${pBtn(out)} on IR</b> if your league has an IR slot: he's out until about ${dayLabel(out.retP)}, and the open roster spot is a free pickup.`);
-  pk.forEach((x,i)=>tips.push(`<b>${i?"Also worth a look":"Best pickup"}: ${i?pBtn(x.p):pBtn(x.p,"call")}</b> (${x.p.pos.join("/")}, ${x.p.team}, on ${f0(x.p.own||0)}% of ESPN rosters)${x.drop?`, dropping ${pBtn(x.drop)}`:""}: +${f1(x.g)} starter points a week. Check he's free in your league first.`));
+  pk.forEach((x,i)=>tips.push(`<b>${i?"Also worth a look":"Best pickup"}: ${pBtn(x.p)}</b> (${x.p.pos.join("/")}, ${x.p.team}, on ${f0(x.p.own||0)}% of ESPN rosters)${x.drop?`, dropping ${pBtn(x.drop)}`:""}: +${f1(x.g)} starter points a week. Check he's free in your league first.`));
   if(hot)tips.push(`<b>Sell high on ${pBtn(hot)}</b>: ${f1(hot.nowFp)} FP/G so far against a ${f1(hot.proj.fp)} projection. Hot starts usually cool off, so his trade value may never be higher.`);
   if(cold)tips.push(`<b>Buy low on ${pBtn(cold)}</b>: ${f1(cold.nowFp)} FP/G so far, but still projected for ${f1(cold.proj.fp)}. A frustrated manager may sell below his value.`);
+  const tradeHtml=anaTradeCard(R);
   h+=`<div class="chart-card"><h4>What to do</h4>${tips.length?`<ul class="today-news">${tips.map(t=>`<li>${t}</li>`).join("")}</ul>`:'<p class="empty">Nothing stands out: no pickup beats your weakest player and nobody needs a move.</p>'}
-    <p>Pickups assume players on fewer than 40% of ESPN rosters are free in your league; your league's actual free agents may differ.</p></div>`;
+    <p>Pickups assume players on fewer than 40% of ESPN rosters are free in your league; your league's actual free agents may differ.</p></div>`+tradeHtml;
   return h}
+// trade targets: players on other teams (40%+ of ESPN rosters) worth about the same over the rest of the season, so the
+// other manager sees a fair swap, who raise your starter points a week (a thinner position filled, more games, a better fit)
+const anaWk=()=>Math.max(1,WEEKS.filter(x=>!x.po&&x.p[1]>=CUR_PERIOD).length);
+function anaTrade(R,give,get){const A=R.filter(p=>!give.includes(p)).concat(get),B=h2hValue(R),X=h2hValue(A);return {wk:(X.reg-B.reg)/anaWk(),po:(X.po-B.po)/4}}
+function anaTargets(R){const others=players.filter(p=>!R.includes(p)&&(p.own??0)>=40&&!p.out&&p.projTot>0),out=[];
+  [...R].filter(p=>!(p.out&&p.retP-CUR_PERIOD>=14)).sort((a,b)=>b.projTot-a.projTot).slice(0,10).forEach(g=>{
+    const C=others.filter(q=>Math.abs(q.projTot-g.projTot)<=.12*g.projTot).sort((a,b)=>Math.abs(a.projTot-g.projTot)-Math.abs(b.projTot-g.projTot)).slice(0,12);
+    C.map(q=>({g,q,...anaTrade(R,[g],[q])})).filter(x=>x.wk>=3).sort((a,b)=>b.wk-a.wk).slice(0,2).forEach(x=>out.push(x))});
+  return out.sort((a,b)=>b.wk-a.wk).slice(0,6)}
+// 2-for-1: two of your middle players for one better one, then the open spot goes to the best likely free agent
+function anaConsolidate(R){const mid=[...R].sort((a,b)=>b.projTot-a.projTot).slice(3,10).filter(p=>!p.out),pool=anaPool(R).sort((a,b)=>b.projTot-a.projTot),fa=pool[0];let best=null;
+  for(let i=0;i<mid.length;i++)for(let j=i+1;j<mid.length;j++){const a=mid[i],b=mid[j],sum=a.projTot+b.projTot,top=Math.max(a.projTot,b.projTot);
+    players.filter(q=>!R.includes(q)&&q!==fa&&(q.own??0)>=40&&!q.out&&q.projTot>=top*1.15&&q.projTot<=sum*.85).sort((x,y)=>y.projTot-x.projTot).slice(0,5).forEach(q=>{
+      const t=anaTrade(R,[a,b],fa?[q,fa]:[q]);if(t.wk>=3&&(!best||t.wk>best.wk))best={a,b,q,fa,...t}})}
+  return best}
+function anaTradeCard(R){const give=R.filter(p=>S.ana.give.includes(p.espnId)),get=S.ana.get.map(e=>players[BY_ESPN.get(e)]).filter(Boolean),T=anaTargets(R),C=anaConsolidate(R);
+  const sg=(n)=>`${n>=0?"+":"−"}${f0(Math.abs(n))}`;
+  let h=`<div class="chart-card"><h4>Trades</h4>`;
+  h+=T.length?`<h5 style="margin:10px 0 6px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Targets: similar value, better for your lineup</h5><div class="tablebox"><table><thead><tr><th class="l">You give</th><th class="l">Ask for</th><th title="Rest-of-season fantasy points: you give vs you get">Season FP</th><th title="Your starter points a week, rest of the regular season">You · per week</th><th>Playoff weeks</th><th></th></tr></thead><tbody>
+    ${T.map((x,i)=>`<tr><td class="l">${pBtn(x.g)}</td><td class="l">${pBtn(x.q)} <span class="mut">${x.q.team} · ${x.q.pos.join("/")}</span></td><td class="num">${f0(x.g.projTot)} → ${f0(x.q.projTot)}</td><td class="num zpos">${sg(x.wk)}</td><td class="num ${x.po>=0?"zpos":"zneg"}">${sg(x.po)}</td><td><button class="btn" data-anatry="${x.g.espnId}:${x.q.espnId}">Try it</button></td></tr>`).join("")}</tbody></table></div>`:'<p class="empty">No even-value swap clearly helps your lineup. Your roster fits together well.</p>';
+  if(C)h+=`<p style="margin:10px 0 0;font-style:normal;font-size:14px"><b>Consolidate:</b> ${pBtn(C.a)} and ${pBtn(C.b)} for ${pBtn(C.q)}${C.fa?`, then pick up ${pBtn(C.fa)} with the open spot`:""}: <b class="zpos">${sg(C.wk)}</b> starter points a week. Two-for-one deals turn depth you can't start into one better starter. <button class="btn" data-anatry="${C.a.espnId},${C.b.espnId}:${C.q.espnId}${C.fa?","+C.fa.espnId:""}">Try it</button></p>`;
+  h+=`<p class="empty" style="margin-top:6px">Targets are players on at least 40% of ESPN rosters, so likely on a team in your league, worth about the same over the rest of the season (within 12%). Pivot can't see other rosters here, so it can't say whether a manager would accept; in your own ESPN league, My Team finds trades that help both sides.</p>`;
+  // the checker: tick what you give, search what you get
+  h+=`<h5 style="margin:16px 0 6px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Try a trade</h5>
+    <div class="chart-grid" style="margin:0"><div><div class="mut" style="font-size:12px;margin-bottom:4px">You give</div><div class="ana-chips" style="margin:0">${[...R].sort((a,b)=>b.projTot-a.projTot).map(p=>`<label class="ana-chip" style="padding-right:10px;cursor:pointer"><input type="checkbox" data-anagive="${p.espnId}" ${S.ana.give.includes(p.espnId)?"checked":""}> ${esc(p.name)}</label>`).join("")}</div></div>
+    <div><div class="mut" style="font-size:12px;margin-bottom:4px">You get</div><input type="search" id="anaGetQ" placeholder="Add a player you'd get" autocomplete="off" style="width:100%;max-width:320px"><div class="ana-sug" id="anaGetSug"></div>
+      <div class="ana-chips">${get.map(p=>`<span class="ana-chip">${esc(p.name)} <span class="mut">${p.team}</span><button data-anagetdel="${p.espnId}" aria-label="Remove ${esc(p.name)}">×</button></span>`).join("")}</div></div></div>`;
+  if(give.length||get.length){const t=anaTrade(R,give,get),n=R.length-give.length+get.length,v=t.wk>=5&&t.po>=-5?"Good for you":t.wk<=-5?"Bad for you":"Close to even";
+    h+=`<div class="kpis" style="margin-top:10px">${kpT("Verdict",v,`${give.length} for ${get.length}${n>13?` · you'd need to drop ${n-13}`:n<13?` · ${13-n} open spot${13-n>1?"s":""} for a pickup`:""}`)}${kpT("You · per week",`<span class="${t.wk>=0?"zpos":"zneg"}">${sg(t.wk)}</span>`,"starter points, rest of regular season")}${kpT("You · playoff weeks",`<span class="${t.po>=0?"zpos":"zneg"}">${sg(t.po)}</span>`,"per playoff week")}${kpT("Season FP",`${f0(give.reduce((a,p)=>a+p.projTot,0))} → ${f0(get.reduce((a,p)=>a+p.projTot,0))}`,"what you give vs what you get")}</div>
+      <p class="empty" style="margin-top:6px">Measured with the daily-lineup simulation: who would actually start for you each day, with schedules and injuries. ${n>13?"Extra players are counted as if you kept them, so drop your weakest afterwards.":""}</p><button class="btn" id="anaTClear" style="margin-top:6px">Clear trade</button>`}
+  return h+`</div>`}
 function renderAna(){$("view-ana").innerHTML=anaView()}
 $("tab-ana").addEventListener("click",renderAna);
 const anaAdd=ids=>{ids.forEach(e=>{if(!S.ana.ids.includes(e)&&S.ana.ids.length<16)S.ana.ids.push(e)});save();renderAna()};
-document.addEventListener("input",e=>{if(e.target.id!=="anaQ")return;const t=norm2(e.target.value.trim()),R=anaRoster();
+document.addEventListener("input",e=>{if(e.target.id==="anaGetQ"){const t=norm2(e.target.value.trim()),R=anaRoster();
+  $("anaGetSug").innerHTML=t.length<2?"":players.filter(p=>!R.includes(p)&&!S.ana.get.includes(p.espnId)&&norm2(p.name).includes(t)).sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,6).map(p=>`<button class="btn" data-anaget="${p.espnId}">${esc(p.name)} <span class="mut">${p.team}</span></button>`).join("");return}
+  if(e.target.id!=="anaQ")return;const t=norm2(e.target.value.trim()),R=anaRoster();
   $("anaSug").innerHTML=t.length<2?"":players.filter(p=>!R.includes(p)&&norm2(p.name).includes(t)).sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,6).map(p=>`<button class="btn" data-anaadd="${p.espnId}">${esc(p.name)} <span class="mut">${p.team}</span></button>`).join("")});
 document.addEventListener("keydown",e=>{if(e.target.id==="anaQ"&&e.key==="Enter"){const b=document.querySelector("[data-anaadd]");if(b)b.click()}});
-document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("[data-anaadd],[data-anadel],#anaMine,#anaClear,#anaPasteBtn");if(!t)return;
+document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("[data-anaadd],[data-anadel],#anaMine,#anaClear,#anaPasteBtn,[data-anaget],[data-anagetdel],[data-anatry],#anaTClear");if(!t)return;
+  if(t.dataset.anaget){S.ana.get.push(+t.dataset.anaget);save();renderAna();const q=$("anaGetQ");if(q)q.focus();return}
+  if(t.dataset.anagetdel){S.ana.get=S.ana.get.filter(x=>x!==+t.dataset.anagetdel);save();renderAna();return}
+  if(t.dataset.anatry){const [g,q]=t.dataset.anatry.split(":");S.ana.give=g.split(",").map(Number);S.ana.get=q.split(",").map(Number);save();renderAna();$("anaGetQ").scrollIntoView({block:"center",behavior:"smooth"});return}
+  if(t.id==="anaTClear"){S.ana.give=[];S.ana.get=[];save();renderAna();return}
   if(t.dataset.anaadd){anaAdd([+t.dataset.anaadd]);const q=$("anaQ");if(q)q.focus()}
-  else if(t.dataset.anadel){S.ana.ids=S.ana.ids.filter(x=>x!==+t.dataset.anadel);save();renderAna()}
+  else if(t.dataset.anadel){const id=+t.dataset.anadel;S.ana.ids=S.ana.ids.filter(x=>x!==id);S.ana.give=S.ana.give.filter(x=>x!==id);save();renderAna()}
   else if(t.id==="anaMine"){S.ana.ids=myRoster().map(p=>p.espnId);save();renderAna()}
-  else if(t.id==="anaClear"){S.ana.ids=[];save();renderAna()}
+  else if(t.id==="anaClear"){S.ana.ids=[];S.ana.give=[];S.ana.get=[];save();renderAna()}
   else{const keys=players.map(p=>({e:p.espnId,k:norm(p.name)})).sort((a,b)=>b.k.length-a.k.length),got=[];
     $("anaPaste").value.split(/\n/).map(norm).filter(Boolean).forEach(l=>{const hit=keys.find(x=>l.includes(x.k)&&!got.includes(x.e));if(hit)got.push(hit.e)});
     anaAdd(got);const m=$("anaMsg");if(m)m.textContent=got.length?`Added ${got.length} player${got.length>1?"s":""}.`:"No names matched. Put one player per line."}});
-document.addEventListener("change",e=>{if(e.target.id==="anaN"){S.ana.n=+e.target.value;save();renderAna()}});
+document.addEventListener("change",e=>{if(e.target.id==="anaN"){S.ana.n=+e.target.value;save();renderAna()}
+  if(e.target.dataset&&e.target.dataset.anagive){const id=+e.target.dataset.anagive;S.ana.give=e.target.checked?[...new Set(S.ana.give.concat(id))]:S.ana.give.filter(x=>x!==id);save();renderAna()}});
 // ---- find a player from anywhere: the search button or "/" opens it, arrows move, Enter opens his profile ----
 (()=>{const box=document.createElement("div");box.className="finder";box.id="finder";box.hidden=true;box.setAttribute("role","dialog");box.setAttribute("aria-label","Find a player");
   box.innerHTML='<div class="finder-box"><input id="findQ" placeholder="Find a player or team (e.g. DEN)" autocomplete="off" spellcheck="false" aria-controls="findList"><div id="findList" role="listbox"></div></div>';document.body.appendChild(box);
