@@ -19,7 +19,7 @@ check(await pg.evaluate(()=>{const d=document.getElementById('drawer');return d.
 await pg.keyboard.press('Escape');await pg.click('#tab-models');await pg.waitForTimeout(300);
 check(await pg.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'phone: Models tab fits');
 await pg.setViewportSize({width:1280,height:900});await pg.click('#tab-today');await pg.waitForTimeout(300);
-check(/After your draft|Tonight's lineup/.test(await pg.evaluate(()=>document.getElementById('view-today').innerText)),'Today screen renders');
+check(/After your draft|Your draft is|Tonight's lineup/.test(await pg.evaluate(()=>document.getElementById('view-today').innerText)),'Today screen renders');
 await pg.keyboard.press('/');await pg.keyboard.type('jokic');await pg.keyboard.press('Enter');await pg.waitForTimeout(300);
 check(await pg.evaluate(()=>document.getElementById('finder').hidden&&/Jokic/.test(document.getElementById('drawer').innerText)),'"/" finds a player and opens his profile');
 await pg.click('#tab-ana');await pg.waitForTimeout(200);

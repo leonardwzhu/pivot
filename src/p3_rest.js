@@ -1666,7 +1666,9 @@ function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PD
   const head=`<div class="today-head"><h3 style="margin:0">${dl}</h3><span class="mut">${CUR_WEEK>=0&&d>=wk.s?`Week ${wk.i} · day ${Math.round((Date.parse(d)-Date.parse(wk.s))/864e5)+1} of ${Math.round((Date.parse(wk.e)-Date.parse(wk.s))/864e5)+1}`:`Week 1 starts ${gDate(WEEKS[0].s)}`}</span></div>`;
   const row=(x,lab,extra="")=>`<tr><td class="l mut" style="width:52px">${lab}</td><td class="l">${pBtn(x.p)} <span class="mut meta">${x.p.pos.join("/")} · ${x.g?x.g.o:""}</span>${extra}</td><td>${x.g?`<b>${f1(x.g.fp)}</b> <span class="mut rng">(${f0(x.g.lo)}–${f0(x.g.hi)})</span>`:dash}</td></tr>`;
   if(!my.length){const top=players.filter(p=>p.rank<=200).map(p=>({p,g:(n=>n&&n.date===d&&!n.out?n:null)(nextGames(p,1)[0])})).filter(x=>x.g).sort((a,b)=>b.g.fp-a.g.fp).slice(0,10);
-    return `${head}<div class="chart-card"><h4>After your draft</h4><p class="empty" style="margin:0">This screen becomes your daily checklist: who to start tonight, injuries and news that touch your team, how your matchup stands, and the one pickup worth making.${HAS_LG()&&LEAGUE.draftDate?` Your draft is ${new Date(LEAGUE.draftDate).toLocaleString(undefined,{weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}.`:""}</p></div>
+    const dn=draftNear(),hrs=dn.at?(dn.at-Date.now())/36e5:null,when=dn.at?new Date(dn.at).toLocaleString(undefined,{weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+    return `${head}<div class="chart-card"><h4>${hrs!=null&&hrs>0?`Your draft is ${hrs<24?`in ${Math.max(1,Math.round(hrs))} hour${Math.round(hrs)===1?"":"s"}`:`in ${Math.round(hrs/24)} day${Math.round(hrs/24)===1?"":"s"}`}`:"After your draft"}</h4><p class="empty" style="margin:0">${when?`${esc(LEAGUE.name)} drafts ${when}. Draft Day opens on its own 12 hours before. `:""}After the draft, this screen is your daily checklist: who to start tonight, news that touches your team, how your matchup stands, and the one pickup worth making.</p>
+      <div class="row-btns" style="margin-top:8px"><button class="btn primary" onclick="setMode('draft')">Open Draft Day</button><button class="btn" onclick="setMode('draft');$('tab-mock').click()">Practice with a mock draft</button></div></div>
       ${top.length?`<div class="chart-card"><h4>Tonight's best bets</h4><div class="tablebox"><table class="today-tbl"><tbody>${top.map((x,i)=>row(x,"#"+(i+1))).join("")}</tbody></table></div><p class="empty">Expected fantasy points tonight from the next-game model, with the range 8 in 10 games land in.</p></div>`:""}${falloutCard()}`}
   const T=tonight(my),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w,400):null,mv=bestMove(my,w);
   const live=HAS_LG()&&LEAGUE.live?LEAGUE.live.find(r=>r[0]===LEAGUE.curMatchup&&(r[1]===S.slot||r[3]===S.slot)):null,sc=live?(live[1]===S.slot?[live[2],live[4]]:[live[4],live[2]]):null;
@@ -1827,9 +1829,11 @@ $("mode-draft").onclick=()=>setMode("draft");$("mode-season").onclick=()=>setMod
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#toSeason"))setMode("season")});
 // a tab opened from anywhere (a link inside a view, a button) brings its mode with it, and each mode remembers its last tab
 TABS.forEach(t=>$("tab-"+t).addEventListener("click",()=>{const md=modeOf(t);if(md&&md!==S.mode)setMode(md,{open:false});S.lastTab[S.mode]=t;save()}));
-// start in Season once the league has drafted (or your draft is complete), otherwise in Draft Day; switching yourself sticks
-(()=>{const done=(HAS_LG()&&LEAGUE.drafted)||(!MOCK()&&S.picks.length>=S.teams*13),key=HAS_LG()?LEAGUE.id+":"+LEAGUE.drafted:"";
-  if(done&&S.modeAuto!==key){S.modeAuto=key;S.mode="season"}setMode(S.mode||(done?"season":"draft"))})();
+// Season is home: Draft Day takes over only for the draft itself, from 12 hours before it starts until it's done (or during a
+// mock draft). Each of those moments switches once; switching yourself sticks until the next one
+const draftNear=()=>{const done=(HAS_LG()&&LEAGUE.drafted)||(!MOCK()&&S.picks.length>=S.teams*13),at=HAS_LG()&&LEAGUE.draftDate?LEAGUE.draftDate:null;return {done,at,near:!done&&((HAS_LG()&&LEAGUE.inProgress)||(!!at&&Date.now()>at-12*36e5))}};
+(()=>{const {done,near}=draftNear(),key=(HAS_LG()?LEAGUE.id:"")+":"+(done?"done":near?"near":"before");
+  if(S.modeAuto!==key&&!MOCK()){S.modeAuto=key;S.mode=near?"draft":"season"}setMode(S.mode||(near||MOCK()?"draft":"season"))})();
 // tooltips
 const tip=$("tip");
 document.addEventListener("pointerover",e=>{const t=e.target.closest("[data-tip]");if(!t){tip.hidden=true;return}tip.textContent=t.getAttribute("data-tip");tip.hidden=false});
