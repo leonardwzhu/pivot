@@ -38,7 +38,7 @@ for x in P:
     out.append(dict(dp=pl.get('defaultPositionId'),e=pl['id'],j=pl.get('jersey') or '',pid=pid or (ck['pid'] if ck['pid'] in DB else None),sal=ck['sal'],n=pl['fullName'],t=TEAM.get(pl.get('proTeamId'),'FA'),pos=[POS[s] for s in pl.get('eligibleSlots',[]) if s in POS],
         st=pl.get('injuryStatus'),rk=r.get('STANDARD',{}).get('rank'),rr=r.get('ROTO',{}).get('rank'),adp=round(own.get('averageDraftPosition') or 0,1),
         auc=round(own.get('auctionValueAverage') or 0,1),own=round(own.get('percentOwned') or 0,1),ol=ol,pj=proj(pl,'102027'),pj26=proj(pl,'102026'),inj=inj.get(k)))
-news=[dict(h=a['headline'],d=a.get('description',''),p=a.get('published'),u=a.get('links',{}).get('web',{}).get('href'),
+news=[dict(h=a['headline'],d=a.get('description',''),p=a.get('published'),t=a.get('type'),u=a.get('links',{}).get('web',{}).get('href'),
     tags=[c.get('description') for c in a.get('categories',[]) if c.get('type')=='athlete']) for a in NEWS if a.get('links',{}).get('web',{}).get('href')]
 injall=[dict(n=i['athlete']['displayName'],**inj[nm(i['athlete']['displayName'])],team=t['displayName']) for t in INJ['injuries'] for i in t['injuries']]
 f=open('work/p2_espn.js','w',encoding='utf-8')

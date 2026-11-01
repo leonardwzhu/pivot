@@ -1423,18 +1423,47 @@ Write a short briefing for me: at most 5 bullet points, most important first. On
   try{const r=await sample(prompt,{modelTier:"default",onText:({text})=>{out.textContent=text}});out.textContent=r.text}
   catch(e){out.textContent=e&&e.code==="not_granted"?"Claude access wasn't allowed for this page. You can turn it on from the artifact's Permissions menu.":e&&e.code==="rate_limited"?"Too many requests just now. Try again in a minute.":"Couldn't write the briefing: "+(e&&e.message||"unknown error")}}
 document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("#briefBtn"))newsBrief()});
+// News: tabs for the briefing, injuries, headlines and team changes. Injuries group by how long a player is out, most
+// draft-relevant first; headlines group by kind of story, so recaps, previews and video don't bury injury and roster news
+const NEWS_KIND=[["hl","Video highlights",/game highlights|highlights$/i],
+  ["inj","Injuries, lineups and moves",/injur|surgery|ruled out|\bsits?\b|won't return|\breturns? (to|from|tonight)|questionable|sign(s|ed|ing)?\b|trade|waive|release|ejected|suspen|day-to-day|sprain|strain|torn|fractur|starting lineup|minutes restriction/i],
+  ["fan","Fantasy advice",/fantasy|waiver|sleeper|start or sit|\bbets?\b/i],
+  ["rec","Game recaps",/\b\d{2,3}-\d{2,3}\b|\bscores? \d|\bbeat|victory|\bpast\b|\bover the\b|come ?back|outduel|notch|career-high|shines|\bpoints\b/i],
+  ["pre","Game previews",/\b(faces?|takes? on|plays|hosts?|square off|meet|looks to|aims for)\b|after \d+-point outing/i]],
+  NEWS_LABEL=Object.fromEntries([...NEWS_KIND.map(k=>[k[0],k[1]]),["oth","Off the court and other news"]]),NEWS_FOLD=new Set(["hl","pre","oth"]);
+const newsKind=a=>{if(a.t==="Media")return "hl";for(const [k,,re] of NEWS_KIND)if(re.test(a.h))return k;return "oth"};
+const agoText=d=>{const m=(Date.now()-Date.parse(d))/6e4;return !isFinite(m)?"":m<60?`${Math.max(1,Math.round(m))} min ago`:m<1440?`${Math.round(m/60)} h ago`:m<2880?"yesterday":`${Math.round(m/1440)} days ago`};
+function injGroup(i){if(i.status!=="Out")return "dtd";if(i.fs==="OFS"||!i.ret||i.ret>SEASON_END)return "ofs";return (Date.parse(i.ret)-Date.parse(FETCHED))/864e5>=14?"long":"short"}
+const INJ_GROUPS=[["dtd","Day-to-day","may play any game; check before lineups lock"],["short","Out less than 2 weeks",""],["long","Out 2 weeks or more",""],["ofs","Out for the fantasy season",`no return before the season ends ${gDate(SEASON_END)}`]];
 function renderNews(){
-  const fmt=d=>new Date(d).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
-  const poolNames=new Set(players.map(p=>p.name));
-  const inj=[...ESPN_INJ].filter(i=>poolNames.has(i.n)).sort((a,b)=>(a.status===b.status?0:a.status==="Out"?-1:1)||String(b.ret||"").localeCompare(String(a.ret||"")));
+  const poolNames=new Set(players.map(p=>p.name)),tab=S.newsTab||"brief",q=(S.newsQ||"").trim().toLowerCase();
+  const inj=ESPN_INJ.filter(i=>poolNames.has(i.n)),news=[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p)));
   const moves=players.filter(p=>p.prevTeam&&p.prevTeam!==p.team).sort((a,b)=>a.rank-b.rank);
-  const pb=n=>{const p=byName[n];return p?`<button class="expander" data-open="${p.id}"><b>${esc(n)}</b></button>`:`<b>${esc(n)}</b>`};
+  const rk=p=>p?`<span class="nrk" title="Rank on the board">#${p.disp||p.rank}</span>`:"",chip=t=>{const p=byName[t];return p?`<button class="ntag" data-open="${p.id}">${esc(t)} <span>#${p.disp||p.rank}</span></button>`:""};
+  const qOf=(...a)=>esc(a.join(" ").toLowerCase());
   $("newsCount").textContent=ESPN_NEWS.length;
-  $("newsList").innerHTML=newsSummary()+`<div class="news-sec"><h3>Injury report · drafted-range players (${inj.length})</h3><div class="news">${inj.map(i=>`<div class="item ${i.status==="Out"?"out":"dtd"}"><div class="h">${pb(i.n)} <span class="mut">· ${esc(i.team)}</span> <span class="chip ${i.status==="Out"?"out":"dtd"}">${esc(i.status)}</span>${` <span class="mut">${retText(i.ret,i.fs)}</span>`}</div><p>${esc(i.short)}</p></div>`).join("")}</div></div>
-  <div class="news-sec"><h3>Latest NBA news</h3><div class="news">${[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p))).map(a=>`<div class="item"><div class="h">${esc(a.h)}</div><p>${esc(a.d)}</p><div class="src"><span class="mut">${fmt(a.p)}</span> · <a href="${a.u}" target="_blank" rel="noopener">ESPN ↗</a>${a.tags.filter(t=>poolNames.has(t)).map(t=>` · ${pb(t)}`).join("")}</div></div>`).join("")}</div></div>
-  <div class="news-sec"><h3>New teams since last season (${moves.length})</h3><div class="news">${moves.map(p=>`<div class="item move"><div class="h">${pb(p.name)} <span class="mut">${p.prevTeam} → ${p.team}</span></div></div>`).join("")}</div></div>
-  <p class="empty" style="margin-top:14px">ESPN news and injury report fetched ${FETCHED}; team changes from Basketball Reference and ESPN rosters.</p>`;
-}
+  const tabs=[["brief","Briefing",""],["inj","Injuries",inj.length],["news","Headlines",news.length],["moves","Team changes",moves.length]];
+  let h=`<div class="ntabs" role="tablist" aria-label="News sections">${tabs.map(([k,l,n])=>`<button role="tab" data-ntab="${k}" aria-selected="${k===tab}">${l}${n!==""?` <span class="count">${n}</span>`:""}</button>`).join("")}</div>`;
+  if(tab!=="brief")h+=`<input type="search" id="newsQ" class="nq" placeholder="Filter by player or team" value="${esc(S.newsQ||"")}">`;
+  if(tab==="brief")h+=newsSummary()+`<div class="nlinks"><button class="btn" data-ntab="inj">All ${inj.length} injuries →</button><button class="btn" data-ntab="news">All ${news.length} headlines →</button></div>`;
+  else if(tab==="inj")INJ_GROUPS.forEach(([g,label,sub])=>{const L=inj.filter(i=>injGroup(i)===g).map(i=>({i,p:byName[i.n]})).sort((a,b)=>(a.p?a.p.rank:9e3)-(b.p?b.p.rank:9e3));if(!L.length)return;
+    h+=`<section class="ngrp"><h3>${label} <span class="count">${L.length}</span>${sub?` <small>${sub}</small>`:""}</h3><div class="ngrid">${L.map(({i,p})=>{const miss=p&&i.status==="Out"?Math.max(0,p.teamLeft-p.avail):0;
+      return `<div class="ncard ${g}" data-q="${qOf(i.n,i.team,p?p.team:"",p?p.pos.join(" "):"")}"><div class="ncard-top">${rk(p)}${p?`<button class="expander pname" data-open="${p.id}">${esc(i.n)}</button>`:`<b>${esc(i.n)}</b>`}<span class="mut">${p?`${p.team} · ${p.pos.join("/")}`:esc(i.team)}</span></div>
+        <div class="ncard-st"><span class="chip ${i.status==="Out"?"out":"dtd"}">${i.status==="Out"?"Out":"Day-to-day"}</span> ${retText(i.ret,i.fs)}${miss&&g!=="ofs"?` · misses about ${miss} game${miss===1?"":"s"}`:""}${i.type?` <span class="mut">· ${esc(i.type)}</span>`:""}</div>
+        <p class="clamp" title="${esc(i.short)}">${esc(i.short)}</p></div>`}).join("")}</div></section>`});
+  else if(tab==="news"){const by={};news.forEach(a=>(by[newsKind(a)]=by[newsKind(a)]||[]).push(a));
+    [...NEWS_KIND.map(k=>k[0]).filter(k=>k!=="hl"),"hl","oth"].sort((a,b)=>NEWS_FOLD.has(a)-NEWS_FOLD.has(b)).forEach(k=>{const L=by[k];if(!L)return;
+      const cards=`<div class="ngrid">${L.map(a=>`<article class="nart" data-q="${qOf(a.h,...a.tags)}"><div class="nart-meta"><span class="nkind ${k}">${NEWS_LABEL[k].split(/,| and /)[0]}</span><span>${agoText(a.p)}</span></div>
+        <h4><a href="${a.u}" target="_blank" rel="noopener">${esc(a.h)}</a></h4>${a.d?`<p class="clamp">${esc(a.d)}</p>`:""}<div class="ntags">${a.tags.filter(t=>poolNames.has(t)).map(chip).join("")}</div></article>`).join("")}</div>`;
+      h+=NEWS_FOLD.has(k)?`<details class="ngrp"><summary><h3>${NEWS_LABEL[k]} <span class="count">${L.length}</span></h3></summary>${cards}</details>`:`<section class="ngrp"><h3>${NEWS_LABEL[k]} <span class="count">${L.length}</span></h3>${cards}</section>`})}
+  else h+=`<section class="ngrp"><h3>New teams since last season <span class="count">${moves.length}</span></h3><div class="ngrid">${moves.map(p=>`<div class="ncard move" data-q="${qOf(p.name,p.team,p.prevTeam)}"><div class="ncard-top">${rk(p)}<button class="expander pname" data-open="${p.id}">${esc(p.name)}</button><span class="mut">${p.pos.join("/")}</span></div><div class="ncard-st">${p.prevTeam} → <b>${p.team}</b></div></div>`).join("")}</div></section>`;
+  h+=`<p class="empty nfoot">ESPN news and injury report fetched ${FETCHED}${tab==="moves"?"; team changes from Basketball Reference and ESPN rosters":""}. Headlines link to ESPN.</p>`;
+  $("newsList").innerHTML=h;newsFilter()}
+// filtering hides cards in place, so typing keeps focus; a group with nothing left hides too
+function newsFilter(){const q=(S.newsQ||"").trim().toLowerCase();document.querySelectorAll("#newsList [data-q]").forEach(el=>el.hidden=!!q&&!el.dataset.q.includes(q));
+  document.querySelectorAll("#newsList .ngrp").forEach(g=>{g.hidden=!!q&&!g.querySelector("[data-q]:not([hidden])");if(q&&g.tagName==="DETAILS"&&!g.hidden)g.open=true})}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-ntab]");if(!b)return;S.newsTab=b.dataset.ntab;save();renderNews();if(b.closest(".nlinks"))$("view-news").scrollIntoView({block:"start"})});
+document.addEventListener("input",e=>{if(e.target.id!=="newsQ")return;S.newsQ=e.target.value;newsFilter();clearTimeout(newsFilter.t);newsFilter.t=setTimeout(save,600)});
 function renderAll(){DAYS=null;applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();if(!$("view-players").hidden)renderPlayers();if(!$("view-today").hidden)renderToday();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});save()}
 
 // ================= LEAGUE SCORING =================
