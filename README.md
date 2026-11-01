@@ -54,6 +54,7 @@ node tests/modes.js                  # Draft Day / Season: which mode opens, whi
 node tests/profile.js                # player profile: every section, recent games, next-game predictions, comparisons, phone
 node tests/hub.js                    # Today, player search, Team Analyzer, prediction scorecard, injury fallout, teammate splits, phone
 node tests/sync.js                   # cross-device sync of your edits, against a stand-in for the artifact store
+node tests/draft.js                  # a full 104-pick draft on desktop and phone, as on draft day (a few minutes)
 ```
 
 ## Publishing

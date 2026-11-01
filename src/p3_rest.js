@@ -296,8 +296,7 @@ function renderSide(){
   $("roster").innerHTML=LINEUP.map((l,i)=>{const p=lu.slot[i];return `<li class="lu"><span class="lu-slot">${l[0]}</span>${p?`<span class="lu-name"><button class="expander" data-open="${p.id}">${esc(p.name)}</button> <small class="mut">${p.pos.join("/")}</small></span><span>#${ord(p.id)} · ${f1(p.proj.fp)}</span>`:'<span class="lu-name mut">open</span><span></span>'}</li>`}).join("")
     +lu.bench.map((p,i)=>`<li class="lu"><span class="lu-slot">${i<BENCH?"BE":"+"}</span><span class="lu-name"><button class="expander" data-open="${p.id}">${esc(p.name)}</button> <small class="mut">${p.pos.join("/")}</small></span><span>#${ord(p.id)} · ${f1(p.proj.fp)}</span></li>`).join("")
     +(lu.bench.length<BENCH?Array.from({length:BENCH-lu.bench.length},()=>'<li class="lu"><span class="lu-slot">BE</span><span class="lu-name mut">open</span><span></span></li>').join(""):"");
-  const H=my.length?h2hValue(my):null;
-  $("h2hBox").innerHTML=H?h2hBlock(H):'<p class="empty">Draft players to see your weekly head-to-head outlook.</p>';
+
   const top=[...my].sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,10);
   $("teamFp").textContent=f1(top.reduce((s,p)=>s+p.proj.fp,0));$("teamTot").textContent=f0(top.reduce((s,p)=>s+p.projTot,0));
   if(my.length){const sum={};Object.keys(CAT_LABEL).forEach(c=>sum[c]=my.reduce((s,p)=>s+p.z[c],0));const srt=Object.entries(sum).sort((a,b)=>b[1]-a[1]);
@@ -313,8 +312,14 @@ function renderSide(){
   else if(teamAt(cur)===S.slot)$("clockMsg").innerHTML=`<button class="you clockbtn" id="toAdv">You're on the clock · Rd ${rnd} · see picks</button>`;
   else{const nx=myNextPick(cur);$("clockMsg").innerHTML=`<div class="lab">Rd ${rnd} · ${esc(teamName(teamAt(cur)))} picking<br>Your next: #${nx} (${nx-cur} away)</div>`}
   const tb=$("toAdv");if(tb)tb.onclick=()=>$("advCard").scrollIntoView({behavior:"smooth",block:"start"});
-  renderAdvisor();
+  queueAdvisor();
 }
+// the board and pick counter update on the tap; the advisor and head-to-head outlook (most of a pick's work) run once, just after the
+// last of a run of quick taps, with the old advice dimmed meanwhile, so entering seven other teams' picks costs one recompute, not seven
+let ADV_T=null;
+function queueAdvisor(){clearTimeout(ADV_T);$("advCard").classList.add("busy");ADV_T=setTimeout(flushAdvisor,150)}
+function flushAdvisor(){clearTimeout(ADV_T);ADV_T=null;const my=mine(),H=my.length?h2hValue(my):null;
+  $("h2hBox").innerHTML=H?h2hBlock(H):'<p class="empty">Draft players to see your weekly head-to-head outlook.</p>';renderAdvisor();$("advCard").classList.remove("busy")}
 
 
 // ================= PICK ADVISOR =================
@@ -1538,7 +1543,7 @@ $("thead").onclick=e=>{const th=e.target.closest("th");if(!th||th.dataset.k==="a
 // restart a CSS animation on an element (optionally setting its text first); a no-op when the text is unchanged
 function replay(el,cls,text){if(!el)return;if(text!=null){if(el.textContent===text)return;el.textContent=text}el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls)}
 const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
-function countUp(root){if(REDUCED)return;root.querySelectorAll(".kpi .v").forEach(el=>{const m=el.textContent.match(/^([^\d-]*)(-?[\d,]*\.?\d+)([^\d]*)$/);if(!m)return;
+function countUp(root){if(REDUCED)return;root.querySelectorAll(".kpi .v").forEach(v=>{const el=v.querySelector(".call")||v,m=el.textContent.match(/^([^\d-]*)(-?[\d,]*\.?\d+)([^\d]*)$/);if(!m)return;
   const end=parseFloat(m[2].replace(/,/g,"")),dec=(m[2].split(".")[1]||"").length,comma=m[2].includes(","),t0=performance.now(),fmt=v=>comma?Math.round(v).toLocaleString():v.toFixed(dec);
   const step=t=>{const k=Math.min(1,(t-t0)/650),e=1-Math.pow(1-k,3);el.textContent=m[1]+fmt(end*e)+m[3];if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)})}
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
