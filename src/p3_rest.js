@@ -34,8 +34,11 @@ const pickOf=id=>S.picks.find(x=>x.id===id);
 const teamName=t=>{const n=((S.teamNames||{})[t]||"").trim();return n||`Team ${t}`};
 const teamShort=t=>{const n=((S.teamNames||{})[t]||"").trim();return n?(n.length>10?n.slice(0,9)+"…":n):"T"+t};
 const mine=()=>S.picks.filter(x=>x.mine).map(x=>players[x.id]);
-function teamAt(o){const n=S.teams,r=Math.floor((o-1)/n),i=(o-1)%n;return r%2===0?i+1:n-i}
-function myNextPick(from){for(let o=from;o<from+S.teams*2+1;o++)if(teamAt(o)===S.slot)return o;return null}
+const snakeAt=o=>{const n=S.teams,r=Math.floor((o-1)/n),i=(o-1)%n;return r%2===0?i+1:n-i};
+// traded picks (Draft insights): overall pick -> the slot that owns it now. Kept per league size; a mock with another slot or size ignores them
+const pickMoves=()=>S.pickOwn&&S.pickOwn.n===S.teams&&(!MOCK()||(S.realDraft&&S.realDraft.slot===S.slot&&S.realDraft.teams===S.teams))?S.pickOwn.m:null;
+function teamAt(o){const m=pickMoves();return m&&m[o]||snakeAt(o)}
+function myNextPick(from){for(let o=from;o<=S.teams*13;o++)if(teamAt(o)===S.slot)return o;return null}
 const valueOf=p=>p.rank-(S.scoring==="pts"?p.modelRank:p.catRank);
 
 // ================= CHART HELPERS =================
@@ -310,7 +313,7 @@ function renderSide(){
   if(S.picks.length>=S.teams*13){$("curPick").textContent="✓";$("clockMsg").innerHTML=`<div class="lab">Draft complete<br>${MOCK()?"see Mock Draft results":"<button class='btn' id='toSeason' style='margin-top:4px'>Go to Season</button>"}</div>`}
   else if(!S.picks.length&&!MOCK()&&typeof LEAGUE!=="undefined"&&LEAGUE&&LEAGUE.draftDate>Date.now()&&teamAt(cur)!==S.slot)$("clockMsg").innerHTML=`<div class="lab">${esc(LEAGUE.name)} drafts<br>${new Date(LEAGUE.draftDate).toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}</div>`
   else if(teamAt(cur)===S.slot)$("clockMsg").innerHTML=`<button class="you clockbtn" id="toAdv">You're on the clock · Rd ${rnd} · see picks</button>`;
-  else{const nx=myNextPick(cur);$("clockMsg").innerHTML=`<div class="lab">Rd ${rnd} · ${esc(teamName(teamAt(cur)))} picking<br>Your next: #${nx} (${nx-cur} away)</div>`}
+  else{const nx=myNextPick(cur);$("clockMsg").innerHTML=`<div class="lab">Rd ${rnd} · ${esc(teamName(teamAt(cur)))} picking<br>${nx?`Your next: #${nx} (${nx-cur} away)`:"You have no picks left"}</div>`}
   const tb=$("toAdv");if(tb)tb.onclick=()=>$("advCard").scrollIntoView({behavior:"smooth",block:"start"});
   queueAdvisor();
 }
@@ -458,9 +461,31 @@ function teamNamesEditor(){
     <p class="empty" style="margin-top:6px">Enter each manager's team (or name) in draft order; slot ${S.slot} is you. Names save in this browser and also label the mock draft.</p></details>`}
 document.addEventListener("toggle",e=>{if(e.target.id==="tnBox"){S.tnOpen=e.target.open;save()}},true);
 document.addEventListener("change",e=>{const el=e.target.closest&&e.target.closest("[data-tn]");if(!el)return;S.teamNames=S.teamNames||{};const v=el.value.trim();if(v)S.teamNames[el.dataset.tn]=v;else delete S.teamNames[el.dataset.tn];save();renderAll();renderMock();toast(v?`Slot ${el.dataset.tn} is now "${v}"`:`Slot ${el.dataset.tn} cleared`)});
+// what a pick is worth: the projected FP/G of the player that would go there if teams took the best available, minus the best player
+// nobody drafts (a free agent you could add anyway). A rough guide for valuing pick trades, not a prediction of who you'd get
+function pickValues(){const N=S.teams*13,s=players.map(p=>p.proj.fp).sort((a,b)=>b-a),r=s[Math.min(s.length-1,N)];const v=o=>Math.max(0,(s[o-1]??r)-r);v.r=r;return v}
+function pickTradesCard(){const n=S.teams,N=n*13,m=(S.pickOwn&&S.pickOwn.n===n&&S.pickOwn.m)||{},own=o=>m[o]||snakeAt(o),nm=t=>t===S.slot?"You":teamName(t),pv=S.scoring==="pts"?pickValues():null;
+  const mv=Object.keys(m).map(Number).sort((a,b)=>a-b),vt=o=>pv?` · worth +${f1(pv(o))} FP/G`:"",inn=mv.filter(o=>own(o)===S.slot&&snakeAt(o)!==S.slot),out=mv.filter(o=>snakeAt(o)===S.slot&&own(o)!==S.slot);
+  const sum=a=>a.reduce((t,o)=>t+pv(o),0),net=pv&&(inn.length||out.length)?sum(inn)-sum(out):null,my=Array.from({length:N},(_,i)=>i+1).filter(o=>own(o)===S.slot);
+  const sel="background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0";
+  return `<details class="chart-card" ${(S.ptOpen??mv.length>0)?"open":""} id="ptBox"><summary style="cursor:pointer;font-weight:600">Pick trades <span class="mut" style="font-weight:400">· ${mv.length?`${mv.length} pick${mv.length===1?"":"s"} moved`:"none entered"}</span></summary>
+    <p style="font-size:13px;margin-top:8px">If picks were traded, move each one to the team that owns it now. The board, the on-the-clock notice, the Pick Advisor and opponent scouting all follow the new order.</p>
+    <div class="row-btns" style="margin-top:8px;flex-wrap:wrap;gap:6px;align-items:center"><select id="ptPick" style="${sel};flex:1 1 220px">${Array.from({length:13},(_,r)=>`<optgroup label="Round ${r+1}">${Array.from({length:n},(_,i)=>r*n+i+1).map(o=>`<option value="${o}">#${o} · ${esc(nm(own(o)))}${own(o)!==snakeAt(o)?" (traded)":""}</option>`).join("")}</optgroup>`).join("")}</select>
+      <span class="mut">now belongs to</span><select id="ptTo" style="${sel};flex:1 1 160px">${Array.from({length:n},(_,i)=>i+1).map(t=>`<option value="${t}"${t===S.slot?" selected":""}>${esc(nm(t))}</option>`).join("")}</select><button class="btn primary" id="ptAdd">Move pick</button></div>
+    ${mv.length?`<ul class="heads" style="margin-top:10px">${mv.map(o=>`<li class="${own(o)===S.slot?"good":snakeAt(o)===S.slot?"bad":""}">#${o} (round ${Math.ceil(o/n)}): ${esc(nm(snakeAt(o)))} → <b>${esc(nm(own(o)))}</b><span class="mut">${vt(o)}</span> <button class="btn" data-ptdel="${o}" aria-label="Undo this move" style="padding:1px 8px">✕</button></li>`).join("")}</ul>
+      ${net!=null?`<p style="font-size:13px">Picks you got are worth about <b>+${f1(sum(inn))}</b> FP/G, picks you gave up <b>+${f1(sum(out))}</b>. Net: <b class="${net>=0?"up":"down"}">${net>=0?"+":""}${f1(net)} FP/G</b> for you.</p>`:""}
+      <div class="row-btns"><button class="btn" id="ptClear">Clear all</button></div>`:""}
+    <p class="mut" style="font-size:12px;margin-top:6px">Your picks: ${my.length?my.map(o=>"#"+o).join(", "):"none"}${my.length!==13?` (${my.length}; a roster holds 13, so you'd drop or add players to match)`:""}.</p>
+    ${pv?`<p class="empty" style="margin-top:6px">A pick's worth is the projected fantasy points per game (FP/G) of the player who'd go there if every team took the best available, minus ${f1(pv.r)} FP/G, what the best undrafted player gives you for free. Late picks are worth little because that free-agent player is nearly as good.</p>`:""}</details>`}
+document.addEventListener("toggle",e=>{if(e.target.id==="ptBox"){S.ptOpen=e.target.open;save()}},true);
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("#ptAdd,[data-ptdel],#ptClear");if(!b)return;const n=S.teams;
+  if(!S.pickOwn||S.pickOwn.n!==n)S.pickOwn={n,m:{}};const m=S.pickOwn.m;let msg;
+  if(b.id==="ptAdd"){const o=+$("ptPick").value,t=+$("ptTo").value;if(t===snakeAt(o))delete m[o];else m[o]=t;msg=`Pick #${o} now belongs to ${t===S.slot?"you":teamName(t)}`}
+  else if(b.id==="ptClear"){S.pickOwn.m={};msg="Pick trades cleared"}else{const o=+b.dataset.ptdel;delete m[o];msg=`Pick #${o} back with ${snakeAt(o)===S.slot?"you":teamName(snakeAt(o))}`}
+  S.ptOpen=true;save();renderAll();renderMock();toast(msg)});
 function renderInsights(){const v=$("view-insights"),D=draftState(),repl=replacementFp(),A0=D.av.length?advisor():null,H=headlines(A0&&A0.open);
   const kp=(k,val,d)=>`<div class="kpi"><div class="k">${k}</div><div class="v">${val}</div><div class="d">${d}</div></div>`;
-  let h=teamNamesEditor()+`<div class="chart-card"><h4>Right now · pick #${D.cur}${D.onClock?" · you're on the clock":D.nx?` · your next pick #${D.nx}`:""}</h4>${H.length?`<ul class="heads" style="margin-top:8px">${H.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing unusual on the board yet. Insights appear as picks are made.</p>'}</div>`;
+  let h=teamNamesEditor()+pickTradesCard()+`<div class="chart-card"><h4>Right now · pick #${D.cur}${D.onClock?" · you're on the clock":D.nx?` · your next pick #${D.nx}`:""}</h4>${H.length?`<ul class="heads" style="margin-top:8px">${H.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing unusual on the board yet. Insights appear as picks are made.</p>'}</div>`;
   // league
   if(S.picks.length){const st=leagueStandings();h+=`<h3>League</h3><div class="chart-grid"><div class="chart-card"><h4>Projected standings from picks so far</h4><div class="tablebox"><table><thead><tr><th class="l">Team</th><th>Players</th><th>Pts/week</th><th>Playoff week</th><th class="l">Top player</th></tr></thead><tbody>
     ${st.map((x,i)=>`<tr ${x.t===S.slot?'style="background:var(--mine-soft);font-weight:600"':""}><td class="l">${i+1}. ${x.t===S.slot?"You":esc(teamName(x.t))}${MOCK()&&S.mock.styles&&S.mock.styles[x.t]?` <span class="mut">(${STYLE_LABEL[S.mock.styles[x.t]]})</span>`:""}</td><td class="num">${x.n}</td><td class="num">${f0(x.wk)}</td><td class="num">${f0(x.pwk)}</td><td class="l">${esc([...x.ros].sort((a,b)=>b.projTot-a.projTot)[0]?.name||"–")}</td></tr>`).join("")}</tbody></table></div>
@@ -516,7 +541,7 @@ function teamTraits(t){const ros=S.picks.filter(x=>teamAt(x.o)===t).map(x=>({o:x
 // Simulate every pick between now and your next one, many times, with each team drafting in its inferred style and filling needs.
 let SCOUT={key:null};
 function scoutFor(k){const sc=scoutSim();return sc&&sc.target===k?sc:null}
-function scoutSim(){const key=[S.picks.length,S.slot,S.teams,S.scoring,MOCK()?S.mock.seed:0,JSON.stringify(S.mix||{}),JSON.stringify(S.adj||{})].join("|");if(SCOUT.key===key)return SCOUT.res;
+function scoutSim(){const key=[S.picks.length,S.slot,S.teams,S.scoring,MOCK()?S.mock.seed:0,JSON.stringify(pickMoves()),JSON.stringify(S.mix||{}),JSON.stringify(S.adj||{})].join("|");if(SCOUT.key===key)return SCOUT.res;
   SCOUT={key,res:null};const cur=S.picks.length+1,onClock=teamAt(cur)===S.slot,target=onClock?myNextPick(cur+1):myNextPick(cur);
   if(!target||S.picks.length>=S.teams*13)return null;
   const seq=[];for(let o=onClock?cur+1:cur;o<target;o++)if(teamAt(o)!==S.slot)seq.push(o);
@@ -1495,9 +1520,9 @@ function renderMock(){
     <ul class="feed">${since.slice(-S.teams*2).reverse().map(x=>{const p=players[x.id];return `<li><span class="mut">#${x.o} ${esc(teamShort(teamAt(x.o)))}${(S.mock.styles||{})[teamAt(x.o)]==="name"?"·N":(S.mock.styles||{})[teamAt(x.o)]==="sharp"?"·S":""}</span><span>${pBtn(p)} <span class="mut">${p.pos.join("/")}</span></span><span class="mut">ADP ${p.adp?f1(p.adp):"–"}</span></li>`}).join("")}</ul>`:""}</div>`;
   if(done)body+=mockResults();
   // draft grid
-  const grid=[];for(let r=1;r<=ROUNDS;r++){const row=[];for(let t=1;t<=S.teams;t++){const o=Array.from({length:S.teams},(_,i)=>(r-1)*S.teams+i+1).find(o=>teamAt(o)===t),x=S.picks.find(y=>y.o===o);row.push({o,x,t})}grid.push(row)}
+  const grid=[];for(let r=1;r<=ROUNDS;r++){const row=[];for(let t=1;t<=S.teams;t++){const o=Array.from({length:S.teams},(_,i)=>(r-1)*S.teams+i+1).find(o=>snakeAt(o)===t),x=S.picks.find(y=>y.o===o);row.push({o,x,t,own:teamAt(o)})}grid.push(row)}
   body+=`<div class="chart-card"><h4>Draft board</h4><div class="tablebox"><table class="mock-grid"><thead><tr><th>Rd</th>${Array.from({length:S.teams},(_,i)=>`<th>${i+1===S.slot?"You":esc(teamShort(i+1))+`<br><span class="pos">${STYLE_LABEL[(S.mock.styles||{})[i+1]]||""}</span>`}</th>`).join("")}</tr></thead><tbody>
-    ${grid.map((row,ri)=>`<tr><th>${ri+1}</th>${row.map(c=>{const p=c.x&&players[c.x.id];return `<td class="${c.t===S.slot?"me":""}">${p?`${pBtn({id:p.id,name:p.name.replace(/ (Jr\.?|Sr\.?|II|III|IV)$/,"").split(" ").slice(-1)[0]})} <span class="pos">${p.pos[0]}</span>`:`<span class="mut">#${c.o}</span>`}</td>`}).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+    ${grid.map((row,ri)=>`<tr><th>${ri+1}</th>${row.map(c=>{const p=c.x&&players[c.x.id];return `<td class="${c.own===S.slot?"me":""}">${c.own!==c.t?`<span class="pos">→ ${c.own===S.slot?"You":esc(teamShort(c.own))}</span><br>`:""}${p?`${pBtn({id:p.id,name:p.name.replace(/ (Jr\.?|Sr\.?|II|III|IV)$/,"").split(" ").slice(-1)[0]})} <span class="pos">${p.pos[0]}</span>`:`<span class="mut">#${c.o}</span>`}</td>`}).join("")}</tr>`).join("")}</tbody></table></div></div>`;
   v.innerHTML=body;
   const on=(id,f)=>{const el=$(id);if(el)el.onclick=f};
   on("mkAuto",autoPickMe);on("mkRest",autoDraftRest);on("mkUndo",mockUndo);on("mkNew",()=>startMock(S.mock.cpu));on("mkExit",exitMock);
@@ -1905,7 +1930,7 @@ $("tab-lab").addEventListener("click",renderLab);
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-labtbl]");if(!b)return;const c=$("lab-"+b.dataset.labtbl),t=c.querySelector(".lab-table"),ch=c.querySelector(".lab-chart");t.hidden=!t.hidden;ch.hidden=!t.hidden;b.textContent=t.hidden?"Table":"Chart"});
 // ---- what each tab is for, one line at the top, and the Guide (opened from "?" and once on a first visit)
 const INTRO={board:"Every draftable player, ranked. Press Draft for your picks and Taken for everyone else's; the Pick Advisor on the right recommends your next pick.",
-  insights:"What the other teams are likely to take before your next pick, and where the value and risk sit on the board.",mock:"Practice a full draft against computer teams that draft the way real managers do.",
+  insights:"What the other teams are likely to take before your next pick, and where the value and risk sit on the board. Enter traded picks here.",mock:"Practice a full draft against computer teams that draft the way real managers do.",
   today:"Your daily checklist: who to start tonight, news about your players, how your matchup stands and the one move worth making.",
   team:"How your team stacks up for the rest of the season: standing, playoff odds, strengths and gaps, and moves that would help.",
   players:"Every player, ranked by the fantasy points he's projected to score from here. Switch the columns to see movers, next games, stats and more.",
