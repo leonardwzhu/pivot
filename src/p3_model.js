@@ -256,7 +256,10 @@ const fpm=s=>fpOf(s)/s.min;
 const DAYS_PER_GAME=174/82; // regular season runs ~174 days
 // remaining game days for each team, from ESPN's schedule
 const TEAM_DAYS=Object.fromEntries(Object.entries(SCHED).map(([t,ps])=>[t,ps.filter(q=>q>=CUR_PERIOD)]));
-const LAST_PERIOD=Math.max(...Object.values(SCHED).flat()),PO_START=WEEKS[19].p[0],PO_END=WEEKS[22].p[1];
+const LAST_PERIOD=Math.max(...Object.values(SCHED).flat()),PO_START=(WEEKS.find(w=>w.po)||WEEKS[WEEKS.length-1]).p[0],PO_END=WEEKS[WEEKS.length-1].p[1];
+// playoffs from your league's settings (ESPN default: top 4, two rounds of two weeks)
+const PO_W=WEEKS.filter(w=>w.po),PO_NW=Math.max(1,PO_W.length),LPO=typeof LEAGUE!=="undefined"&&LEAGUE&&LEAGUE.po||{},PO_TEAMS=LPO.teams||4,PO_ROUNDS=LPO.rounds||2,
+  mdOf=s=>new Date(s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"}),PO_RANGE=PO_W.length?`${mdOf(PO_W[0].s)}–${mdOf(PO_W[PO_W.length-1].e)}`:"";
 const periodOf=iso=>Math.round((new Date(iso+"T12:00:00")-new Date(PERIOD0+"T12:00:00"))/864e5);
 // first scoring period he can play: injuries map ESPN's expected return date onto his team's schedule
 function returnPeriod(o,team){const i=o.inj,days=TEAM_DAYS[team]||[];

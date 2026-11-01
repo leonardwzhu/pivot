@@ -28,12 +28,15 @@ for m in d.get('schedule',[]):
     row=[m['matchupPeriodId'],h,round(m['home'].get('totalPoints',0),1),a,round(m['away'].get('totalPoints',0),1),m.get('winner')]
     if m.get('winner') in('HOME','AWAY','TIE'):results.append(row)
     elif m['matchupPeriodId']==curMP and (row[2] or row[4]):live=live or [];live.append(row)
+# playoffs: how many teams make it, and how many rounds of how many weeks (ESPN default: top 4, two rounds of two weeks)
+ss=s['scheduleSettings'];reg_n=ss.get('matchupPeriodCount',19);pk=[k for k in ss.get('matchupPeriods',{}) if int(k)>reg_n]
+po=dict(teams=ss.get('playoffTeamCount',4),rounds=len(pk) or 2,len=ss.get('playoffMatchupPeriodLength',2) or 1,reg=reg_n)
 sc={str(i['statId']):i['points'] for i in s['scoringSettings']['scoringItems']}
 default={'0':1,'6':1,'3':2,'17':1,'1':4,'2':4,'13':2,'14':-1,'15':1,'16':-1,'11':-2}
 L=dict(id=d['id'],name=s.get('name'),size=s['size'],mySlot=slot.get(my_team),fetched=datetime.date.today().isoformat(),
   drafted=bool(dd.get('drafted')),inProgress=bool(dd.get('inProgress')),draftDate=ds.get('date'),secPerPick=ds.get('timePerSelection'),
   type=s['scoringSettings'].get('scoringType'),defaultScoring=sc==default,teams=teams,picks=picks,rosters=rosters if any(rosters.values()) else None,opp=opp,
   tradeDeadline=s.get('tradeSettings',{}).get('deadlineDate'),rec=rec,results=results,live=live,curMatchup=curMP,
-  acq=s.get('acquisitionSettings',{}).get('acquisitionType'),irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
+  po=po,acq=s.get('acquisitionSettings',{}).get('acquisitionType'),irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
 open('work/p2_league.js','w',encoding='utf-8').write("// Your ESPN league, read from ESPN's public league API (synced daily)\nconst LEAGUE="+json.dumps(L,ensure_ascii=False,separators=(',',':'))+";\n")
-print('league',L['name'],'size',L['size'],'my slot',L['mySlot'],'drafted',L['drafted'],'picks',len(picks),'default scoring',L['defaultScoring'],'weeks with opponents',len(opp))
+print('league',L['name'],'size',L['size'],'my slot',L['mySlot'],'drafted',L['drafted'],'picks',len(picks),'default scoring',L['defaultScoring'],'weeks with opponents',len(opp),'playoffs',po)
