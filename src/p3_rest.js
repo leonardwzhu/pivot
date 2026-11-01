@@ -3,9 +3,10 @@ const LS="hoopsDraftRoom.v2";
 let sample=null; // Ask Claude, when the viewer allows it (set at the end of the file)
 // saves made while the page boots (league sync, opening mode) don't count as edits, so a fresh device never outranks your saved copy
 let BOOT=true,pushT=null;const SYNC={ref:null,dev:null,push:()=>{}};
-let S={teams:10,slot:1,scoring:"pts",picks:[],order:null,pos:"ALL",sort:{k:"rank",d:1},hideTaken:true,hideOut:false,view:"model",rankBy:"board"};
+let S={teams:10,slot:1,scoring:"pts",picks:[],order:null,pos:"ALL",sort:{k:"rank",d:1},hideTaken:true,hideOut:false,view:"model",rankBy:"model"};
 try{const s=JSON.parse(localStorage.getItem(LS)||"null");if(s)S={...S,...s}}catch(e){}
 S.mix=S.mix||{};S.adj=S.adj||{};
+if(!S.rankDef){S.rankBy="model";S.rankDef=2}  // the board now ranks by the model by default; saved copies made before switch once
 // your ESPN league (synced daily): adopt its size, your draft slot and team names once; after the draft, load ESPN's picks and rosters whenever they're newer
 const BY_ESPN=new Map(players.map(p=>[p.espnId,p.id]));let LEAGUE_MSG="";
 (()=>{if(typeof LEAGUE==="undefined"||!LEAGUE||(S.mock&&S.mock.active))return;
