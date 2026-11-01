@@ -464,25 +464,42 @@ document.addEventListener("change",e=>{const el=e.target.closest&&e.target.close
 // what a pick is worth: the projected FP/G of the player that would go there if teams took the best available, minus the best player
 // nobody drafts (a free agent you could add anyway). A rough guide for valuing pick trades, not a prediction of who you'd get
 function pickValues(){const N=S.teams*13,s=players.map(p=>p.proj.fp).sort((a,b)=>b-a),r=s[Math.min(s.length-1,N)];const v=o=>Math.max(0,(s[o-1]??r)-r);v.r=r;return v}
-function pickTradesCard(){const n=S.teams,N=n*13,m=(S.pickOwn&&S.pickOwn.n===n&&S.pickOwn.m)||{},own=o=>m[o]||snakeAt(o),nm=t=>t===S.slot?"You":teamName(t),pv=S.scoring==="pts"?pickValues():null;
-  const mv=Object.keys(m).map(Number).sort((a,b)=>a-b),vt=o=>pv?` · worth +${f1(pv(o))} FP/G`:"",inn=mv.filter(o=>own(o)===S.slot&&snakeAt(o)!==S.slot),out=mv.filter(o=>snakeAt(o)===S.slot&&own(o)!==S.slot);
-  const sum=a=>a.reduce((t,o)=>t+pv(o),0),net=pv&&(inn.length||out.length)?sum(inn)-sum(out):null,my=Array.from({length:N},(_,i)=>i+1).filter(o=>own(o)===S.slot);
-  const sel="background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0";
-  return `<details class="chart-card" ${(S.ptOpen??mv.length>0)?"open":""} id="ptBox"><summary style="cursor:pointer;font-weight:600">Pick trades <span class="mut" style="font-weight:400">· ${mv.length?`${mv.length} pick${mv.length===1?"":"s"} moved`:"none entered"}</span></summary>
-    <p style="font-size:13px;margin-top:8px">If picks were traded, move each one to the team that owns it now. The board, the on-the-clock notice, the Pick Advisor and opponent scouting all follow the new order.</p>
-    <div class="row-btns" style="margin-top:8px;flex-wrap:wrap;gap:6px;align-items:center"><select id="ptPick" style="${sel};flex:1 1 220px">${Array.from({length:13},(_,r)=>`<optgroup label="Round ${r+1}">${Array.from({length:n},(_,i)=>r*n+i+1).map(o=>`<option value="${o}">#${o} · ${esc(nm(own(o)))}${own(o)!==snakeAt(o)?" (traded)":""}</option>`).join("")}</optgroup>`).join("")}</select>
-      <span class="mut">now belongs to</span><select id="ptTo" style="${sel};flex:1 1 160px">${Array.from({length:n},(_,i)=>i+1).map(t=>`<option value="${t}"${t===S.slot?" selected":""}>${esc(nm(t))}</option>`).join("")}</select><button class="btn primary" id="ptAdd">Move pick</button></div>
-    ${mv.length?`<ul class="heads" style="margin-top:10px">${mv.map(o=>`<li class="${own(o)===S.slot?"good":snakeAt(o)===S.slot?"bad":""}">#${o} (round ${Math.ceil(o/n)}): ${esc(nm(snakeAt(o)))} → <b>${esc(nm(own(o)))}</b><span class="mut">${vt(o)}</span> <button class="btn" data-ptdel="${o}" aria-label="Undo this move" style="padding:1px 8px">✕</button></li>`).join("")}</ul>
-      ${net!=null?`<p style="font-size:13px">Picks you got are worth about <b>+${f1(sum(inn))}</b> FP/G, picks you gave up <b>+${f1(sum(out))}</b>. Net: <b class="${net>=0?"up":"down"}">${net>=0?"+":""}${f1(net)} FP/G</b> for you.</p>`:""}
-      <div class="row-btns"><button class="btn" id="ptClear">Clear all</button></div>`:""}
-    <p class="mut" style="font-size:12px;margin-top:6px">Your picks: ${my.length?my.map(o=>"#"+o).join(", "):"none"}${my.length!==13?` (${my.length}; a roster holds 13, so you'd drop or add players to match)`:""}.</p>
-    ${pv?`<p class="empty" style="margin-top:6px">A pick's worth is the projected fantasy points per game (FP/G) of the player who'd go there if every team took the best available, minus ${f1(pv.r)} FP/G, what the best undrafted player gives you for free. Late picks are worth little because that free-agent player is nearly as good.</p>`:""}</details>`}
+// pick trades are kept as a list of two-sided trades and replayed in order into S.pickOwn.m, so undoing one trade undoes both sides
+function ptState(){const n=S.teams;if(!S.pickOwn||S.pickOwn.n!==n)S.pickOwn={n,m:{},t:[]};const P=S.pickOwn;
+  if(!P.t)P.t=Object.keys(P.m).map(Number).map(o=>({a:snakeAt(o),b:P.m[o],ga:[o],gb:[]}));return P}  // the first version stored one-way moves
+function ptReplay(){const P=ptState(),m={};P.t.forEach(x=>{x.ga.forEach(o=>m[o]=x.b);x.gb.forEach(o=>m[o]=x.a)});for(const o in m)if(m[o]===snakeAt(+o))delete m[o];P.m=m}
+const PT={a:null,b:null,sel:new Set()};  // the trade being built (not saved)
+function ptSides(){const P=ptState(),own=o=>P.m[o]||snakeAt(o),a=PT.a||S.slot,b=PT.b&&PT.b!==a?PT.b:(a===1?2:1);PT.a=a;PT.b=b;
+  const left=t=>Array.from({length:S.teams*13},(_,i)=>i+1).filter(o=>o>S.picks.length&&own(o)===t);
+  for(const o of [...PT.sel])if(o<=S.picks.length||(own(o)!==a&&own(o)!==b))PT.sel.delete(o);
+  return {P,a,b,la:left(a),lb:left(b),ga:left(a).filter(o=>PT.sel.has(o)),gb:left(b).filter(o=>PT.sel.has(o))}}
+function pickTradesCard(){const n=S.teams,{P,a,b,la,lb,ga,gb}=ptSides(),own=o=>P.m[o]||snakeAt(o),nm=t=>t===S.slot?"You":teamName(t),gv=t=>t===S.slot?"give":"gives";
+  const pv=S.scoring==="pts"?pickValues():null,vt=o=>pv?` +${f1(pv(o))}`:"",sum=l=>pv?l.reduce((t,o)=>t+pv(o),0):0,sg=v=>`<b class="${v>=0?"zpos":"zneg"}">${v>=0?"+":""}${f1(v)} FP/G</b>`;
+  const lst=l=>l.length?l.map(o=>`#${o}<span class="mut">${vt(o)}</span>`).join(", "):"nothing",my=Array.from({length:n*13},(_,i)=>i+1).filter(o=>own(o)===S.slot);
+  const sel="background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-width:0;flex:1 1 150px";
+  const pick=(id,v)=>`<select id="${id}" style="${sel}">${Array.from({length:n},(_,i)=>i+1).map(t=>`<option value="${t}"${t===v?" selected":""}>${esc(nm(t))}</option>`).join("")}</select>`;
+  const side=(t,l)=>`<div style="min-width:0"><h5 style="margin:0 0 6px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">${esc(nm(t))} ${gv(t)}</h5>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:2px 10px">${l.map(o=>`<label class="chk" style="color:var(--ink)"><input type="checkbox" data-ptsel="${o}"${PT.sel.has(o)?" checked":""}>#${o} <span class="mut">Rd ${Math.ceil(o/n)}${vt(o)}</span></label>`).join("")||'<span class="mut">No picks left</span>'}</div></div>`;
+  const netA=sum(gb)-sum(ga),me=a===S.slot?1:b===S.slot?-1:0,verdict=v=>v>=3?"good for you":v<=-3?"bad for you":"close to even";
+  const done=P.t.map((x,i)=>{const k=x.a===S.slot?1:x.b===S.slot?-1:0,v=(sum(x.gb)-sum(x.ga))*k;
+    return `<li class="${k&&pv?(v>=-1?"good":"warn"):""}">${esc(nm(x.a))} ${gv(x.a)} ${lst(x.ga)}; ${esc(nm(x.b))} ${gv(x.b)} ${lst(x.gb)}.${k&&pv?` Net for you ${sg(v)}.`:""} <button class="btn" data-ptdel="${i}" aria-label="Undo this trade" style="padding:1px 8px">Undo</button></li>`}).join("");
+  return `<details class="chart-card" ${(S.ptOpen??P.t.length>0)?"open":""} id="ptBox"><summary style="cursor:pointer;font-weight:600">Pick trades <span class="mut" style="font-weight:400">· ${P.t.length?`${P.t.length} trade${P.t.length===1?"":"s"} entered`:"none entered"}</span></summary>
+    <p data-keep style="font-size:13px;margin-top:8px">Enter each trade with both sides: pick the two teams, tick the picks each one gives up, and record it. The board, the on-the-clock notice, the Pick Advisor and opponent scouting all follow the new order.</p>
+    <div class="row-btns" style="margin-top:10px;align-items:center;gap:6px">${pick("ptA",a)}<span class="mut">trades with</span>${pick("ptB",b)}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin-top:10px">${side(a,la)}${side(b,lb)}</div>
+    ${ga.length||gb.length?`<p data-keep style="font-size:13px;margin-top:10px">${esc(nm(a))} ${gv(a)} ${lst(ga)} and ${a===S.slot?"get":"gets"} ${lst(gb)}.${pv?` ${me?`Net for you: ${sg(netA*me)}, ${verdict(netA*me)}.`:`Net for ${esc(nm(a))}: ${sg(netA)}; for ${esc(nm(b))}: ${sg(-netA)}.`}`:""}</p>`:""}
+    <div class="row-btns" style="margin-top:8px"><button class="btn primary" id="ptRec">Record trade</button></div>
+    ${done?`<h5 style="margin:14px 0 6px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Trades entered</h5><ul class="heads">${done}</ul><div class="row-btns"><button class="btn" id="ptClear">Clear all</button></div>`:""}
+    <p data-keep class="mut" style="font-size:12px;margin-top:8px">Your picks: ${my.length?my.map(o=>"#"+o).join(", "):"none"}${my.length!==13?` (${my.length}; a roster holds 13, so you'd drop or add players to match)`:""}.</p>
+    ${pv?`<p class="empty" style="margin-top:6px">The number after each pick is its rough worth: the projected fantasy points per game (FP/G) of the player who'd go there if every team took the best available, minus ${f1(pv.r)} FP/G, what the best undrafted player gives you for free. A trade that gives up two picks for one frees a roster spot for that free player, so the totals already account for it. "Close to even" means within 3 FP/G.</p>`:""}</details>`}
+const ptRedraw=()=>{const el=$("ptBox");if(el)el.outerHTML=pickTradesCard()};
 document.addEventListener("toggle",e=>{if(e.target.id==="ptBox"){S.ptOpen=e.target.open;save()}},true);
-document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("#ptAdd,[data-ptdel],#ptClear");if(!b)return;const n=S.teams;
-  if(!S.pickOwn||S.pickOwn.n!==n)S.pickOwn={n,m:{}};const m=S.pickOwn.m;let msg;
-  if(b.id==="ptAdd"){const o=+$("ptPick").value,t=+$("ptTo").value;if(t===snakeAt(o))delete m[o];else m[o]=t;msg=`Pick #${o} now belongs to ${t===S.slot?"you":teamName(t)}`}
-  else if(b.id==="ptClear"){S.pickOwn.m={};msg="Pick trades cleared"}else{const o=+b.dataset.ptdel;delete m[o];msg=`Pick #${o} back with ${snakeAt(o)===S.slot?"you":teamName(snakeAt(o))}`}
-  S.ptOpen=true;save();renderAll();renderMock();toast(msg)});
+document.addEventListener("change",e=>{const t=e.target;if(t.id==="ptA"||t.id==="ptB"){PT[t.id==="ptA"?"a":"b"]=+t.value;if(PT.a===PT.b)PT[t.id==="ptA"?"b":"a"]=null;PT.sel.clear();ptRedraw()}
+  else if(t.dataset&&t.dataset.ptsel){const o=+t.dataset.ptsel;if(t.checked)PT.sel.add(o);else PT.sel.delete(o);ptRedraw()}});
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("#ptRec,[data-ptdel],#ptClear");if(!b)return;const P=ptState(),nm=t=>t===S.slot?"you":teamName(t);let msg;
+  if(b.id==="ptRec"){const x=ptSides();if(!x.ga.length&&!x.gb.length){toast("Tick the picks each team gives up first");return}P.t.push({a:x.a,b:x.b,ga:x.ga,gb:x.gb});PT.sel.clear();msg=`Trade recorded between ${nm(x.a)} and ${nm(x.b)}`}
+  else if(b.id==="ptClear"){P.t=[];msg="Pick trades cleared"}else{const x=P.t.splice(+b.dataset.ptdel,1)[0];msg=`Trade between ${nm(x.a)} and ${nm(x.b)} undone`}
+  ptReplay();S.ptOpen=true;save();renderAll();renderMock();toast(msg)});
 function renderInsights(){const v=$("view-insights"),D=draftState(),repl=replacementFp(),A0=D.av.length?advisor():null,H=headlines(A0&&A0.open);
   const kp=(k,val,d)=>`<div class="kpi"><div class="k">${k}</div><div class="v">${val}</div><div class="d">${d}</div></div>`;
   let h=teamNamesEditor()+pickTradesCard()+`<div class="chart-card"><h4>Right now · pick #${D.cur}${D.onClock?" · you're on the clock":D.nx?` · your next pick #${D.nx}`:""}</h4>${H.length?`<ul class="heads" style="margin-top:8px">${H.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing unusual on the board yet. Insights appear as picks are made.</p>'}</div>`;
