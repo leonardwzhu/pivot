@@ -21,8 +21,10 @@ fetch(){ curl -sS -m 90 -A "$UA" "${@:3}" -o "$2" -w "%{http_code}" "$1" 2>/dev/
 use_last(){ cp "last/$1" "work/$1"; echo "WARN $2: using last good $1"; }
 STATUS=();MODE=${1:-daily}
 assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js static/p2_draftsnap.js src/p3_model.js src/p3_rest.js > build/draft-room.html
-  # GitHub Pages serves the page as is (claude.ai wraps it in a document skeleton), so index.html carries its own charset and viewport
-  { printf '<!doctype html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'; cat build/draft-room.html; } > build/index.html; }
+  # GitHub Pages serves the page as is, so index.html gets the same skeleton claude.ai wraps it in: charset, viewport, safe-area
+  # padding and the rule that keeps [hidden] hidden, which the page relies on
+  { printf '%s' '<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>'
+    cat build/draft-room.html; printf '\n</body></html>\n'; } > build/index.html; }
 # `bash refresh.sh build`: no fetching, just the page from last/ (the GitHub Pages deploy on a code change)
 if [ "$MODE" = build ]; then assemble last; node tools/smoke_test.js "$(pwd)/build/draft-room.html" && { echo "BUILD OK (last good data)"; exit 0; }; echo "BUILD FAILED"; exit 1; fi
 keep_last(){ for f in "$@"; do [ -f "last/$f" ] && cp "last/$f" "work/$f"; done; }
