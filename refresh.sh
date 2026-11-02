@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pivot refresh. `bash refresh.sh` is the morning run: every source, plus the prediction scorecard.
 # `bash refresh.sh injuries` is the pre-game run: only ESPN players, injuries and news, everything else from last/.
+# `bash refresh.sh build` fetches nothing and builds from last/.
 # `bash refresh.sh night` is the after-the-last-game run: ESPN only (players, injuries, league, schedule, box scores), then it
 # scores the night's predictions without logging new ones, so tomorrow's are still made in the morning with that day's news.
 # Fetches the data, rebuilds the data files, assembles build/draft-room.html and smoke-tests it.
@@ -19,6 +20,11 @@ TODAY_SP=$(python3 -c "import datetime,zoneinfo;print((datetime.datetime.now(zon
 fetch(){ curl -sS -m 90 -A "$UA" "${@:3}" -o "$2" -w "%{http_code}" "$1" 2>/dev/null || echo 000; }
 use_last(){ cp "last/$1" "work/$1"; echo "WARN $2: using last good $1"; }
 STATUS=();MODE=${1:-daily}
+assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js static/p2_draftsnap.js src/p3_model.js src/p3_rest.js > build/draft-room.html
+  # GitHub Pages serves the page as is (claude.ai wraps it in a document skeleton), so index.html carries its own charset and viewport
+  { printf '<!doctype html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'; cat build/draft-room.html; } > build/index.html; }
+# `bash refresh.sh build`: no fetching, just the page from last/ (the GitHub Pages deploy on a code change)
+if [ "$MODE" = build ]; then assemble last; node tools/smoke_test.js "$(pwd)/build/draft-room.html" && { echo "BUILD OK (last good data)"; exit 0; }; echo "BUILD FAILED"; exit 1; fi
 keep_last(){ for f in "$@"; do [ -f "last/$f" ] && cp "last/$f" "work/$f"; done; }
 # Parsers need beautifulsoup4 + lxml. -P keeps the script folder off the import path but still sees user-installed packages.
 python3 -P -c "import bs4,lxml" 2>/dev/null || python3 -m pip install -q beautifulsoup4 lxml 2>/dev/null || python3 -m pip install -q --user --break-system-packages beautifulsoup4 lxml
@@ -70,7 +76,6 @@ if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: f
 else keep_last p2_fp.js p2_sched.js p2_league.js p2_games.js p2_mates.js p2_preds.js; fi
 printf '%s\n' "${STATUS[@]}" | python3 -P tools/build_status.py "$MODE" work
 
-assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js static/p2_draftsnap.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
 
 # 6) Assemble and smoke-test; if today's data breaks the page, fall back to the last good data set
 assemble work

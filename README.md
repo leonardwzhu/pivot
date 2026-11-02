@@ -71,4 +71,8 @@ The live app is a private claude.ai artifact. Three scheduled Claude sessions ke
 
 Each run republishes `build/draft-room.html` to the same link and saves the updated data files back to `pipeline/last/`. `last/sources.json` records when each source was last fetched fresh; the page header says when it was updated and shows a warning when the data is over a day old or a source has been stuck on its last good copy for more than 36 hours. Code changes reach the live app the morning after they're merged to `main`.
 
+### GitHub Pages
+
+`.github/workflows/pages.yml` publishes the same page as a website at `https://leonardwzhu.github.io/pivot/`. Turn it on once in the repository's Settings → Pages → Source: GitHub Actions. A push to `main` rebuilds from `last/` without fetching (`bash refresh.sh build`). Three scheduled runs at the same Eastern times as above run the matching refresh and commit the new `last/` back to `main`, and you can start one by hand from the Actions tab. `refresh.sh` writes `build/index.html` for this: the same page with its own charset and viewport tags, which claude.ai otherwise adds. The site reads your league live from ESPN like the artifact does. Two things work only on claude.ai: the Full update button and syncing your edits across devices. On the website your edits stay in the browser you made them in.
+
 Your own edits (draft picks entered by hand, roster moves, projection adjustments, settings) are kept in the browser and, through the artifact's private per-person store, synced across your devices: the newest copy wins when the page loads, and an open page offers a reload when another device changes something.

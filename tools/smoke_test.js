@@ -1,6 +1,7 @@
 // Load the built page headlessly and fail loudly on any error or implausible result.
 const {chromium}=require('playwright');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1300,height:1000}});const errs=[];
-const openTab=async(pg,t)=>{if(await pg.$eval('#tab-'+t,e=>e.hasAttribute('data-more'))){await pg.click('#moreBtn');await pg.click('[data-moretab="'+t+'"]')}else await pg.click('#tab-'+t)};  // Trades, Rosters, Models and Method open from the More menu
+const openTab=async(pg,t)=>{if(await pg.$eval('#tab-'+t,e=>e.hasAttribute('data-more'))){const it='[data-moretab="'+t+'"]';await pg.click('#moreBtn');  // the menu closes on any resize or stray click: reopen once rather than fail the build
+  if(!await pg.waitForSelector(it,{state:'visible',timeout:3000}).catch(()=>null))await pg.click('#moreBtn');await pg.click(it)}else await pg.click('#tab-'+t)};  // Trades, Rosters, Models and Method open from the More menu
 p.on('pageerror',x=>errs.push(x.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
 await p.goto('file://'+process.argv[2]);await p.waitForTimeout(1500);
 const r=await p.evaluate(()=>({players:typeof players!=='undefined'?players.length:0,rows:document.querySelectorAll('#tbody tr').length,ms:typeof MODEL_MS!=='undefined'?MODEL_MS:-1,fetched:typeof FETCHED!=='undefined'?FETCHED:null,top:typeof players!=='undefined'?[...players].sort((a,b)=>a.modelRank-b.modelRank).slice(0,3).map(x=>x.name):[]}));

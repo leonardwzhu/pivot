@@ -2536,6 +2536,8 @@ async function fullRun(){if(UPD.f.st==="run"||UPD.f.st==="start")return;UPD.f={s
   try{const s=await fullStatus(m).catch(()=>null);if(s&&s.fired&&!s.done&&Date.now()-s.fired<10*6e4){UPD.f={st:"run",at:s.fired};updRender();followFull(m,s.fired);return}
     await m.callTool(FULL_REFRESH.server,FULL_REFRESH.tool,{trigger_id:FULL_REFRESH.trigger,text:"Started from Pivot's Update button."});const at=Date.now();UPD.f={st:"run",at};updRender();followFull(m,at)}
   catch(e){UPD.f={st:"bad",msg:mcpWhy(e)};updRender()}}
+// the full update runs through claude.ai; elsewhere (GitHub Pages) the scheduled refresh is the only one, so the row is left out
+const FULL_OK=()=>!!(window.claude&&window.claude.use);
 function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st==="run"||f.st==="run"||f.st==="start";b.classList.toggle("spin",busy);b.classList.toggle("ready",f.st==="done"||(!!UPD.since&&!UPD.seen));b.setAttribute("aria-expanded",UPD.open);
   if(!UPD.open){p.hidden=true;return}p.hidden=false;p.style.top=Math.round(b.getBoundingClientRect().bottom+8)+"px";
   const built=typeof BUILD!=="undefined"?Date.parse(BUILD.at.replace("Z",":00Z")):0,row=(k,t,d)=>`<div class="ur"><span class="ud ${k}" aria-hidden="true"></span><div><b>${t}</b><div class="mut">${d}</div></div></div>`;
@@ -2545,9 +2547,9 @@ function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st
   ${UPD.since&&UPD.since.length?`<div class="ur"><span class="ud ok" aria-hidden="true"></span><div><b>Since your last visit</b><ul class="uch">${UPD.since.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${UPD.since.length>8?`<li class="mut">and ${UPD.since.length-8} more</li>`:""}</ul></div></div>`:""}
   ${FETCH_OFF?"":row({idle:"",run:"run",ok:"ok",bad:"bad"}[q.st],"League",esc(qd))}
   ${!FETCH_OFF&&q.ch&&q.ch.length?`<ul class="uch">${q.ch.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${q.ch.length>8?`<li class="mut">and ${q.ch.length-8} more</li>`:""}</ul>`:""}
-  ${row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],FETCH_OFF?"Update":"Full update",esc(fd))}
+  ${FULL_OK()?row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],FETCH_OFF?"Update":"Full update",esc(fd)):row("","Injuries, stats and schedule","Refreshed on their own every morning, before tip-off and after the last game.")}
   <div class="uf"><span class="mut">This page's data: built ${built?agoTxt(built):"–"}</span>${f.st==="done"?`<button class="btn" data-upd="reload">Reload</button>`:!FETCH_OFF&&q.st!=="run"?`<button class="btn" data-upd="again">Check ESPN again</button>`:""}</div>`}
-$("updBtn").addEventListener("click",()=>{if(UPD.open){UPD.open=false;updRender();return}UPD.open=true;UPD.seen=true;if(!FETCH_OFF&&!(UPD.q.at&&Date.now()-UPD.q.at<3e4))quickSync();if(UPD.f.st==="idle"||UPD.f.st==="bad")fullRun();updRender()});
+$("updBtn").addEventListener("click",()=>{if(UPD.open){UPD.open=false;updRender();return}UPD.open=true;UPD.seen=true;if(!FETCH_OFF&&!(UPD.q.at&&Date.now()-UPD.q.at<3e4))quickSync();if(FULL_OK()&&(UPD.f.st==="idle"||UPD.f.st==="bad"))fullRun();updRender()});
 $("updPop").addEventListener("click",e=>{const a=e.target.closest("[data-upd]");if(!a)return;const k=a.dataset.upd;if(k==="close"){UPD.open=false;updRender();$("updBtn").focus()}else if(k==="reload")location.reload();else if(k==="again")quickSync()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&UPD.open){UPD.open=false;updRender();$("updBtn").focus()}});
 document.addEventListener("click",e=>{if(UPD.open&&!e.target.closest("#updPop,#updBtn")){UPD.open=false;updRender()}});
