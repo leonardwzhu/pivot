@@ -19,6 +19,8 @@ const BY_ESPN=new Map(players.map(p=>[p.espnId,p.id]));let LEAGUE_MSG="";
   if(LEAGUE.picks.length&&(LEAGUE.drafted||S.leaguePicksAt!==LEAGUE.fetched)){S.picks=LEAGUE.picks.filter(x=>BY_ESPN.has(x[2])).sort((a,b)=>a[0]-b[0]).map(x=>({id:BY_ESPN.get(x[2]),mine:x[1]===S.slot,o:x[0]}));S.leaguePicksAt=LEAGUE.fetched;LEAGUE_MSG=`Draft picks synced from ESPN (${LEAGUE.fetched})`}
   if(LEAGUE.drafted&&LEAGUE.rosters){const L={};for(const t in LEAGUE.rosters)L[t]=LEAGUE.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L;S.leagueRostersAt=LEAGUE.fetched;LEAGUE_MSG=`Rosters synced from ESPN (${LEAGUE.fetched})`}
   save()})();
+// injury statuses from the league sync (applyInj, with the update panel); declared here because a saved sync is applied just below
+const INJ_OUT=["OUT","INJURY_RESERVE","SUSPENSION"],INJ_DTD=["DAY_TO_DAY","QUESTIONABLE","DOUBTFUL","PROBABLE"];let INJ_V=0,LIVE_INJ=[];
 // a quick update newer than the league data built into the page wins on load
 (()=>{const B=typeof BUILD!=="undefined"?BUILD:null,x=S.lgLive;if(x&&B&&B.src&&B.src.league&&Date.parse(x.at)>Date.parse(B.src.league.replace("Z",":00Z")))applyLive(x)})();
 // this week's head-to-head opponent from your league schedule (week index -> your slot's opponent)
@@ -1938,7 +1940,7 @@ const SRC=[["pts","Points",l=>l.pts*SC.pts],["reb","Rebounds",l=>l.reb*SC.reb],[
 function sourcesOf(R){const top=[...R].sort((a,b)=>b.projTot-a.projTot).slice(0,10),out={};SRC.forEach(([k,,f])=>out[k]=top.reduce((s,p)=>s+f(p.proj.line)*p.avail*p.rate/Math.max(1,REMAIN_WEEKS()),0));return out}
 const REMAIN_WEEKS=()=>Math.max(1,WEEKS.filter(x=>x.p[1]>=CUR_PERIOD).length);
 // suggestions, each scored in projected starter points per week (rest of season, playoff weeks weighted as in your mix)
-function teamKey(){return JSON.stringify([leagueRosters(),S.slot,S.mix,S.adj,SC])}
+function teamKey(){return JSON.stringify([leagueRosters(),S.slot,S.mix,S.adj,SC,INJ_V])}
 function waiverIdeas(my){const base=h2hValue(my).total,wk=REMAIN_WEEKS(),full=my.length>=13,drop=[...my].sort((a,b)=>a.projTot-b.projTot)[0];
   return freeAgents().filter(p=>p.projTot>0&&!my.includes(p)).sort((a,b)=>b.projTot-a.projTot).slice(0,40).map(p=>{const R=full?my.filter(q=>q!==drop).concat(p):my.concat(p);return {p,drop:full?drop:null,g:(h2hValue(R).total-base)/wk}}).filter(x=>x.g>0.5).sort((a,b)=>b.g-a.g).slice(0,3)}
 // ---- injured reserve: who is in your IR slot (from ESPN), who should go there, and what to do when he's healthy. ESPN takes only
@@ -2583,14 +2585,25 @@ const ESPN_TODAY=()=>{const d=new Date(new Date().toLocaleString("en-US",{timeZo
 const ESPN_LG=id=>`https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/2027/segments/0/leagues/${id}?view=mSettings&view=mTeam&view=mRoster&view=mMatchup&view=mMatchupScore&view=mDraftDetail&scoringPeriodId=${ESPN_TODAY()}`;
 const FULL_REFRESH={server:"Claude Code Remote",tool:"fire_trigger",trigger:"trig_01V934DfCrKgydEc5Xp8FrXD"};
 function leagueFromEspn(d){const slot=Object.fromEntries(d.settings.draftSettings.pickOrder.map((t,i)=>[t,i+1])),ros={},ir={},rec={},results=[],curMP=(d.status||{}).currentMatchupPeriod;let live=null;
-  const slots={};d.teams.forEach(t=>{const s=slot[t.id];if(!s)return;const E=(t.roster&&t.roster.entries)||[];ros[s]=E.map(e=>e.playerId);slots[s]=Object.fromEntries(E.map(e=>[e.playerId,e.lineupSlotId]));const r=E.filter(e=>e.lineupSlotId===13).map(e=>e.playerId);if(r.length)ir[s]=r;
+  const slots={},inj={};d.teams.forEach(t=>{const s=slot[t.id];if(!s)return;const E=(t.roster&&t.roster.entries)||[];E.forEach(e=>{const pl=((e.playerPoolEntry||{}).player)||{};if(pl.injuryStatus)inj[e.playerId]=pl.injuryStatus});ros[s]=E.map(e=>e.playerId);slots[s]=Object.fromEntries(E.map(e=>[e.playerId,e.lineupSlotId]));const r=E.filter(e=>e.lineupSlotId===13).map(e=>e.playerId);if(r.length)ir[s]=r;
     const o=(t.record||{}).overall||{};rec[s]=[o.wins||0,o.losses||0,o.ties||0,+(o.pointsFor||0).toFixed(1),+(o.pointsAgainst||0).toFixed(1)]});
   (d.schedule||[]).forEach(m=>{if(!m.home||!m.away)return;const h=slot[m.home.teamId],a=slot[m.away.teamId];if(!h||!a)return;const row=[m.matchupPeriodId,h,+(m.home.totalPoints||0).toFixed(1),a,+(m.away.totalPoints||0).toFixed(1),m.winner];
     if(["HOME","AWAY","TIE"].includes(m.winner))results.push(row);else if(m.matchupPeriodId===curMP&&(row[2]||row[4]))(live=live||[]).push(row)});
   const dayPts={};(d.schedule||[]).forEach(m=>{if(m.matchupPeriodId!==curMP)return;[m.home,m.away].forEach(x=>{const s=x&&slot[x.teamId];if(s&&x.pointsByScoringPeriod)dayPts[s]=x.pointsByScoringPeriod})});
   const picks=((d.draftDetail||{}).picks||[]).filter(p=>p.playerId>0).map(p=>[p.overallPickNumber,slot[p.teamId],p.playerId]);
-  return {lg:d.id,at:new Date().toISOString(),rosters:Object.values(ros).some(x=>x.length)?ros:null,slots,ir,rec,results,live,dayPts,curMatchup:curMP,picks,drafted:!!(d.draftDetail||{}).drafted}}
-function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,rec:x.rec,results:x.results,live:x.live,dayPts:x.dayPts||LEAGUE.dayPts,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
+  return {lg:d.id,at:new Date().toISOString(),rosters:Object.values(ros).some(x=>x.length)?ros:null,slots,ir,rec,results,live,dayPts,inj,curMatchup:curMP,picks,drafted:!!(d.draftDetail||{}).drafted}}
+// ESPN's fantasy injury status for rostered players, newer than the page's own (built a few times a day). As in the build, a player
+// is out or day-to-day if either it or ESPN's injury report says so; the report itself only changes with a build. A change updates
+// the flags, his return date and games left, and the projections that follow from them. Free agents wait for the next build
+function injWord(p){return p.out?"out":p.dtd?"day-to-day":"healthy"}  // a declaration: a saved sync runs applyInj at load, above this line
+function applyInj(m){if(!m)return [];const ch=[];for(const e in m){if(!BY_ESPN.has(+e))continue;const p=players[BY_ESPN.get(+e)],st=m[e],ir=p.inj&&p.inj.status,out=INJ_OUT.includes(st)||ir==="Out",dtd=!out&&(INJ_DTD.includes(st)||ir==="Day-To-Day");  // the build's rule: either ESPN source flags him
+    if(out===p.out&&dtd===p.dtd)continue;const was=injWord(p);p.out=out;p.dtd=dtd;p.injSync=st;
+    // a return date from the injury report still holds if he's out; otherwise the same rules as the build (day-to-day misses his next game)
+    p.retP=returnPeriod({inj:out&&p.inj&&(p.inj.ret||p.inj.status==="Out")?p.inj:out?{status:"Out"}:null,st},p.team);
+    p.daySet=new Set(p.days.filter(q=>q>=p.retP));p.avail=p.daySet.size;p.gamesOut=p.days.filter(q=>q<p.retP).length;p.poGames=p.days.filter(q=>q>=Math.max(p.retP,PO_START)&&q<=PO_END).length;
+    if(p.proj){p.projGP=p.avail*p.rate;p.projTot=p.proj.fp*p.projGP}ch.push({p,was,now:injWord(p)})}  // at load applyMix sets these just after
+  if(ch.length)INJ_V++;return ch}
+function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;LIVE_INJ=applyInj(x.inj);Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,rec:x.rec,results:x.results,live:x.live,dayPts:x.dayPts||LEAGUE.dayPts,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
   if(x.picks&&x.picks.length){LEAGUE.picks=x.picks;if(!(S.mock&&S.mock.active))S.picks=x.picks.filter(p=>BY_ESPN.has(p[2])).sort((a,b)=>a[0]-b[0]).map(p=>({id:BY_ESPN.get(p[2]),mine:p[1]===S.slot,o:p[0]}))}
   if(x.rosters){LEAGUE.rosters=x.rosters;const L={};for(const t in x.rosters)L[t]=x.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L}return true}
 // the update panel: the quick league sync (seconds, in this page) and the full refresh (about 2 minutes, a scheduled task that
@@ -2608,6 +2621,8 @@ function lgDiff(b,x){const out=[],me=S.slot;if(!b||!x)return out;
   [...xi].filter(e=>!bi.has(e)).forEach(e=>out.push(`${pNm(e)} moved to IR`));[...bi].filter(e=>!xi.has(e)&&Object.values(x.rosters||{}).flat().includes(e)).forEach(e=>out.push(`${pNm(e)} came off IR`));
   const os=(b.slots||{})[me]||{},ns=(x.slots||{})[me]||{},mv=Object.keys(ns).filter(e=>e in os&&os[e]!==ns[e]&&(os[e]===12||ns[e]===12)).length;if(mv)out.push(`Your lineup changed: ${mv} player${mv>1?"s":""} moved between bench and starters`);
   const L=x.live&&x.live.find(r=>r[1]===me||r[3]===me);if(L){const m=L[1]===me,a=m?L[2]:L[4],o=m?L[4]:L[2],ot=m?L[3]:L[1];out.push(`Live: you ${f1(a)}, ${teamName(ot)} ${f1(o)}`)}
+  const opp=leagueOpp(Math.max(0,CUR_WEEK)),mine=new Set((x.rosters||{})[me]||[]),theirs=new Set((x.rosters||{})[opp]||[]);
+  LIVE_INJ.forEach(c=>{const e=c.p.espnId;if(mine.has(e)||theirs.has(e))out.push(`${c.p.name}${mine.has(e)?"":` (${teamName(opp)})`} is now ${c.now}${c.was!=="healthy"&&c.now==="healthy"?", no longer listed as injured":""}`)});
   const r0=(b.rec||{})[me],r1=(x.rec||{})[me];if(r1&&(!r0||r0[0]!==r1[0]||r0[1]!==r1[1]))out.push(`Your record is now ${r1[0]}-${r1[1]}${r1[2]?"-"+r1[2]:""}`);
   return out}
 async function quickSync(quiet){if(!HAS_LG()||FETCH_OFF||UPD.q.st==="run")return;UPD.q={st:"run"};updRender();

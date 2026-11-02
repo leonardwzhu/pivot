@@ -59,6 +59,7 @@ node tests/sync.js                   # cross-device sync of your edits, against 
 node tests/draft.js                  # a full 104-pick draft on desktop and phone, as on draft day (a few minutes)
 node tests/espn_rosters.js           # after the draft, rosters match ESPN exactly and nothing edits them
 node tests/recap.js                  # on a made-up week: the win chance counts points already scored, the day-by-day chart, last week's recap, the luck meter
+node tests/injuries.js               # the league sync updates rostered players' injuries between builds, without clearing the injury report's
 ```
 
 ## Publishing
