@@ -2470,19 +2470,60 @@ function leagueFromEspn(d){const slot=Object.fromEntries(d.settings.draftSetting
 function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,rec:x.rec,results:x.results,live:x.live,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
   if(x.picks&&x.picks.length){LEAGUE.picks=x.picks;if(!(S.mock&&S.mock.active))S.picks=x.picks.filter(p=>BY_ESPN.has(p[2])).sort((a,b)=>a[0]-b[0]).map(p=>({id:BY_ESPN.get(p[2]),mine:p[1]===S.slot,o:p[0]}))}
   if(x.rosters){LEAGUE.rosters=x.rosters;const L={};for(const t in x.rosters)L[t]=x.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L}return true}
-async function espnUpdate(){const b=$("updBtn");if(b.classList.contains("spin"))return;b.classList.add("spin");const msg=[];
-  try{if(!HAS_LG())throw 0;const r=await fetch(ESPN_LG(LEAGUE.id),{cache:"no-store"});if(!r.ok)throw 0;const x=leagueFromEspn(await r.json());S.lgLive=x;applyLive(x);save();
-    $("asof").textContent=`ESPN 2026-27 · league updated ${new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`;msg.push("Rosters, IR and scores updated from ESPN.");
-    renderAll();const t=curTab();if(t&&t!=="board")$("tab-"+t).click()}catch(e){}
-  const last=+(()=>{try{return localStorage.getItem("pivot.fullAt")}catch(e){return 0}})()||0;
-  if(Date.now()-last<15*60e3)msg.push("A full update started in the last 15 minutes; it republishes Pivot when done.");
-  else{let mcp=null;try{mcp=window.claude&&window.claude.use?await window.claude.use("mcp"):null}catch(e){}
-    if(!mcp)msg.push(msg.length?"":"Couldn't reach ESPN from this page.");
-    else try{await mcp.callTool(FULL_REFRESH.server,FULL_REFRESH.tool,{trigger_id:FULL_REFRESH.trigger,text:"Started from Pivot's Update button."});try{localStorage.setItem("pivot.fullAt",String(Date.now()))}catch(e){}
-      msg.push("Full update started: injuries, stats and schedule in about 2 minutes, then Pivot republishes.")}
-    catch(e){const c=e&&e.code;msg.push(c==="not_in_manifest"||c==="approval_required"?"The full update needs your OK for the Claude Code Remote connector (the artifact's Permissions menu).":c==="server_not_connected"||c==="needs_reauth"?"For the full update, connect Claude Code Remote in claude.ai Settings → Connectors.":`Couldn't start the full update (${(e&&e.message)||"unknown error"}).`)}}
-  b.classList.remove("spin");const m=msg.filter(Boolean).join(" ");if(m)toast(m)}
-$("updBtn").addEventListener("click",espnUpdate);
+// the update panel: the quick league sync (seconds, in this page) and the full refresh (about 2 minutes, a scheduled task that
+// republishes Pivot), each with its own status; the full one is followed through get_trigger until it finishes
+const UPD={q:{st:"idle"},f:{st:"idle"},open:false};
+const pNm=e=>BY_ESPN.has(e)?players[BY_ESPN.get(e)].name:"a player";
+const agoTxt=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:`${Math.round(m/1440)} d ago`};
+// what a quick sync changed: adds and drops, IR moves, your lineup and your live score
+function lgDiff(b,x){const out=[],me=S.slot;if(!b||!x)return out;
+  if(b.rosters&&x.rosters)for(const t in x.rosters){const o=new Set(b.rosters[t]||[]),n=new Set(x.rosters[t]);const add=[...n].filter(e=>!o.has(e)),drop=[...o].filter(e=>!n.has(e)),who=+t===me?"You":teamName(+t);
+    if(add.length)out.push(`${who} added ${add.map(pNm).join(", ")}`);if(drop.length)out.push(`${who} dropped ${drop.map(pNm).join(", ")}`)}
+  const bi=new Set(Object.values(b.ir||{}).flat()),xi=new Set(Object.values(x.ir||{}).flat());
+  [...xi].filter(e=>!bi.has(e)).forEach(e=>out.push(`${pNm(e)} moved to IR`));[...bi].filter(e=>!xi.has(e)&&Object.values(x.rosters||{}).flat().includes(e)).forEach(e=>out.push(`${pNm(e)} came off IR`));
+  const os=(b.slots||{})[me]||{},ns=(x.slots||{})[me]||{},mv=Object.keys(ns).filter(e=>e in os&&os[e]!==ns[e]&&(os[e]===12||ns[e]===12)).length;if(mv)out.push(`Your lineup changed: ${mv} player${mv>1?"s":""} moved between bench and starters`);
+  const L=x.live&&x.live.find(r=>r[1]===me||r[3]===me);if(L){const m=L[1]===me,a=m?L[2]:L[4],o=m?L[4]:L[2],ot=m?L[3]:L[1];out.push(`Live: you ${f1(a)}, ${teamName(ot)} ${f1(o)}`)}
+  const r0=(b.rec||{})[me],r1=(x.rec||{})[me];if(r1&&(!r0||r0[0]!==r1[0]||r0[1]!==r1[1]))out.push(`Your record is now ${r1[0]}-${r1[1]}${r1[2]?"-"+r1[2]:""}`);
+  return out}
+async function quickSync(quiet){if(!HAS_LG()||UPD.q.st==="run")return;UPD.q={st:"run"};updRender();
+  const b=JSON.parse(JSON.stringify({rosters:LEAGUE.rosters,ir:LEAGUE.ir,slots:LEAGUE.slots,rec:LEAGUE.rec}));
+  try{const r=await fetch(ESPN_LG(LEAGUE.id),{cache:"no-store"});if(!r.ok)throw new Error("ESPN answered "+r.status);const x=leagueFromEspn(await r.json());S.lgLive=x;applyLive(x);save();
+    const ch=lgDiff(b,x);UPD.q={st:"ok",at:Date.now(),ch};$("updPop").hidden||updRender();
+    // a background sync redraws only when something changed, and never under someone typing
+    if(quiet&&(!ch.length||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))){updRender();return}$("asof").textContent=`ESPN 2026-27 · league updated ${new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`;
+    renderAll();const t=curTab();if(!quiet&&t&&t!=="board")$("tab-"+t).click()}
+  catch(e){UPD.q={st:"bad",msg:quiet?"":"Couldn't reach ESPN from this page."}}
+  updRender()}
+let MCP=null;const getMcp=async()=>{if(MCP)return MCP;try{MCP=window.claude&&window.claude.use?await window.claude.use("mcp"):null}catch(e){MCP=null}return MCP};
+const mcpWhy=e=>{const c=e&&e.code;return c==="not_in_manifest"||c==="consent_required"?"Allow Claude Code Remote for this page (its Permissions menu) to run full updates.":c==="server_not_connected"||c==="needs_reauth"?"Connect Claude Code Remote in claude.ai Settings → Connectors to run full updates.":c==="approval_required"||c==="blocked_by_policy"?"Your organization's settings block full updates from this page.":`Couldn't reach the full update (${(e&&e.message)||"unknown error"}).`};
+// last_run of the overnight task: running while it has a start and no finish
+async function fullStatus(m){const r=await m.callTool(FULL_REFRESH.server,"get_trigger",{trigger_id:FULL_REFRESH.trigger},{cache:false}),t=(r.payload||{}).trigger||{},lr=t.last_run||{};
+  return {fired:Date.parse(lr.fired_at||t.last_fired_at||0)||0,done:Date.parse(lr.finished_at||0)||0,ok:/SUCCEEDED/.test(lr.status||""),bad:/FAIL|CANCEL|ERROR/.test(lr.status||"")}}
+async function followFull(m,since){clearTimeout(UPD.ft);
+  try{const s=await fullStatus(m);if(s.fired>=since-6e4){if(s.done>=s.fired&&s.done){UPD.f=s.bad||!s.ok?{st:"bad",msg:"The full update stopped before finishing. The next scheduled one runs overnight."}:{st:"done",at:s.done};updRender();return}UPD.f={st:"run",at:s.fired}}}catch(e){}
+  updRender();if(Date.now()-since<12*6e4)UPD.ft=setTimeout(()=>followFull(m,since),15e3);else{UPD.f={st:"bad",msg:"No word from the full update after 12 minutes."};updRender()}}
+async function fullRun(){if(UPD.f.st==="run"||UPD.f.st==="start")return;UPD.f={st:"start"};updRender();const m=await getMcp();
+  if(!m){UPD.f={st:"off"};updRender();return}
+  try{const s=await fullStatus(m).catch(()=>null);if(s&&s.fired&&!s.done&&Date.now()-s.fired<10*6e4){UPD.f={st:"run",at:s.fired};updRender();followFull(m,s.fired);return}
+    await m.callTool(FULL_REFRESH.server,FULL_REFRESH.tool,{trigger_id:FULL_REFRESH.trigger,text:"Started from Pivot's Update button."});const at=Date.now();UPD.f={st:"run",at};updRender();followFull(m,at)}
+  catch(e){UPD.f={st:"bad",msg:mcpWhy(e)};updRender()}}
+function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st==="run"||f.st==="run"||f.st==="start";b.classList.toggle("spin",busy);b.classList.toggle("ready",f.st==="done");b.setAttribute("aria-expanded",UPD.open);
+  if(!UPD.open){p.hidden=true;return}p.hidden=false;p.style.top=Math.round(b.getBoundingClientRect().bottom+8)+"px";
+  const built=typeof BUILD!=="undefined"?Date.parse(BUILD.at.replace("Z",":00Z")):0,row=(k,t,d)=>`<div class="ur"><span class="ud ${k}" aria-hidden="true"></span><div><b>${t}</b><div class="mut">${d}</div></div></div>`;
+  const qd={idle:"Rosters, IR, lineups and scores, straight from ESPN.",run:"Reading your league from ESPN…",ok:`Updated ${q.at?agoTxt(q.at):""}${q.ch&&!q.ch.length?". Nothing changed since the last check.":"."}`,bad:q.msg||"Couldn't reach ESPN from this page."}[q.st];
+  const fd={idle:"Injuries, stats, schedule and predictions; about 2 minutes, then Pivot republishes.",start:"Starting…",run:`Running, started ${f.at?agoTxt(f.at):"just now"}. Usually about 2 minutes; you can keep using Pivot.`,done:`Finished ${agoTxt(f.at)}. Reload to see the new data.`,bad:f.msg,off:"Not available here: full updates run from the Pivot page on claude.ai."}[f.st];
+  p.innerHTML=`<div class="uh"><b>Update from ESPN</b><button class="ux" data-upd="close" aria-label="Close">×</button></div>
+  ${row({idle:"",run:"run",ok:"ok",bad:"bad"}[q.st],"League",esc(qd))}
+  ${q.ch&&q.ch.length?`<ul class="uch">${q.ch.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${q.ch.length>8?`<li class="mut">and ${q.ch.length-8} more</li>`:""}</ul>`:""}
+  ${row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],"Full update",esc(fd))}
+  <div class="uf"><span class="mut">This page's data: built ${built?agoTxt(built):"–"}</span>${f.st==="done"?`<button class="btn" data-upd="reload">Reload</button>`:q.st!=="run"?`<button class="btn" data-upd="again">Check ESPN again</button>`:""}</div>`}
+$("updBtn").addEventListener("click",()=>{if(UPD.open){UPD.open=false;updRender();return}UPD.open=true;if(!(UPD.q.at&&Date.now()-UPD.q.at<3e4))quickSync();if(UPD.f.st==="idle"||UPD.f.st==="bad")fullRun();updRender()});
+$("updPop").addEventListener("click",e=>{const a=e.target.closest("[data-upd]");if(!a)return;const k=a.dataset.upd;if(k==="close"){UPD.open=false;updRender();$("updBtn").focus()}else if(k==="reload")location.reload();else if(k==="again")quickSync()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&UPD.open){UPD.open=false;updRender();$("updBtn").focus()}});
+document.addEventListener("click",e=>{if(UPD.open&&!e.target.closest("#updPop,#updBtn")){UPD.open=false;updRender()}});
+// keep the league current without a tap: once on open if the last sync is over 10 minutes old, then every 5 minutes while the page is visible
+{const age=()=>Date.now()-(S.lgLive&&S.lgLive.at?Date.parse(S.lgLive.at):0);if(HAS_LG()&&draftDone()&&age()>10*6e4)setTimeout(()=>quickSync(true),1500);
+  setInterval(()=>{if(HAS_LG()&&draftDone()&&document.visibilityState==="visible"&&age()>5*6e4)quickSync(true)},6e4)}
 // freshness: when the page was built, and any source stuck on an old copy (a failed fetch) or a refresh that never ran
 (()=>{const B=typeof BUILD!=="undefined"?BUILD:null,el=$("asof");if(!B){el.textContent=`ESPN 2026-27 · data as of ${new Date(FETCHED+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`;return}
   const t=s=>new Date(s.replace("Z",":00Z")),fmt=d=>d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}),at=t(B.at),age=(Date.now()-at)/36e5;
