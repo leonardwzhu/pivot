@@ -1936,7 +1936,7 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
     <p>${(()=>{const s=[...diffs].sort((a,b)=>b.d-a.d);return `Biggest edge: <b>${s[0].lab.toLowerCase()}</b> (+${f0(s[0].d)} a week). Biggest gap: <b>${s[s.length-1].lab.toLowerCase()}</b> (${f0(s[s.length-1].d)}). In points leagues every source is worth the same per point, so a gap only matters if you can close it cheaply.`})()}</p></div>`;
   // positions: who fills each slot, and how deep each position is
   const A=assignLineup(my),depth=["PG","SG","SF","PF","C"].map(P=>{const e=my.filter(p=>p.pos.includes(P)),lgD=mean(T.filter(t=>t!==S.slot).map(t=>rosterOf(t).filter(p=>p.pos.includes(P)).length));return {P,n:e.length,lg:lgD}});
-  h+=`<div class="chart-card"><h4>Your lineup and depth</h4><div class="eq">typical starting lineup by slot, best players placed first</div><div class="tablebox"><table><thead><tr><th class="l">Slot</th><th class="l">Player</th><th>Proj FP/G</th><th title="Fantasy points per game this season, and games played">So far</th><th>Games left</th></tr></thead><tbody>
+  h+=`<div class="chart-card"><h4>Your depth chart</h4><div class="eq">Pivot's typical weekly lineup, best players first. Your lineup as set on ESPN is on Today and Rosters.</div><div class="tablebox"><table><thead><tr><th class="l">Slot</th><th class="l">Player</th><th>Proj FP/G</th><th title="Fantasy points per game this season, and games played">So far</th><th>Games left</th></tr></thead><tbody>
     ${LINEUP.map(([lab],i)=>{const p=A.slot[i];return `<tr><td class="l">${lab}</td><td class="l">${p?pBtn(p)+` <span class="mut">${p.pos.join("/")}</span>`:'<span style="color:var(--bad)">Empty</span>'}</td><td class="num bcell">${p?f1(p.proj.fp)+ibar(p.proj.fp,65,{tip:`${p.name}: ${f1(p.proj.fp)} FP/G projected`}):"–"}</td><td class="num">${p?nowTag(p):""}</td><td class="num">${p?f0(p.avail*p.rate):""}</td></tr>`}).join("")}
     ${A.bench.map(p=>`<tr class="mut"><td class="l">Bench</td><td class="l">${pBtn(p)} <span class="mut">${p.pos.join("/")}</span></td><td class="num bcell">${f1(p.proj.fp)}${ibar(p.proj.fp,65,{tip:`${p.name}: ${f1(p.proj.fp)} FP/G projected, on the bench`})}</td><td class="num">${nowTag(p)}</td><td class="num">${f0(p.avail*p.rate)}</td></tr>`).join("")}</tbody></table></div>
     <div class="needs" style="margin-top:8px">${depth.map(d=>`<span class="need-chip ${d.n<2?"high":d.n<d.lg-1?"med":"ok"}">${d.P}: ${d.n} eligible (avg ${f1(d.lg)})</span>`).join("")}</div>
@@ -2100,9 +2100,21 @@ function bestMove(my,w){const fa=freeAgents(),base=weekProj(my,w).pts,full=my.le
   const C=[...fa].sort((a,b)=>b.projTot-a.projTot).slice(0,30).concat([...fa].sort((a,b)=>weekGames(b,w)*b.proj.fp-weekGames(a,w)*a.proj.fp).slice(0,20));
   let best=null;new Set(C).forEach(p=>{if(p.out)return;const R=full?my.filter(x=>x!==drop).concat([p]):my.concat([p]),g=weekProj(R,w).pts-base;if(!best||g>best.g)best={p,g,drop:full?drop:null}});
   return best&&best.g>=12?best:null}
+// tonight's lineup exactly as set on ESPN (slot by slot), with the starters who won't score flagged, then the moves to Pivot's best lineup
+const ESPN_SLOT_ORD=[0,1,2,3,4,5,6,11,12,13],ESPN_SLOT_LAB={0:"PG",1:"SG",2:"SF",3:"PF",4:"C",5:"G",6:"F",11:"UTIL",12:"Bench",13:"IR"};
+function espnTonight(my,T,row){const ES=HAS_LG()&&LEAGUE.slots&&LEAGUE.slots[S.slot];if(!ES||!my.some(p=>ES[p.espnId]!=null))return null;
+  const G=new Map([...T.starters,...T.bench,...T.out,...T.idle].map(x=>[x.p,x.g])),sl=p=>ES[p.espnId]??12,starts=p=>sl(p)<12,best=new Set(T.starters.map(x=>x.p));
+  const R=[...my].sort((a,b)=>ESPN_SLOT_ORD.indexOf(sl(a))-ESPN_SLOT_ORD.indexOf(sl(b))||(G.get(b)?G.get(b).fp:0)-(G.get(a)?G.get(a).fp:0));
+  const pts=L=>L.reduce((t,p)=>{const g=G.get(p);return t+(g&&!g.out?g.fp:0)},0),cur=my.filter(starts),gain=pts([...best])-pts(cur);
+  const flag=p=>{const g=G.get(p);if(g&&g.out)return' <span class="chip out">Out</span>';if(sl(p)===13)return"";if(starts(p)&&!g)return' <span class="chip dtd">No game</span>';if(!starts(p)&&best.has(p))return' <span class="chip go">Start</span>';if(starts(p)&&!best.has(p))return' <span class="chip dtd">Bench</span>';return""};
+  const add=[...best].filter(p=>!starts(p)),sit=cur.filter(p=>!best.has(p)),why=p=>{const g=G.get(p);return !g?"no game":g.out?"out":"lower expected points"};
+  const moves=gain>=.5&&(add.length||sit.length)?`<ul class="heads" style="margin-top:8px"><li class="warn"><b>Pivot's best lineup tonight: +${f1(gain)} expected points.</b> ${add.length?`Start ${add.map(p=>pBtn(p)).join(", ")}`:""}${add.length&&sit.length?"; ":""}${sit.length?`bench ${sit.map(p=>`${pBtn(p)} (${why(p)})`).join(", ")}`:""}. Positions may need a shuffle on ESPN to fit.</li></ul>`
+    :`<p class="empty" style="margin-top:6px">${T.starters.length?"Your lineup is already Pivot's best for tonight.":"None of your players has a game tonight."}</p>`;
+  return `<div class="chart-card"><h4>Tonight's lineup</h4><div class="eq">as set on ESPN · expected fantasy points tonight</div><div class="tablebox"><table class="today-tbl"><tbody>${R.map(p=>{const g=G.get(p);return row({p,g:g&&!g.out?g:null},ESPN_SLOT_LAB[sl(p)],flag(p))}).join("")}</tbody></table></div>${moves}
+    ${T.open?`<p class="empty" style="margin-top:6px">${T.open} lineup slot${T.open>1?"s":""} can't be filled tonight: a free agent with a game could fill ${T.open>1?"them":"it"}.</p>`:""}</div>`}
 function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PDATE(CUR_PERIOD),dl=new Date(d+"T12:00:00").toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"});
   const head=`<div class="today-head"><h3 style="margin:0">${dl}</h3><span class="mut">${CUR_WEEK>=0&&d>=wk.s?`Week ${wk.i} · day ${Math.round((Date.parse(d)-Date.parse(wk.s))/864e5)+1} of ${Math.round((Date.parse(wk.e)-Date.parse(wk.s))/864e5)+1}`:`Week 1 starts ${gDate(WEEKS[0].s)}`}</span></div>`;
-  let RMAX=70;const row=(x,lab,extra="")=>`<tr><td class="l mut" style="width:52px">${lab}</td><td class="l">${pBtn(x.p)} <span class="mut meta">${x.p.pos.join("/")} · ${x.g?x.g.o:""}</span>${extra}</td><td class="rcell">${x.g?`<b>${f1(x.g.fp)}</b> <span class="mut rng">(${f0(x.g.lo)}–${f0(x.g.hi)})</span>${rbar(x.g.lo,x.g.fp,x.g.hi,RMAX,`${x.p.name}: ${f1(x.g.fp)} expected, 8 in 10 games land ${f0(x.g.lo)}–${f0(x.g.hi)}`)}`:dash}</td></tr>`;
+  let RMAX=70;const row=(x,lab,extra="")=>`<tr><td class="l mut" style="width:52px">${lab}</td><td class="l">${pBtn(x.p)} <span class="mut meta">${x.p.pos.join("/")}${x.g?" · "+x.g.o:""}</span>${extra}</td><td class="rcell">${x.g?`<b>${f1(x.g.fp)}</b> <span class="mut rng">(${f0(x.g.lo)}–${f0(x.g.hi)})</span>${rbar(x.g.lo,x.g.fp,x.g.hi,RMAX,`${x.p.name}: ${f1(x.g.fp)} expected, 8 in 10 games land ${f0(x.g.lo)}–${f0(x.g.hi)}`)}`:dash}</td></tr>`;
   if(!my.length){const top=players.filter(p=>p.rank<=200).map(p=>({p,g:(n=>n&&n.date===d&&!n.out?n:null)(nextGames(p,1)[0])})).filter(x=>x.g).sort((a,b)=>b.g.fp-a.g.fp).slice(0,10);
     const dn=draftNear(),hrs=dn.at?(dn.at-Date.now())/36e5:null,when=dn.at?new Date(dn.at).toLocaleString(undefined,{weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
     return `${head}<div class="chart-card"><h4>${hrs!=null&&hrs>0?`Your draft is ${hrs<24?`in ${Math.max(1,Math.round(hrs))} hour${Math.round(hrs)===1?"":"s"}`:`in ${Math.round(hrs/24)} day${Math.round(hrs/24)===1?"":"s"}`}`:"After your draft"}</h4><p class="empty" style="margin:0" data-keep>${when?`${esc(LEAGUE.name)} drafts ${when}. Draft Day opens on its own 12 hours before. `:""}After the draft, this screen is your daily checklist: who to start tonight, news that touches your team, how your matchup stands, and the one pickup worth making.</p>
@@ -2111,7 +2123,7 @@ function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PD
   const T=tonight(my),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w):null,mv=bestMove(my,w);
   const live=HAS_LG()&&LEAGUE.live?LEAGUE.live.find(r=>r[0]===LEAGUE.curMatchup&&(r[1]===S.slot||r[3]===S.slot)):null,sc=live?(live[1]===S.slot?[live[2],live[4]]:[live[4],live[2]]):null;
   let h=head;RMAX=Math.max(30,...T.starters.concat(T.bench).map(x=>x.g.hi))*1.02;
-  h+=`<div class="chart-card"><h4>Tonight's lineup</h4>${T.starters.length?`<div class="tablebox"><table class="today-tbl"><tbody>${T.starters.map(x=>row(x,LINEUP[x.k][0])).join("")}${T.bench.map(x=>row(x,"Bench",x.close?` <span class="chip dtd" title="Within 3 FP of ${esc(x.close.p.name)}, who starts at ${LINEUP[x.close.k][0]}">close call vs ${esc(x.close.p.name.split(" ").pop())}</span>`:"")).join("")}</tbody></table></div>`:'<p class="empty">None of your players has a game tonight.</p>'}
+  const ES=espnTonight(my,T,row);if(ES)h+=ES;else h+=`<div class="chart-card"><h4>Tonight's lineup</h4>${T.starters.length?`<div class="tablebox"><table class="today-tbl"><tbody>${T.starters.map(x=>row(x,LINEUP[x.k][0])).join("")}${T.bench.map(x=>row(x,"Bench",x.close?` <span class="chip dtd" title="Within 3 FP of ${esc(x.close.p.name)}, who starts at ${LINEUP[x.close.k][0]}">close call vs ${esc(x.close.p.name.split(" ").pop())}</span>`:"")).join("")}</tbody></table></div>`:'<p class="empty">None of your players has a game tonight.</p>'}
     <p class="empty" style="margin-top:6px">${T.open?`${T.open} open slot${T.open>1?"s":""} tonight: a free agent with a game could fill ${T.open>1?"them":"it"}. `:""}${T.out.length?`Out tonight: ${T.out.map(x=>esc(x.p.name)).join(", ")}. `:""}${T.idle.length?`No game: ${T.idle.length} player${T.idle.length>1?"s":""}. `:""}Starters are the best valid lineup by tonight's expected points.</p></div>`;
   h+=irCard(my,1);
   const news=[];my.forEach(p=>{if(p.out||p.dtd)news.push(`<li><b>${pBtn(p)}</b> <span class="chip ${p.out?"out":"dtd"}">${p.out?"Out":"GTD"}</span> ${esc(p.inj&&p.inj.short||"")}${p.out?` <span class="mut">(${retLabel(p)})</span>`:""}</li>`)});
@@ -2481,7 +2493,9 @@ function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.
   if(x.rosters){LEAGUE.rosters=x.rosters;const L={};for(const t in x.rosters)L[t]=x.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L}return true}
 // the update panel: the quick league sync (seconds, in this page) and the full refresh (about 2 minutes, a scheduled task that
 // republishes Pivot), each with its own status; the full one is followed through get_trigger until it finishes
-const UPD={q:{st:"idle"},f:{st:"idle"},open:false};
+const UPD={q:{st:"idle"},f:{st:"idle"},open:false,since:null};
+// a published artifact may not call ESPN itself (a TypeError from fetch is the sandbox saying no): then the full update is the one path
+let FETCH_OFF=false;
 const pNm=e=>BY_ESPN.has(e)?players[BY_ESPN.get(e)].name:"a player";
 const agoTxt=t=>{const m=Math.round((Date.now()-t)/6e4);return m<1?"just now":m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:`${Math.round(m/1440)} d ago`};
 // what a quick sync changed: adds and drops, IR moves, your lineup and your live score
@@ -2494,14 +2508,14 @@ function lgDiff(b,x){const out=[],me=S.slot;if(!b||!x)return out;
   const L=x.live&&x.live.find(r=>r[1]===me||r[3]===me);if(L){const m=L[1]===me,a=m?L[2]:L[4],o=m?L[4]:L[2],ot=m?L[3]:L[1];out.push(`Live: you ${f1(a)}, ${teamName(ot)} ${f1(o)}`)}
   const r0=(b.rec||{})[me],r1=(x.rec||{})[me];if(r1&&(!r0||r0[0]!==r1[0]||r0[1]!==r1[1]))out.push(`Your record is now ${r1[0]}-${r1[1]}${r1[2]?"-"+r1[2]:""}`);
   return out}
-async function quickSync(quiet){if(!HAS_LG()||UPD.q.st==="run")return;UPD.q={st:"run"};updRender();
+async function quickSync(quiet){if(!HAS_LG()||FETCH_OFF||UPD.q.st==="run")return;UPD.q={st:"run"};updRender();
   const b=JSON.parse(JSON.stringify({rosters:LEAGUE.rosters,ir:LEAGUE.ir,slots:LEAGUE.slots,rec:LEAGUE.rec}));
   try{const r=await fetch(ESPN_LG(LEAGUE.id),{cache:"no-store"});if(!r.ok)throw new Error("ESPN answered "+r.status);const x=leagueFromEspn(await r.json());S.lgLive=x;applyLive(x);save();
     const ch=lgDiff(b,x);UPD.q={st:"ok",at:Date.now(),ch};$("updPop").hidden||updRender();
     // a background sync redraws only when something changed, and never under someone typing
     if(quiet&&(!ch.length||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))){updRender();return}$("asof").textContent=`ESPN 2026-27 · league updated ${new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`;
     renderAll();const t=curTab();if(!quiet&&t&&t!=="board")$("tab-"+t).click()}
-  catch(e){UPD.q={st:"bad",msg:quiet?"":"Couldn't reach ESPN from this page."}}
+  catch(e){if(e instanceof TypeError)FETCH_OFF=true;UPD.q=FETCH_OFF?{st:"idle"}:{st:"bad",msg:quiet?"":"Couldn't reach ESPN from this page."}}
   updRender()}
 let MCP=null;const getMcp=async()=>{if(MCP)return MCP;try{MCP=window.claude&&window.claude.use?await window.claude.use("mcp"):null}catch(e){MCP=null}return MCP};
 const mcpWhy=e=>{const c=e&&e.code;return c==="not_in_manifest"||c==="consent_required"?"Allow Claude Code Remote for this page (its Permissions menu) to run full updates.":c==="server_not_connected"||c==="needs_reauth"?"Connect Claude Code Remote in claude.ai Settings → Connectors to run full updates.":c==="approval_required"||c==="blocked_by_policy"?"Your organization's settings block full updates from this page.":`Couldn't reach the full update (${(e&&e.message)||"unknown error"}).`};
@@ -2516,23 +2530,28 @@ async function fullRun(){if(UPD.f.st==="run"||UPD.f.st==="start")return;UPD.f={s
   try{const s=await fullStatus(m).catch(()=>null);if(s&&s.fired&&!s.done&&Date.now()-s.fired<10*6e4){UPD.f={st:"run",at:s.fired};updRender();followFull(m,s.fired);return}
     await m.callTool(FULL_REFRESH.server,FULL_REFRESH.tool,{trigger_id:FULL_REFRESH.trigger,text:"Started from Pivot's Update button."});const at=Date.now();UPD.f={st:"run",at};updRender();followFull(m,at)}
   catch(e){UPD.f={st:"bad",msg:mcpWhy(e)};updRender()}}
-function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st==="run"||f.st==="run"||f.st==="start";b.classList.toggle("spin",busy);b.classList.toggle("ready",f.st==="done");b.setAttribute("aria-expanded",UPD.open);
+function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st==="run"||f.st==="run"||f.st==="start";b.classList.toggle("spin",busy);b.classList.toggle("ready",f.st==="done"||(!!UPD.since&&!UPD.seen));b.setAttribute("aria-expanded",UPD.open);
   if(!UPD.open){p.hidden=true;return}p.hidden=false;p.style.top=Math.round(b.getBoundingClientRect().bottom+8)+"px";
   const built=typeof BUILD!=="undefined"?Date.parse(BUILD.at.replace("Z",":00Z")):0,row=(k,t,d)=>`<div class="ur"><span class="ud ${k}" aria-hidden="true"></span><div><b>${t}</b><div class="mut">${d}</div></div></div>`;
   const qd={idle:"Rosters, IR, lineups and scores, straight from ESPN.",run:"Reading your league from ESPN…",ok:`Updated ${q.at?agoTxt(q.at):""}${q.ch&&!q.ch.length?". Nothing changed since the last check.":"."}`,bad:q.msg||"Couldn't reach ESPN from this page."}[q.st];
-  const fd={idle:"Injuries, stats, schedule and predictions; about 2 minutes, then Pivot republishes.",start:"Starting…",run:`Running, started ${f.at?agoTxt(f.at):"just now"}. Usually about 2 minutes; you can keep using Pivot.`,done:`Finished ${agoTxt(f.at)}. Reload to see the new data.`,bad:f.msg,off:"Not available here: full updates run from the Pivot page on claude.ai."}[f.st];
+  const fd={idle:FETCH_OFF?"Rosters, IR, lineups, scores, injuries and stats from ESPN; about 2 minutes, then Pivot republishes.":"Injuries, stats, schedule and predictions; about 2 minutes, then Pivot republishes.",start:"Starting…",run:`Running, started ${f.at?agoTxt(f.at):"just now"}. Usually about 2 minutes; you can keep using Pivot.`,done:`Finished ${agoTxt(f.at)}. Reload to see the new data.`,bad:f.msg,off:"Not available here: full updates run from the Pivot page on claude.ai."}[f.st];
   p.innerHTML=`<div class="uh"><b>Update from ESPN</b><button class="ux" data-upd="close" aria-label="Close">×</button></div>
-  ${row({idle:"",run:"run",ok:"ok",bad:"bad"}[q.st],"League",esc(qd))}
-  ${q.ch&&q.ch.length?`<ul class="uch">${q.ch.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${q.ch.length>8?`<li class="mut">and ${q.ch.length-8} more</li>`:""}</ul>`:""}
-  ${row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],"Full update",esc(fd))}
-  <div class="uf"><span class="mut">This page's data: built ${built?agoTxt(built):"–"}</span>${f.st==="done"?`<button class="btn" data-upd="reload">Reload</button>`:q.st!=="run"?`<button class="btn" data-upd="again">Check ESPN again</button>`:""}</div>`}
-$("updBtn").addEventListener("click",()=>{if(UPD.open){UPD.open=false;updRender();return}UPD.open=true;if(!(UPD.q.at&&Date.now()-UPD.q.at<3e4))quickSync();if(UPD.f.st==="idle"||UPD.f.st==="bad")fullRun();updRender()});
+  ${UPD.since&&UPD.since.length?`<div class="ur"><span class="ud ok" aria-hidden="true"></span><div><b>Since your last visit</b><ul class="uch">${UPD.since.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${UPD.since.length>8?`<li class="mut">and ${UPD.since.length-8} more</li>`:""}</ul></div></div>`:""}
+  ${FETCH_OFF?"":row({idle:"",run:"run",ok:"ok",bad:"bad"}[q.st],"League",esc(qd))}
+  ${!FETCH_OFF&&q.ch&&q.ch.length?`<ul class="uch">${q.ch.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${q.ch.length>8?`<li class="mut">and ${q.ch.length-8} more</li>`:""}</ul>`:""}
+  ${row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],FETCH_OFF?"Update":"Full update",esc(fd))}
+  <div class="uf"><span class="mut">This page's data: built ${built?agoTxt(built):"–"}</span>${f.st==="done"?`<button class="btn" data-upd="reload">Reload</button>`:!FETCH_OFF&&q.st!=="run"?`<button class="btn" data-upd="again">Check ESPN again</button>`:""}</div>`}
+$("updBtn").addEventListener("click",()=>{if(UPD.open){UPD.open=false;updRender();return}UPD.open=true;UPD.seen=true;if(!FETCH_OFF&&!(UPD.q.at&&Date.now()-UPD.q.at<3e4))quickSync();if(UPD.f.st==="idle"||UPD.f.st==="bad")fullRun();updRender()});
 $("updPop").addEventListener("click",e=>{const a=e.target.closest("[data-upd]");if(!a)return;const k=a.dataset.upd;if(k==="close"){UPD.open=false;updRender();$("updBtn").focus()}else if(k==="reload")location.reload();else if(k==="again")quickSync()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&UPD.open){UPD.open=false;updRender();$("updBtn").focus()}});
 document.addEventListener("click",e=>{if(UPD.open&&!e.target.closest("#updPop,#updBtn")){UPD.open=false;updRender()}});
 // keep the league current without a tap: once on open if the last sync is over 10 minutes old, then every 5 minutes while the page is visible
 {const age=()=>Date.now()-(S.lgLive&&S.lgLive.at?Date.parse(S.lgLive.at):0);if(HAS_LG()&&draftDone()&&age()>10*6e4)setTimeout(()=>quickSync(true),1500);
-  setInterval(()=>{if(HAS_LG()&&draftDone()&&document.visibilityState==="visible"&&age()>5*6e4)quickSync(true)},6e4)}
+  setInterval(()=>{if(!FETCH_OFF&&HAS_LG()&&draftDone()&&document.visibilityState==="visible"&&age()>5*6e4)quickSync(true)},6e4)}
+// since your last visit: this build's league against the one you last opened (kept with your settings), so a full update still says what changed
+if(HAS_LG()&&draftDone()&&typeof BUILD!=="undefined"){const now={at:BUILD.at,rosters:LEAGUE.rosters,ir:LEAGUE.ir,slots:{[S.slot]:(LEAGUE.slots||{})[S.slot]},rec:LEAGUE.rec},was=S.lgSnap;
+  if(was&&was.at!==BUILD.at){const ch=lgDiff(was,Object.assign({},now,{live:LEAGUE.live}));if(ch.length){UPD.since=ch;$("updBtn").classList.add("ready");setTimeout(()=>toast(`${ch.length} league change${ch.length>1?"s":""} since your last visit. Tap the update button to see them.`),1200)}}
+  if(!was||was.at!==BUILD.at){S.lgSnap=JSON.parse(JSON.stringify(now));save()}}
 // freshness: when the page was built, and any source stuck on an old copy (a failed fetch) or a refresh that never ran
 (()=>{const B=typeof BUILD!=="undefined"?BUILD:null,el=$("asof");if(!B){el.textContent=`ESPN 2026-27 · data as of ${new Date(FETCHED+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`;return}
   const t=s=>new Date(s.replace("Z",":00Z")),fmt=d=>d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}),at=t(B.at),age=(Date.now()-at)/36e5;
