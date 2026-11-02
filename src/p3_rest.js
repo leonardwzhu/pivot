@@ -414,6 +414,15 @@ function avoidList(a){const at=a.nx||a.cur,mr=p=>S.scoring==="pts"?p.modelRank:p
     if(p.poGames<=po-2)R.push([(po-p.poGames)*2,`Weak playoff schedule: only ${p.poGames} games in weeks ${PO_W.length?PO_W[0].i+"–"+PO_W[PO_W.length-1].i:""} (${PO_RANGE}), against ${f1(po)} for a typical player. Those weeks decide the title.`]);
     if(p.projGP<50&&miss<10)R.push([(50-p.projGP)/3,`Durability: projects for only ~${Math.round(p.projGP)} games, from his recent history of missed time. Fewer games means fewer points, whatever his per-game average.`]);
     return R.length?{p,price,s:R.reduce((t,r)=>t+r[0],0),why:R.sort((x,y)=>y[0]-x[0]).map(r=>r[1]).join(" ")}:null}).filter(Boolean).sort((x,y)=>y.s-x.s).slice(0,3)}
+// the numbers behind a suggestion, drawn: projection bar with this season's pace as a tick, three tiles, and the chance he lasts
+// to your next pick as a meter (all already computed, so a pick stays instant)
+const SUG_MAX=()=>SUG_MAX.v||(SUG_MAX.v=Math.max(...players.map(p=>p.proj.fp))*1.08);
+function sugStats(p,a){const mr=S.scoring==="pts"?p.modelRank:p.catRank,po=PO_AVG(),nx=a.onClock?a.fol:a.nx,M=SUG_MAX(),w=v=>Math.max(0,Math.min(100,v/M*100)).toFixed(1);
+  const now=p.nowFp,d=now!=null?now-p.proj.fp:0,tile=(k,v,sub,c="")=>`<div class="st"><i>${k}</i><b class="${c}">${v}</b><small>${sub}</small></div>`,av=nx?availAt(p,nx):null;
+  return `<div class="sstats"><div class="sbar" title="Projected ${f1(p.proj.fp)} FP/G${now!=null?`; ${f1(now)} so far in ${p.now.gp} games`:""}"><div class="sbar-t"><span class="sbar-f" style="width:${w(p.proj.fp)}%"></span>${now!=null?`<span class="sbar-now" style="left:${w(now)}%"></span>`:""}</div>
+    <div class="sbar-l"><span><b>${f1(p.proj.fp)}</b> FP/G projected</span>${now!=null?`<span class="now">${f1(now)} so far · ${p.now.gp} GP <em class="${d>=3?"zpos":d<=-3?"zneg":""}">${d>=0?"+":""}${f1(d)}</em></span>`:`<span class="mut">no games yet</span>`}</div></div>
+    <div class="stiles">${tile("Games",`~${Math.round(p.projGP)}`,`${f0(p.projTot)} pts`,p.projGP<55?"zneg":"")}${tile("Playoff G",p.poGames,`typical ${f1(po)}`,p.poGames>=po+1?"zpos":p.poGames<=po-1?"zneg":"")}${tile("ADP / model",`${p.adp?f1(p.adp):"–"} / #${mr}`,p.adp?(p.adp-mr>=8?"model likes more":mr-p.adp>=8?"drafters like more":"in line"):"not ranked",p.adp&&p.adp-mr>=8?"zpos":p.adp&&mr-p.adp>=8?"zneg":"")}</div>
+    ${av!=null?`<div class="smeter"><span>Lasts to #${nx}</span><div class="smeter-t"><span class="${av<.25?"lo":av>=.65?"hi":"mid"}" style="width:${(av*100).toFixed(0)}%"></span></div><b>${pc(av)}</b></div>`:""}</div>`}
 function renderAdvisor(){
   const a=advisor(),card=$("advCard");if(!a){$("adv").innerHTML='<p class="empty">Everyone has been drafted.</p>';return}
   card.classList.toggle("live",a.onClock);
@@ -428,7 +437,7 @@ function renderAdvisor(){
   setTimeout(hookIns,0);
   $("adv").innerHTML=hl+strip+cLine+a.out.map(s=>`<div class="sug"><div class="lab${s.key==="best"?" top":""}">${s.lab}</div>
     <div class="who"><button class="expander${s.key==="best"?" call":""}" data-open="${s.p.id}">${esc(s.p.name)}</button><div class="meta">${s.p.team} · <span class="big">${s.stat}</span> · <b class="slot-tag">${s.slot}</b></div></div>
-    <button class="btn mine" data-mine="${s.p.id}">Draft</button><div class="why">${esc(s.why)}</div></div>`).join("")
+    <button class="btn mine" data-mine="${s.p.id}">Draft</button>${sugStats(s.p,a)}<div class="why">${esc(s.why)}</div></div>`).join("")
    +(a.tierMsg?`<p class="empty" style="margin-top:6px;color:var(--warn)">${a.tierMsg}</p>`:"")
    +(()=>{const A=avoidList(a);return A.length?`<details class="avoid" open><summary>Who to avoid at #${a.nx||a.cur}</summary><p class="empty" style="margin:4px 0 2px">Players drafters usually take around this pick, with a clear reason to pass. Worst first.</p>${A.map(x=>`<div class="avd"><div>${pBtn(x.p)} <span class="mut">${x.p.team} · ${x.p.pos.join("/")} · ADP ${f1(x.price)}</span></div><div class="why">${esc(x.why)}</div></div>`).join("")}</details>`:""})()
    +cmpTable(a.out);
