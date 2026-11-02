@@ -685,13 +685,15 @@ function weekProj(ros,w){let pts=0,games=0;const per=weekDays(w).map(q=>{const L
 // centered on 1: the shape of the swing, not last season's slight under-prediction, belongs in the simulation
 const RQS=(MATCHUP.BQ||[[0,999,0,0,MATCHUP.RQ]]).map(b=>({lo:b[0],hi:b[1],q:b[4].map(x=>x/mean(b[4]))})),
   swing=(rnd,fp)=>{const Q=(RQS.find(b=>b.lo<=fp&&fp<b.hi)||RQS[RQS.length-1]).q,u=rnd()*(Q.length-1),i=Math.floor(u);return Q[i]+(Q[Math.min(i+1,Q.length-1)]-Q[i])*(u-i)};
-function matchupSim(A,B,w,N=600){let seed=(w*7919+A.length*31+B.length)>>>0;const rnd=()=>{seed=seed+0x6D2B79F5|0;let x=Math.imul(seed^seed>>>15,1|seed);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296};
-  const days=weekDays(w);
+// days and bank override the simulated days and the points already in (by default: the days left, and what you and your
+// opponent have scored this week before today)
+function matchupSim(A,B,w,N=600,o={}){let seed=(w*7919+A.length*31+B.length)>>>0;const rnd=()=>{seed=seed+0x6D2B79F5|0;let x=Math.imul(seed^seed>>>15,1|seed);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296};
+  const days=o.days||weekDays(w),bk=o.bank||(w===CUR_WEEK?weekBank(w):[0,0]);
   const side=ros=>{const ps=[...ros].sort((a,b)=>gameVal(b)-gameVal(a));let tot=0;for(const q of days){const slot=new Array(LINEUP.length).fill(-1);
       const aug=(i,seen)=>{for(let k=0;k<LINEUP.length;k++){if(seen[k]||!elig(ps[i],k))continue;seen[k]=1;if(slot[k]<0||aug(slot[k],seen)){slot[k]=i;return true}}return false};
-      for(let i=0;i<ps.length;i++){if(!ps[i].daySet.has(q)||rnd()>=ps[i].rate)continue;aug(i,new Uint8Array(LINEUP.length))}
+      for(let i=0;i<ps.length;i++){if(!(q<CUR_PERIOD?allDays(ps[i]):ps[i].daySet).has(q)||rnd()>=ps[i].rate)continue;aug(i,new Uint8Array(LINEUP.length))}
       for(let k=0;k<LINEUP.length;k++)if(slot[k]>=0){const p=ps[slot[k]];tot+=p.proj.fp*swing(rnd,p.proj.fp)}}return tot};
-  let win=0;const a=[],b=[];for(let i=0;i<N;i++){const x=side(A),y=side(B);a.push(x);b.push(y);if(x>y)win++}
+  let win=0;const a=[],b=[];for(let i=0;i<N;i++){const x=side(A)+bk[0],y=side(B)+bk[1];a.push(x);b.push(y);if(x>y)win++}
   return {p:win/N,a:mean(a),b:mean(b),aq:[quant(a,.1),quant(a,.9)],bq:[quant(b,.1),quant(b,.9)]}}
 function seasonGate(view){const has=myRoster().length;if(has)return "";
   return `<div class="chart-card" style="max-width:720px"><h4>Set up your season</h4><p style="font-size:13px;color:var(--ink)">The Matchup, Waivers and Trades tabs work from your league's rosters. ${S.picks.length&&!MOCK()?`You have ${S.picks.length} draft picks entered. Use them to fill every team's roster, then record adds, drops and trades in the Rosters tab.`:"Enter your draft on the Big Board (Draft for your picks, Taken for everyone else's, in order), or add players to your roster in the Rosters tab."}</p>
@@ -701,13 +703,14 @@ function renderSeason(view){const v=$("view-"+view);if(!v)return;
   if(view==="rosters"){v.innerHTML=rostersView();hookSeason();return}
   const g=seasonGate(view);if(g){v.innerHTML=(view==="waivers"?falloutCard():"")+g;hookSeason();return}  // injury fallout needs no roster
   v.innerHTML=view==="season"?seasonView():view==="waivers"?waiversView():tradesView();hookSeason();if(view==="trades")tfRender()}
-function weekSelect(id,sel){return `<select id="${id}">${WEEKS.map((w,i)=>i<CUR_WEEK?"":`<option value="${i}" ${i===sel?"selected":""}>Week ${w.i}${w.po?" (playoffs)":""} · ${new Date(w.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(w.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</option>`).join("")}</select>`}
-function seasonView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),opp=leagueOpp(w),O=opp?rosterOf(opp):[],P=weekProj(my,w),days=weekDays(w);
+function weekSelect(id,sel){return `<select id="${id}">${WEEKS.map((w,i)=>i<CUR_WEEK&&!hasRecap(i)?"":`<option value="${i}" ${i===sel?"selected":""}>Week ${w.i}${i<CUR_WEEK?" recap":w.po?" (playoffs)":""} · ${new Date(w.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(w.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</option>`).join("")}</select>`}
+function seasonView(){if(RECAP_W!=null&&hasRecap(RECAP_W))return recapView(RECAP_W);RECAP_W=null;const w=Math.max(CUR_WEEK,S.seasonWeek??CUR_WEEK),my=myRoster(),opp=leagueOpp(w),O=opp?rosterOf(opp):[],P=weekProj(my,w),days=weekDays(w);
   let h=`<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Your week${opp?` · vs ${esc(teamName(opp))}`:""}</h4><div class="row-btns">${weekSelect("seasonWeek",w)}</div></div>${opp?"":`<p class="empty" style="margin-top:8px" data-keep>${WEEKS[w].po?"Playoff opponents are set by seeding once the regular season ends.":"No opponent on your league schedule this week."} The Scout tab sizes up any team.</p>`}`;
-  if(O.length){const M=matchupSim(my,O,w);h+=`<div class="vs" style="margin-top:12px"><div><div class="k mut">You</div><div class="big">${f0(M.a)}</div><div class="mut" style="font-size:12px">80%: ${f0(M.aq[0])}–${f0(M.aq[1])} · ${P.games} starts</div></div>
+  if(w===CUR_WEEK&&hasRecap(w-1)){const X=recapOf(w-1);if(X)h+=`<p class="empty" style="margin:8px 0 0">Last week: ${X.me>X.them?"you beat":X.me<X.them?"you lost to":"you tied"} ${esc(teamName(X.o))} ${f0(X.me)}–${f0(X.them)}. <button class="expander" style="color:var(--mine);font-weight:600" onclick="RECAP_W=${w-1};renderSeason('season')">Recap →</button></p>`}
+  if(O.length){const M=matchupSim(my,O,w),WPw=w===CUR_WEEK?winPath(w,S.slot,opp):null;h+=`<div class="vs" style="margin-top:12px"><div><div class="k mut">You</div><div class="big">${f0(M.a)}</div><div class="mut" style="font-size:12px">80%: ${f0(M.aq[0])}–${f0(M.aq[1])} · ${P.games} starts</div></div>
       <div><div class="big" style="color:${M.p>=.5?"var(--ok)":"var(--bad)"}">${pc(M.p)}</div><div class="mut" style="font-size:12px">chance you win</div></div>
       <div><div class="k mut">${esc(teamName(opp))}</div><div class="big">${f0(M.b)}</div><div class="mut" style="font-size:12px">80%: ${f0(M.bq[0])}–${f0(M.bq[1])} · ${weekProj(O,w).games} starts</div></div></div>
-      ${probBar(M.p,"You",teamShort(opp))}${(()=>{const Q=weekProj(O,w),mx=Math.max(1,...P.per.map(d=>d.v),...Q.per.map(d=>d.v));
+      ${probBar(M.p,"You",teamShort(opp))}${WPw&&WPw.n?`<h5 style="margin:14px 0 2px">Win chance after each day</h5>${winChart(WPw,S.slot,opp)}<p class="empty" style="margin-top:4px">${WPw.n} day${WPw.n>1?"s":""} played: ${f0(WPw.pts[WPw.n].a)}–${f0(WPw.pts[WPw.n].b)}. Played days use ESPN's real scores and the rest of the week is simulated, so the line ends at today's chance.</p>${dayTable(WPw,S.slot,opp)}`:""}${(()=>{const Q=weekProj(O,w),mx=Math.max(1,...P.per.map(d=>d.v),...Q.per.map(d=>d.v));
         return `<div class="dcols" role="img" aria-label="Projected starter points by day, you and ${esc(teamName(opp))}">${P.per.map((d,i)=>{const o=Q.per[i]?Q.per[i].v:0;return `<div class="dcol" data-tip="${esc(`${dayLabel(d.q)}: you ${f0(d.v)}, ${teamName(opp)} ${f0(o)}`)}"><div class="dcol-b"><span class="me" style="height:${pctOf(d.v,mx)}%"></span><span class="opp" style="height:${pctOf(o,mx)}%"></span></div><div class="dcol-l">${dayLabel(d.q).split(",")[0]}</div></div>`}).join("")}</div>
         <div class="lab-key"><span><i class="dot" style="background:var(--mine)"></i>You</span><span><i class="dot" style="background:var(--accent);opacity:.55"></i>${esc(teamName(opp))}</span><span>· projected starter points each day</span></div>`})()}
       <p class="empty" style="margin-top:8px">${days.length} day${days.length===1?"":"s"} left in this matchup (from ${dayLabel(days[0])}). Your opponent comes from your league's ESPN schedule; the Scout tab sizes up any other team.</p>`}
@@ -722,6 +725,75 @@ function seasonView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),opp=leagueOpp
   const st=Object.keys(leagueRosters()).map(Number).map(t=>{const R=rosterOf(t),H=R.length?h2hValue(R):{reg:0,po:0};const wks=Math.max(1,WEEKS.filter(x=>!x.po&&x.p[1]>=CUR_PERIOD).length);return {t,wk:H.reg/wks,pwk:H.po/PO_NW,n:R.length}}).sort((a,b)=>b.wk-a.wk);
   h+=`<div class="chart-card"><h4>Rest-of-season power rankings</h4><div class="tablebox"><table><thead><tr><th class="l">Team</th><th>Players</th><th>Starter pts/week</th><th>Playoff weeks</th></tr></thead><tbody>${st.map((x,i)=>`<tr ${x.t===S.slot?'style="background:var(--mine-soft);font-weight:600"':""}><td class="l">${i+1}. ${x.t===S.slot?"You":esc(teamName(x.t))}</td><td class="num">${x.n}</td><td class="num bcell">${f0(x.wk)}${ibar(x.wk,st[0].wk*1.02,{c:x.t===S.slot?"me":"",tip:`${x.t===S.slot?"You":teamName(x.t)}: ${f0(x.wk)} starter points a week`})}</td><td class="num bcell">${f0(x.pwk)}${ibar(x.pwk,Math.max(...st.map(y=>y.pwk))*1.02,{c:x.t===S.slot?"me":"",tip:`playoff weeks: ${f0(x.pwk)} a week`})}</td></tr>`).join("")}</tbody></table></div><p>From each roster's projected starter points per week for the rest of the season, using the same daily-lineup simulation as the draft tools.</p></div>`;
   return h}
+// ---- The week so far and the weekly recap. Points already scored come from ESPN: this matchup's points by day (kept live by the
+// league sync) or the saved daily lineups (tools/build_days.py, the last three weeks), so the win chance counts them, the chart can
+// replay the week day by day, and a finished week gets a recap: best games, points left on the bench, the rest of the league
+const LGD=()=>HAS_LG()&&LEAGUE.days||{},ESPN_K=LINEUP.map(([l])=>({PG:0,SG:1,SF:2,PF:3,C:4,G:5,F:6,UTIL:11})[l]);
+const dPl=id=>BY_ESPN.has(id)?players[BY_ESPN.get(id)]:{name:((HAS_LG()&&LEAGUE.dayP||{})[id]||["A player"])[0]};
+// a team's starter points on day q: ESPN's live figure for this matchup, else the saved lineup (bench and IR don't count)
+function dayPts(q,t){if(!HAS_LG())return null;const lv=LEAGUE.dayPts&&LEAGUE.dayPts[t];if(lv&&lv[q]!=null)return lv[q];
+  const R=(LGD()[q]||{})[t];return R?R.reduce((s,r)=>s+(r[1]===12||r[1]===13?0:r[2]),0):null}
+// a player's team's games on every day of the season (daySet holds only games still to come), for replaying days already played
+function allDays(p){return p._all||(p._all=new Set(SCHED[p.team]||[]))}
+const weekDaysAll=w=>{const out=[];for(let q=WEEKS[w].p[0];q<=WEEKS[w].p[1];q++)out.push(q);return out};
+// what you and your opponent have already scored this week, before today
+function weekBank(w){const o=leagueOpp(w);if(!o)return [0,0];let a=0,b=0;for(const q of weekDaysAll(w)){if(q>=CUR_PERIOD)break;a+=dayPts(q,S.slot)||0;b+=dayPts(q,o)||0}return [a,b]}
+// win chance after each day: real scores for the days played, the rest simulated with today's rosters and projections
+const WP=new Map();
+function winPath(w,ta,tb){const A=rosterOf(ta),B=rosterOf(tb);if(!A.length||!B.length)return null;const all=weekDaysAll(w);
+  let n=0;while(n<all.length&&all[n]<CUR_PERIOD&&dayPts(all[n],ta)!=null&&dayPts(all[n],tb)!=null)n++;
+  const k=[teamKey(),w,ta,tb,all.slice(0,n).map(q=>dayPts(q,ta)+"/"+dayPts(q,tb))].join("|");if(WP.has(k))return WP.get(k);
+  let a=0,b=0;const pts=[];for(let i=0;i<=n;i++){if(i){a+=dayPts(all[i-1],ta);b+=dayPts(all[i-1],tb)}
+    const p=i===all.length?(a>b?1:a<b?0:.5):matchupSim(A,B,w,600,{days:all.slice(i),bank:[a,b]}).p;pts.push({i,q:i?all[i-1]:null,p,a,b,da:i?dayPts(all[i-1],ta):0,db:i?dayPts(all[i-1],tb):0})}
+  const r={pts,days:all,n,done:n===all.length};WP.set(k,r);return r}
+// the best lineup a team could have set on day q from the players who scored, against the one it did set
+function benchDay(q,t){const R=(LGD()[q]||{})[t];if(!R)return null;const act=R.filter(r=>r[1]!==13&&r[2]>0).sort((x,y)=>y[2]-x[2]),el=r=>((LEAGUE.dayP||{})[r[0]]||[0,[]])[1]||[];
+  const slot=new Array(LINEUP.length).fill(-1),aug=(i,seen)=>{for(let k=0;k<LINEUP.length;k++){if(seen[k]||!el(act[i]).includes(ESPN_K[k]))continue;seen[k]=1;if(slot[k]<0||aug(slot[k],seen)){slot[k]=i;return true}}return false};
+  act.forEach((r,i)=>aug(i,new Uint8Array(LINEUP.length)));const best=slot.reduce((s,i)=>s+(i>=0?act[i][2]:0),0),got=dayPts(q,t)||0;
+  return {lost:Math.max(0,best-got),missed:act.filter((r,i)=>r[1]===12&&slot.includes(i))}}
+const lgRow=(w,t)=>(HAS_LG()&&LEAGUE.results||[]).find(r=>r[0]===WEEKS[w].i&&(r[1]===t||r[3]===t));
+function recapOf(w){if(w<0||!HAS_LG())return null;const t=S.slot,o=leagueOpp(w);if(!o)return null;const P=winPath(w,t,o);if(!P||!P.done)return null;
+  const days=P.days,end=P.pts[P.pts.length-1],r=lgRow(w,t),me=r?(r[1]===t?r[2]:r[4]):end.a,them=r?(r[1]===t?r[4]:r[2]):end.b;
+  const best=g=>Math.max(...g.map(x=>x[2]),-Infinity);
+  const games=days.flatMap(q=>((LGD()[q]||{})[t]||[]).filter(x=>x[1]!==12&&x[1]!==13).map(x=>({q,id:x[0],v:x[2]}))).sort((a,b)=>b.v-a.v).slice(0,3);
+  const bench=days.map(q=>({q,...benchDay(q,t)})).filter(x=>x.lost!=null),lost=bench.reduce((s,x)=>s+x.lost,0),miss=bench.flatMap(x=>x.missed.map(m=>({q:x.q,id:m[0],v:m[2]}))).sort((a,b)=>b.v-a.v)[0];
+  // the day that moved your chance the most, and who did it: your top starter if it rose, theirs if it fell
+  const sw=P.pts.slice(1).map((x,j)=>({...x,d:x.p-P.pts[j].p})).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d))[0],who=sw&&(((LGD()[sw.q]||{})[sw.d>=0?t:o])||[]).filter(x=>x[1]!==12&&x[1]!==13).sort((a,b)=>b[2]-a[2])[0];
+  const lg=(LEAGUE.results||[]).filter(x=>x[0]===WEEKS[w].i).map(x=>({h:x[1],hp:x[2],a:x[3],ap:x[4],m:Math.abs(x[2]-x[4]),win:x[2]>x[4]?x[1]:x[4]>x[2]?x[3]:null}));
+  const hi=lg.flatMap(x=>[[x.h,x.hp],[x.a,x.ap]]).sort((a,b)=>b[1]-a[1])[0],close=[...lg].sort((a,b)=>a.m-b.m)[0],blow=[...lg].sort((a,b)=>b.m-a.m)[0];
+  const ups=lg.map(x=>{if(!x.win)return null;const Q=winPath(w,x.h,x.a);if(!Q)return null;const p0=Q.pts[0].p;return {...x,pw:x.win===x.h?p0:1-p0}}).filter(Boolean).sort((a,b)=>a.pw-b.pw)[0];
+  return {w,o,me,them,P,games,lost,miss,sw,who,hi,close,blow,ups:ups&&ups.pw<.4?ups:null,n:lg.length}}
+const hasRecap=w=>w>=0&&w<CUR_WEEK&&!!leagueOpp(w)&&weekDaysAll(w).every(q=>dayPts(q,S.slot)!=null&&dayPts(q,leagueOpp(w))!=null);
+const nmT=t=>t===S.slot?"You":esc(teamName(t)),dShort=q=>dayDate(q).toLocaleDateString(undefined,{weekday:"short"});
+// win chance after each day as a line: 50% is a coin flip, the line's end is where things stand now (100% or 0% once it's over)
+function winChart(P,ta,tb){const W=innerWidth<560?360:600,H=170,L=38,R=12,T=12,B=26,n=P.days.length,x=i=>L+(W-L-R)*i/n,y=p=>T+(H-T-B)*(1-p),nm=t=>t===S.slot?"you":teamName(t);
+  const tip=d=>d.i?`${dayLabel(d.q)}: ${nm(ta)} ${f0(d.da)}, ${nm(tb)} ${f0(d.db)}. Total ${f0(d.a)}–${f0(d.b)}. Win chance ${pc(d.p)}`:`Start of the week: ${pc(d.p)} chance to win`;
+  const last=P.pts[P.pts.length-1];
+  return `<svg class="wpc" viewBox="0 0 ${W} ${H}" role="img" aria-label="Win chance after each day: ${P.pts.map(d=>(d.i?dShort(d.q):"start")+" "+pc(d.p)).join(", ")}">
+    ${[0,.5,1].map(p=>`<line x1="${L}" x2="${W-R}" y1="${y(p)}" y2="${y(p)}" class="${p===.5?"mid":"g"}"/><text x="${L-6}" y="${y(p)+4}" text-anchor="end">${p*100}%</text>`).join("")}
+    ${P.days.map((q,i)=>`<text x="${x(i+1)}" y="${H-8}" text-anchor="middle" class="${i<P.n?"":"fut"}">${dShort(q)}</text>`).join("")}<text x="${x(0)}" y="${H-8}" text-anchor="middle">Start</text>
+    <path d="${P.pts.map((d,i)=>`${i?"L":"M"}${x(d.i).toFixed(1)},${y(d.p).toFixed(1)}`).join("")}" class="ln"/>
+    ${P.pts.map(d=>`<circle cx="${x(d.i).toFixed(1)}" cy="${y(d.p).toFixed(1)}" r="${d===last?5:4}" class="pt"/>`).join("")}
+    ${P.pts.map(d=>`<rect x="${(x(d.i)-(W-L-R)/n/2).toFixed(1)}" y="0" width="${((W-L-R)/n).toFixed(1)}" height="${H}" class="hit" data-tip="${esc(tip(d))}"/>`).join("")}</svg>`}
+function dayTable(P,ta,tb){return `<details class="wpd"><summary>Day by day</summary><div class="tablebox"><table><thead><tr><th class="l">Day</th><th>${nmT(ta)}</th><th>${nmT(tb)}</th><th>Win chance after</th></tr></thead><tbody>
+  ${P.pts.slice(1).map(d=>`<tr><td class="l">${dayLabel(d.q)}</td><td class="num">${f0(d.da)}</td><td class="num">${f0(d.db)}</td><td class="num">${pc(d.p)}</td></tr>`).join("")}</tbody></table></div></details>`}
+function swingLine(X){const s=X.sw,w=X.who;if(!s||Math.abs(s.d)<.08)return "";
+  return `Biggest swing: <b>${dayLabel(s.q)}</b>, when your chance went from ${pc(s.p-s.d)} to ${pc(s.p)}${w?`. ${pBtn(dPl(w[0]))} scored ${f0(w[2])}${s.d<0?` for ${esc(teamName(X.o))}`:" for you"} that day`:""}.`}
+function recapView(w){const X=recapOf(w);if(!X)return "";const won=X.me>X.them,tie=X.me===X.them,m=Math.abs(X.me-X.them);
+  const res=tie?"You tied":won?`You beat ${esc(teamName(X.o))}`:`You lost to ${esc(teamName(X.o))}`;
+  return `<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Week ${WEEKS[w].i} recap · vs ${esc(teamName(X.o))}</h4><div class="row-btns">${weekSelect("seasonWeek",w)}</div></div>
+    <div class="vs" style="margin-top:12px"><div><div class="k mut">You</div><div class="big">${f0(X.me)}</div></div><div><div class="big" style="color:var(${tie?"--muted":won?"--ok":"--bad"})">${tie?"Tie":won?"Won":"Lost"}</div><div class="mut" style="font-size:12px">${tie?"dead even":`by ${f0(m)} points`}</div></div><div><div class="k mut">${esc(teamName(X.o))}</div><div class="big">${f0(X.them)}</div></div></div>
+    <h5 style="margin:14px 0 2px">Win chance after each day</h5>${winChart(X.P,S.slot,X.o)}
+    <p class="empty" style="margin-top:4px">${res} ${f0(X.me)}–${f0(X.them)}. Pivot gave you ${pc(X.P.pts[0].p)} going into the week. ${swingLine(X)}</p>${dayTable(X.P,S.slot,X.o)}
+    <div class="rcg"><div><h5>Your best games</h5><ul class="heads">${X.games.map(g=>`<li>${pBtn(dPl(g.id))} <b>${f0(g.v)}</b> <span class="mut">${dayLabel(g.q)}</span></li>`).join("")||'<li class="mut">No games counted.</li>'}</ul></div>
+      <div><h5>Points left on the bench</h5><p style="margin:4px 0 0">${X.lost<1?"None. You started the best lineup you could every day.":`<b>${f0(X.lost)}</b> more points were possible with the best lineup each day${X.miss?`, most from ${pBtn(dPl(X.miss.id))} scoring ${f0(X.miss.v)} on your bench ${dayLabel(X.miss.q)}`:""}.${!won&&!tie&&X.lost>m?" Enough to have won.":""}`}</p></div></div>
+    ${X.n?`<h5 style="margin-top:12px">Around the league</h5><ul class="heads">${X.hi?`<li>Top score: <b>${nmT(X.hi[0])}</b>, ${f0(X.hi[1])}</li>`:""}${X.close?`<li>Closest finish: ${nmT(X.close.h)} ${f0(X.close.hp)}, ${nmT(X.close.a)} ${f0(X.close.ap)}</li>`:""}${X.blow&&X.blow!==X.close?`<li>Biggest blowout: ${nmT(X.blow.h)} ${f0(X.blow.hp)}, ${nmT(X.blow.a)} ${f0(X.blow.ap)}</li>`:""}${X.ups?`<li>Biggest upset: <b>${nmT(X.ups.win)}</b> won with a ${pc(X.ups.pw)} chance going into the week</li>`:""}</ul>`:""}
+    <p class="empty" style="margin-top:8px">Scores and lineups are ESPN's. Win chances replay the week with today's rosters and projections: real points for the days played, the rest simulated. Points left on the bench compare the lineup you set with the best one possible from the players who scored that day.</p></div>`}
+// the short version for Today, the first three days of a new week
+function recapCard(){const w=CUR_WEEK-1,d=CUR_PERIOD-WEEKS[Math.max(0,CUR_WEEK)].p[0];if(d>2||!hasRecap(w))return "";const X=recapOf(w);if(!X)return "";const won=X.me>X.them,tie=X.me===X.them;
+  return `<div class="chart-card"><h4>Last week · ${tie?"a tie":won?"a win":"a loss"}</h4><p style="margin:4px 0 0;font-size:15px">${tie?"You tied":won?"You beat":"You lost to"} ${esc(teamName(X.o))} <b>${f0(X.me)}–${f0(X.them)}</b>.${X.games[0]?` Best game: ${pBtn(dPl(X.games[0].id))} with ${f0(X.games[0].v)}.`:""}${X.lost>=1?` ${f0(X.lost)} points left on the bench.`:""}</p>
+    <p class="empty" style="margin-top:6px"><button class="expander" style="color:var(--mine);font-weight:600" onclick="RECAP_W=${w};$('tab-season').click()">Full recap and the week's win chance →</button></p></div>`}
+let RECAP_W=null;
 // ---- how a free agent fits your roster: added with your least-missed player dropped (if the roster is full), judged with the
 // daily-lineup simulation. Says where he'd start, who he'd replace, how many of his games this week land on days you have open
 // lineup slots, and whether he covers a position where you're thinner than the league. Cached per roster
@@ -879,7 +951,7 @@ function hookSeason(){const on=(id,ev,f)=>{const el=$(id);if(el)el[ev]=f};
   on("seasonFromDraft","onclick",startSeasonFromDraft);on("goRosters","onclick",()=>$("tab-rosters").click());
   on("seasonEmpty","onclick",()=>{const L={};for(let t=1;t<=S.teams;t++)L[t]=[];S.league=L;save();renderSeason("rosters")});
   on("seasonReset","onclick",e=>{if(!resetArmed){resetArmed=true;e.target.textContent="Click again to reset all rosters";setTimeout(()=>{resetArmed=false;if(e.target)e.target.textContent="Reset rosters"},3000);return}S.league=null;save();renderSeason("rosters");toast("Rosters reset")});
-  on("seasonWeek","onchange",e=>{S.seasonWeek=+e.target.value;save();renderSeason(!$("view-waivers").hidden?"waivers":"season")});
+  on("seasonWeek","onchange",e=>{const v=+e.target.value;if(v<CUR_WEEK)RECAP_W=v;else{RECAP_W=null;S.seasonWeek=v;save()}renderSeason(!$("view-waivers").hidden?"waivers":"season")});
   on("wSort","onchange",e=>{S.wSort=e.target.value;save();renderSeason("waivers")});on("wDrop","onchange",e=>{S.wDrop=+e.target.value;save();renderSeason("waivers")});
   on("tTeam","onchange",e=>{S.tTeam=+e.target.value;S.tGet=[];save();renderSeason("trades")});on("tClear","onclick",()=>{S.tGive=[];S.tGet=[];save();renderSeason("trades")});
   on("tDo","onclick",()=>{const L=leagueRosters();if(!S.league)S.league=JSON.parse(JSON.stringify(L));const T=S.tTeam||Object.keys(S.league).map(Number).find(t=>t!==S.slot),g=new Set(S.tGive||[]),r=new Set(S.tGet||[]);
@@ -2133,7 +2205,7 @@ function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PD
       ${top.length&&(RMAX=Math.max(...top.map(x=>x.g.hi))*1.02)?`<div class="chart-card"><h4>Tonight's best bets</h4><div class="tablebox"><table class="today-tbl"><tbody>${top.map((x,i)=>row(x,"#"+(i+1))).join("")}</tbody></table></div><p class="empty">Expected fantasy points tonight from the next-game model, with the range 8 in 10 games land in.</p></div>`:""}${falloutCard()}`}
   const T=tonight(my),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w):null,mv=bestMove(my,w);
   const live=HAS_LG()&&LEAGUE.live?LEAGUE.live.find(r=>r[0]===LEAGUE.curMatchup&&(r[1]===S.slot||r[3]===S.slot)):null,sc=live?(live[1]===S.slot?[live[2],live[4]]:[live[4],live[2]]):null;
-  let h=head;RMAX=Math.max(30,...T.starters.concat(T.bench).map(x=>x.g.hi))*1.02;
+  let h=head+recapCard();RMAX=Math.max(30,...T.starters.concat(T.bench).map(x=>x.g.hi))*1.02;
   const ES=espnTonight(my,T,row);if(ES)h+=ES;else h+=`<div class="chart-card"><h4>Tonight's lineup</h4>${T.starters.length?`<div class="tablebox"><table class="today-tbl"><tbody>${T.starters.map(x=>row(x,LINEUP[x.k][0])).join("")}${T.bench.map(x=>row(x,"Bench",x.close?` <span class="chip dtd" title="Within 3 FP of ${esc(x.close.p.name)}, who starts at ${LINEUP[x.close.k][0]}">close call vs ${esc(x.close.p.name.split(" ").pop())}</span>`:"")).join("")}</tbody></table></div>`:'<p class="empty">None of your players has a game tonight.</p>'}
     <p class="empty" style="margin-top:6px">${T.open?`${T.open} open slot${T.open>1?"s":""} tonight: a free agent with a game could fill ${T.open>1?"them":"it"}. `:""}${T.out.length?`Out tonight: ${T.out.map(x=>esc(x.p.name)).join(", ")}. `:""}${T.idle.length?`No game: ${T.idle.length} player${T.idle.length>1?"s":""}. `:""}Starters are the best valid lineup by tonight's expected points.</p></div>`;
   h+=irCard(my,1);
@@ -2490,16 +2562,17 @@ if(MOCK()&&S.mock.styles)setRoomPicks();
 // refresh on demand through the Claude Code Remote connector, which refetches injuries, stats and the schedule and republishes
 // today's scoring period in US Eastern time (PERIOD0 is day 0): ESPN keeps a lineup per day and otherwise returns yesterday's
 const ESPN_TODAY=()=>{const d=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));return Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.parse(PERIOD0+"T00:00:00Z"))/864e5)};
-const ESPN_LG=id=>`https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/2027/segments/0/leagues/${id}?view=mSettings&view=mTeam&view=mRoster&view=mMatchup&view=mDraftDetail&scoringPeriodId=${ESPN_TODAY()}`;
+const ESPN_LG=id=>`https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/2027/segments/0/leagues/${id}?view=mSettings&view=mTeam&view=mRoster&view=mMatchup&view=mMatchupScore&view=mDraftDetail&scoringPeriodId=${ESPN_TODAY()}`;
 const FULL_REFRESH={server:"Claude Code Remote",tool:"fire_trigger",trigger:"trig_01V934DfCrKgydEc5Xp8FrXD"};
 function leagueFromEspn(d){const slot=Object.fromEntries(d.settings.draftSettings.pickOrder.map((t,i)=>[t,i+1])),ros={},ir={},rec={},results=[],curMP=(d.status||{}).currentMatchupPeriod;let live=null;
   const slots={};d.teams.forEach(t=>{const s=slot[t.id];if(!s)return;const E=(t.roster&&t.roster.entries)||[];ros[s]=E.map(e=>e.playerId);slots[s]=Object.fromEntries(E.map(e=>[e.playerId,e.lineupSlotId]));const r=E.filter(e=>e.lineupSlotId===13).map(e=>e.playerId);if(r.length)ir[s]=r;
     const o=(t.record||{}).overall||{};rec[s]=[o.wins||0,o.losses||0,o.ties||0,+(o.pointsFor||0).toFixed(1),+(o.pointsAgainst||0).toFixed(1)]});
   (d.schedule||[]).forEach(m=>{if(!m.home||!m.away)return;const h=slot[m.home.teamId],a=slot[m.away.teamId];if(!h||!a)return;const row=[m.matchupPeriodId,h,+(m.home.totalPoints||0).toFixed(1),a,+(m.away.totalPoints||0).toFixed(1),m.winner];
     if(["HOME","AWAY","TIE"].includes(m.winner))results.push(row);else if(m.matchupPeriodId===curMP&&(row[2]||row[4]))(live=live||[]).push(row)});
+  const dayPts={};(d.schedule||[]).forEach(m=>{if(m.matchupPeriodId!==curMP)return;[m.home,m.away].forEach(x=>{const s=x&&slot[x.teamId];if(s&&x.pointsByScoringPeriod)dayPts[s]=x.pointsByScoringPeriod})});
   const picks=((d.draftDetail||{}).picks||[]).filter(p=>p.playerId>0).map(p=>[p.overallPickNumber,slot[p.teamId],p.playerId]);
-  return {lg:d.id,at:new Date().toISOString(),rosters:Object.values(ros).some(x=>x.length)?ros:null,slots,ir,rec,results,live,curMatchup:curMP,picks,drafted:!!(d.draftDetail||{}).drafted}}
-function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,rec:x.rec,results:x.results,live:x.live,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
+  return {lg:d.id,at:new Date().toISOString(),rosters:Object.values(ros).some(x=>x.length)?ros:null,slots,ir,rec,results,live,dayPts,curMatchup:curMP,picks,drafted:!!(d.draftDetail||{}).drafted}}
+function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,rec:x.rec,results:x.results,live:x.live,dayPts:x.dayPts||LEAGUE.dayPts,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
   if(x.picks&&x.picks.length){LEAGUE.picks=x.picks;if(!(S.mock&&S.mock.active))S.picks=x.picks.filter(p=>BY_ESPN.has(p[2])).sort((a,b)=>a[0]-b[0]).map(p=>({id:BY_ESPN.get(p[2]),mine:p[1]===S.slot,o:p[0]}))}
   if(x.rosters){LEAGUE.rosters=x.rosters;const L={};for(const t in x.rosters)L[t]=x.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L}return true}
 // the update panel: the quick league sync (seconds, in this page) and the full refresh (about 2 minutes, a scheduled task that

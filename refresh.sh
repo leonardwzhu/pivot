@@ -57,7 +57,11 @@ else use_last p2_espn.js "ESPN"; STATUS+=("ESPN: last good"); fi
 
 if [ "$MODE" != injuries ]; then
 # 4a) Your league: teams, draft order, picks, rosters and matchups (public league, no login)
-c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup&scoringPeriodId=$TODAY_SP" work/league.json)
+c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup&view=mMatchupScore&scoringPeriodId=$TODAY_SP" work/league.json)
+# each finished day's lineups and points, for the weekly recap and the win-chance chart: fetched once a day and saved in last/days.json
+if [ "$c" = 200 ]; then for q in $(python3 -P tools/build_days.py need "$TODAY_SP"); do sleep 2
+  [ "$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mRoster&scoringPeriodId=$q" "work/day_$q.json")" = 200 ] || rm -f "work/day_$q.json"; done
+  python3 -P tools/build_days.py merge || echo "WARN days: not updated"; fi
 if [ "$c" = 200 ] && python3 -P tools/build_league.py "$MY_TEAM"; then cp work/league.json last/league.json; STATUS+=("league: fresh"); else rm -f work/league.json; use_last p2_league.js "league"; STATUS+=("league: last good"); fi
 
 # 4b) ESPN schedule and current scoring period (matchup weeks follow your league's calendar)
@@ -87,7 +91,7 @@ if node tools/smoke_test.js "$(pwd)/build/draft-room.html"; then
   # scores; then rebuild with the new summary
   if [ "$MODE" != injuries ]; then if node tools/log_preds.js "$(pwd)/build/draft-room.html" last/preds_log.json $([ "$MODE" = night ] && echo --score-only) && assemble work && node tools/smoke_test.js "$(pwd)/build/draft-room.html" >/dev/null; then cp work/preds_log.json last/; STATUS+=("scorecard: updated")
   else echo "WARN scorecard: not updated today"; cp last/p2_preds.js work/p2_preds.js; assemble work; STATUS+=("scorecard: last good"); fi; fi
-  cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js work/p2_mates.js work/p2_preds.js work/p2_build.js work/sources.json last/ 2>/dev/null; cp work/contracts.json last/ 2>/dev/null
+  cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js work/p2_mates.js work/p2_preds.js work/p2_build.js work/sources.json last/ 2>/dev/null; cp work/contracts.json work/days.json last/ 2>/dev/null
   echo "BUILD OK: ${STATUS[*]}"
   [ "$MODE" = injuries ] && node tools/digest.js "$(pwd)/build/draft-room.html"
   exit 0

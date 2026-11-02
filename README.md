@@ -35,6 +35,7 @@ Sources:
 | ESPN Fantasy API | your league, public read | teams, picks, rosters, records, matchups |
 | ESPN Fantasy API | every player's last 10 games | one request; `static/games_2026.json` dates last season's games |
 | ESPN Fantasy API | every game of 2024-25 and 2025-26 | fetched once by `tools/build_matchup.py`, which fits the next-game model into `static/p2_matchup.js` and saves teammate splits in `static/mates_2026.json` |
+| ESPN Fantasy API | each finished day of your league: every lineup and each player's points | one request per day, saved in `last/days.json` (the last two days are refetched for stat corrections); `tools/build_days.py` feeds the weekly recap and the win-chance chart |
 | ESPN Fantasy API | every game this season | one request; `tools/build_mates.py` turns it into teammate splits, this season's per-game averages (they replace Basketball Reference's season line once they count more games) and the game log behind the daily ranks |
 | ESPN site API | injuries and news | |
 | FantasyPros | expert consensus ranks | |
@@ -57,6 +58,7 @@ node tests/hub.js                    # Today, player search, Team Analyzer, pred
 node tests/sync.js                   # cross-device sync of your edits, against a stand-in for the artifact store
 node tests/draft.js                  # a full 104-pick draft on desktop and phone, as on draft day (a few minutes)
 node tests/espn_rosters.js           # after the draft, rosters match ESPN exactly and nothing edits them
+node tests/recap.js                  # on a made-up week: the win chance counts points already scored, the day-by-day chart, last week's recap
 ```
 
 ## Publishing
