@@ -14,6 +14,7 @@ The app is one self-contained HTML page (no framework, no build step beyond conc
 | `static/` | Data that doesn't change daily: 2016-17 to 2025-26 seasons, draft history, name value, context |
 | `tools/` | Fetch, parse and build scripts, plus `smoke_test.js` |
 | `last/` | Last good copy of every daily data file (used when a source fails) |
+| `brand/` | The official logo files (mark, wordmark, app icon, favicon) and colors |
 | `tests/` | Browser checks for the league sync, My Team and tab layout |
 | `refresh.sh` | The daily refresh: fetch, build, assemble, smoke test |
 
