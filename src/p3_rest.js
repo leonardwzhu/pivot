@@ -1646,7 +1646,7 @@ function replay(el,cls,text){if(!el)return;if(text!=null){if(el.textContent===te
 const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
 function countUp(root){if(REDUCED)return;root.querySelectorAll(".kpi .v").forEach(v=>{const el=v.querySelector(".call")||v,m=el.textContent.match(/^([^\d-]*)(-?[\d,]*\.?\d+)([^\d]*)$/);if(!m)return;
   const end=parseFloat(m[2].replace(/,/g,"")),dec=(m[2].split(".")[1]||"").length,comma=m[2].includes(","),t0=performance.now(),fmt=v=>comma?Math.round(v).toLocaleString():v.toFixed(dec);
-  const step=t=>{const k=Math.min(1,(t-t0)/650),e=1-Math.pow(1-k,3);el.textContent=m[1]+fmt(end*e)+m[3];if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)})}
+  const step=t=>{const k=Math.max(0,Math.min(1,(t-t0)/650)),e=1-Math.pow(1-k,3);el.textContent=m[1]+fmt(end*e)+m[3];if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)})}
 function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
 document.addEventListener("click",e=>{
   const b=e.target.closest("[data-mine],[data-take],[data-undo],[data-open]");if(!b)return;
@@ -1745,6 +1745,7 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
     ${M?kpT(`Week ${WEEKS[w].i} vs ${esc(teamShort(opp))}`,pc(M.p),`projected ${f0(M.a)}–${f0(M.b)}`):""}
     ${kpT("Playoff-week games",String(my.reduce((s,p)=>s+p.poGames,0)),`your 13 players, ${PO_RANGE} · league avg ${f0(mean(T.filter(t=>t!==S.slot).map(t=>rosterOf(t).reduce((s,p)=>s+p.poGames,0))))}`)}</div>`;
   h+=irCard(my);
+  if(draftDone())h+=`<p class="empty" style="margin:-4px 0 0"><button class="expander" style="color:var(--mine);font-weight:600" onclick="setMode('draft');$('tab-review').click()">Draft review: how your picks are holding up →</button></p>`;
   // ---- season so far (ESPN results)
   if(lg&&(LEAGUE.results||[]).length){const mine=LEAGUE.results.filter(r=>r[1]===S.slot||r[3]===S.slot).sort((a,b)=>a[0]-b[0]);
     h+=`<div class="chart-card"><h4>Season so far</h4><div class="tablebox"><table><thead><tr><th class="l">Week</th><th class="l">Opponent</th><th>You</th><th>Them</th><th class="l">Result</th></tr></thead><tbody>${mine.map(r=>{const home=r[1]===S.slot,me2=home?r[2]:r[4],th=home?r[4]:r[2],o=home?r[3]:r[1],res=r[5]==="TIE"?"T":(r[5]==="HOME")===home?"W":"L";
@@ -1800,8 +1801,74 @@ function howTeamsWork(my){const lg=HAS_LG(),sc=Object.keys(SCORING_LABELS).map(k
   <h3>Weeks, standings and playoffs</h3><p>Each week (Monday to Sunday) you play one team. All your starters' points for the week are added up, and the higher total wins. There are <b>19 regular-season weeks</b> (Nov 2 to Mar 14). ${PO_TEAMS>=S.teams?`<b>Every team makes the playoffs</b>, seeded by head-to-head record, so the regular season only decides who you face first.`:`The <b>top ${PO_TEAMS} records</b> make the playoffs, with seeding by head-to-head record.`} Playoffs are <b>${PO_ROUNDS} round${PO_ROUNDS===1?"":"s"} of ${PO_NW/PO_ROUNDS===1?"one week":(PO_NW/PO_ROUNDS)+" weeks"} each</b>, ${PO_RANGE}, and you have to win every one. That's why the app weights playoff-week games: a player with more games in those ${PO_NW} weeks is worth more to you then.</p>
   <h3>Changing your team</h3><p>Free agents are added through <b>waivers</b>: a dropped player waits on waivers briefly, and claims go by waiver priority. There's no limit on adds. Trades are allowed until <b>${dl}</b>.</p>
   <h3>How this app reads your team</h3><p>Rosters come from ESPN each morning${lg&&LEAGUE.drafted?"":", starting the morning after your draft"} (until then, from the picks you enter on the Big Board). For any roster, the app walks through every remaining day of the NBA schedule. Each day it starts your best available players in valid slots, counts each one's projected FP/G times his chance of playing, and adds it all up into weekly totals. Matchup odds replay a week hundreds of times, drawing each game from how far real games landed from their predictions over the last two seasons: a typical game misses by about half the prediction, and bad nights are more common than huge ones.</p></div>`}
-const TABS=["board","today","team","lab","ana","players","season","waivers","trades","rosters","models","news","insights","mock","how"];
+// ================= DRAFT REVIEW =================
+// Once the league has drafted, Pivot saves the draft-day numbers once (each player's projection, ADP and model rank, the Pick
+// Advisor's choice at each of your picks, every team's projected strength and title odds), keyed by ESPN id so they survive daily
+// data changes. Later in the season the review sets what actually happened against what was known on draft night.
+const snapOf=()=>!HAS_LG()?null:typeof DRAFT_SNAP!=="undefined"&&DRAFT_SNAP&&DRAFT_SNAP.lg===LEAGUE.id?DRAFT_SNAP:S.draftSnap&&S.draftSnap.lg===LEAGUE.id?S.draftSnap:null;
+function draftDone(){return HAS_LG()&&LEAGUE.drafted&&(LEAGUE.picks||[]).length>0&&!MOCK()}
+const gradeOf=z=>z>=1.4?"A+":z>=.9?"A":z>=.5?"A-":z>=.2?"B+":z>=-.15?"B":z>=-.5?"B-":z>=-.9?"C+":z>=-1.3?"C":"C-";
+let SNAP_P=null;
+async function takeDraftSnap(onStep){if(!draftDone()||snapOf())return;
+  const all=S.picks.map(x=>({...x})),T=Array.from({length:S.teams},(_,i)=>i+1),byE=new Map(players.map(p=>[p.espnId,p])),wk=Math.max(1,WEEKS.filter(w=>!w.po).length);
+  const pl={},teams={},adv={};players.forEach(p=>{if(p.rank<=220||LEAGUE.picks.some(x=>x[2]===p.espnId))pl[p.espnId]=[+p.proj.fp.toFixed(1),Math.round(p.projTot),p.adp?+p.adp.toFixed(1):null,S.scoring==="pts"?p.modelRank:p.catRank]});
+  T.forEach(t=>{const R=LEAGUE.picks.filter(x=>x[1]===t).map(x=>byE.get(x[2])).filter(Boolean),H=R.length?h2hValue(R):{reg:0,po:0};teams[t]={wk:Math.round(H.reg/wk),po:Math.round(H.po/PO_NW)}});
+  const od=playoffOdds();if(od)T.forEach(t=>{teams[t].title=+(od.title[t]||0).toFixed(3)});
+  // the advisor at each of your picks; S.picks is put back before every pause, so nothing else ever sees the partial board
+  for(const x of all.filter(x=>x.mine)){let b=null;S.picks=all.filter(y=>y.o<x.o);try{const a=advisor();b=a&&a.out.find(s=>s.key==="best")}catch(e){}S.picks=all;
+    if(b)adv[x.o]=b.p.espnId;if(onStep)onStep();await new Promise(r=>setTimeout(r,0))}
+  S.draftSnap={lg:LEAGUE.id,at:FETCHED,pl,teams,adv};save()}
+function renderReview(){const v=$("view-review");
+  if(!draftDone()){v.innerHTML=`<div class="chart-card"><h4>Draft review</h4><p class="empty" style="margin-top:6px" data-keep>After your league drafts, this page grades every team, goes through your picks against the Pick Advisor, and as the season goes on shows which picks hit and which missed.${MOCK()?" It reviews your real draft only; mock drafts are graded in the Mock Draft tab.":""}</p></div>`;return}
+  if(!snapOf()){v.innerHTML=`<div class="chart-card"><h4>Draft review</h4><p class="empty" id="snapMsg" data-keep>Saving your draft-day numbers…</p></div>`;let n=0;
+    SNAP_P=SNAP_P||takeDraftSnap(()=>{n++;const m=$("snapMsg");if(m)m.textContent=`Replaying your picks through the Pick Advisor… ${n} of 13`}).finally(()=>{SNAP_P=null});SNAP_P.then(()=>{if(snapOf())renderReview()});return}
+  const D=snapOf(),byE=new Map(players.map(p=>[p.espnId,p])),T=Array.from({length:S.teams},(_,i)=>i+1),picks=[...LEAGUE.picks].sort((a,b)=>a[0]-b[0]),nm=t=>t===S.slot?"You":teamName(t);
+  const MIN=10,now=p=>p&&p.now&&p.now.gp>=MIN?p.nowFp:null,gp=p=>p&&p.now?p.now.gp:0,pb=e=>{const p=byE.get(e);return p?pBtn(p):"–"},nameOf=e=>{const p=byE.get(e);return p?p.name:"?"};
+  const wks=T.map(t=>D.teams[t].wk),mu=mean(wks),sd=Math.sqrt(mean(wks.map(x=>(x-mu)**2)))||1,rk=[...T].sort((a,b)=>D.teams[b].wk-D.teams[a].wk);
+  const started=Object.values(LEAGUE.rec||{}).some(r=>r[0]+r[1]+r[2]>0),regLeft=Math.max(1,WEEKS.filter(w=>!w.po&&w.p[1]>=CUR_PERIOD).length);
+  const cur=t=>{const R=rosterOf(t);return R.length?h2hValue(R).reg/regLeft:0};
+  const mine=picks.filter(x=>x[1]===S.slot),myG=gradeOf((D.teams[S.slot].wk-mu)/sd),myRank=rk.indexOf(S.slot)+1;
+  const verdict=(e)=>{const p=byE.get(e),s=D.pl[e],n=now(p);if(!s)return ["","–"];if(n==null)return ["mut",`Too early (${gp(p)} GP)`];const d=n-s[0];return d>=3?["zpos",`Hit · +${f1(d)}`]:d<=-3?["zneg",`Miss · ${f1(d)}`]:["","As expected"]};
+  const reach=(o,s)=>s&&s[2]?(s[2]-o>=12?`<span class="chip dtd" title="Drafters usually took him around #${Math.round(s[2])}">Reach ${Math.round(s[2]-o)}</span>`:o-s[2]>=8?`<span class="chip hot" title="Drafters usually took him around #${Math.round(s[2])}">Steal +${Math.round(o-s[2])}</span>`:""):"";
+  const ready=mine.filter(x=>now(byE.get(x[2]))!=null).length>=7;
+  let h=`<div class="kpis">${kpT("Your draft grade",`<span class="call">${myG}</span>`,`${ordinal(myRank)} of ${S.teams} on draft-day projections`)}
+    ${kpT("Starter points / week",f0(D.teams[S.slot].wk),`on draft day · league average ${f0(mu)}`)}
+    ${D.teams[S.slot].title!=null?kpT("Title odds",pc(D.teams[S.slot].title),`on draft day · even odds ${pc(1/S.teams)}`):""}
+    ${kpT("Followed the advisor",`${mine.filter(x=>D.adv[x[0]]===x[2]).length} of ${mine.length}`,"picks that matched its top suggestion")}</div>`;
+  // ---- your picks
+  h+=`<div class="chart-card"><h4>Your picks</h4><div class="eq">draft-day projection vs this season so far · a verdict once a player has ${MIN}+ games</div><div class="tablebox"><table class="rev"><thead><tr><th>Pick</th><th class="l">Player</th><th>Draft-day FP/G</th><th>So far</th><th class="l">Verdict</th><th class="l">Pick Advisor said</th></tr></thead><tbody>
+    ${mine.map(([o,,e])=>{const p=byE.get(e),s=D.pl[e],a=D.adv[o],[vc,vt]=verdict(e),ap=a&&a!==e?byE.get(a):null,an=now(ap);
+      return `<tr><td class="num">#${o}<br><span class="mut">Rd ${Math.ceil(o/S.teams)}</span></td><td class="l">${pb(e)} ${reach(o,s)}<br><span class="mut">${p?p.pos.join("/"):""}${s&&s[2]?` · ADP ${f1(s[2])}`:""}${s?` · model #${s[3]}`:""}</span></td>
+        <td class="num">${s?f1(s[0]):"–"}</td><td class="num">${p&&p.nowFp!=null?`${f1(p.nowFp)}<br><span class="mut">${gp(p)} GP</span>`:'<span class="mut">–</span>'}</td><td class="l"><span class="${vc}">${vt}</span></td>
+        <td class="l">${!a?'<span class="mut">–</span>':a===e?'<span class="zpos">✓ same pick</span>':`${pb(a)}${an!=null&&now(p)!=null?`<br><span class="${an>now(p)?"zneg":"zpos"}">${f1(an)} so far ${an>now(p)?"(better)":"(worse)"}</span>`:'<br><span class="mut">your gut call</span>'}`}</td></tr>`}).join("")}</tbody></table></div>
+    <p>Draft-day numbers are from ${gDate(D.at)}, ${D.night?"the data you drafted with":"the first time Pivot loaded after your draft"}, and stay fixed while projections move. "Hit" means 3+ fantasy points per game (FP/G) above the draft-day projection, "Miss" 3+ below. Reach and Steal compare the pick with where ESPN drafters usually took him (ADP, average draft position).</p></div>`;
+  // ---- lessons: what the numbers say about how you drafted, written plainly
+  const L=[],gut=mine.filter(x=>D.adv[x[0]]&&D.adv[x[0]]!==x[2]);
+  if(gut.length){const sc=gut.map(x=>{const a=now(byE.get(D.adv[x[0]])),m=now(byE.get(x[2]));return a!=null&&m!=null?m-a:null}).filter(v=>v!=null);
+    L.push(`<b>Gut calls:</b> you went against the advisor on ${gut.length} pick${gut.length>1?"s":""} (${gut.map(x=>`#${x[0]} ${esc(nameOf(x[2]))} over ${esc(nameOf(D.adv[x[0]]))}`).join("; ")}). ${sc.length?`So far your players are ${sc.reduce((a,b)=>a+b,0)>=0?"ahead":"behind"} by ${f1(Math.abs(sc.reduce((a,b)=>a+b,0)))} FP/G combined.`:"Too early to say who was right."}`)}
+  const rch=mine.filter(([o,,e])=>D.pl[e]&&D.pl[e][2]&&D.pl[e][2]-o>=12),rl=r=>r.map(([o,,e])=>`${esc(nameOf(e))} at #${o} (usually #${Math.round(D.pl[e][2])})`).join(", "),rG=rch.filter(([o,,e])=>D.adv[o]!==e),rA=rch.filter(([o,,e])=>D.adv[o]===e);
+  if(rG.length)L.push(`<b>Reaches on your own:</b> ${rl(rG)}. A player drafters take much later will often still be there at your next pick, which frees this pick for someone who won't last.`);
+  if(rA.length)L.push(`<b>Reaches the advisor chose:</b> ${rl(rA)}. These were deliberate: the model rated them well above their draft price for your lineup. The verdicts above will show whether it was right.`);
+  const stl=mine.filter(([o,,e])=>D.pl[e]&&D.pl[e][2]&&o-D.pl[e][2]>=8);if(stl.length)L.push(`<b>Steals:</b> ${stl.map(([o,,e])=>`${esc(nameOf(e))} at #${o} (usually #${Math.round(D.pl[e][2])})`).join(", ")}.`);
+  if(ready){const miss=[];mine.forEach(([o,,e])=>{const m=now(byE.get(e));if(m==null)return;const before=new Set(picks.filter(x=>x[0]<o).map(x=>x[2]));
+      const alt=players.filter(p=>!before.has(p.espnId)&&p.espnId!==e&&now(p)!=null).sort((a,b)=>now(b)-now(a))[0];if(alt&&now(alt)-m>=4)miss.push({o,e,alt,g:now(alt)-m})});
+    if(miss.length)L.push(`<b>In hindsight:</b> ${miss.sort((a,b)=>b.g-a.g).slice(0,4).map(x=>`at #${x.o} ${pBtn(x.alt)} (${f1(now(x.alt))} FP/G so far) was still there instead of ${esc(nameOf(x.e))} (${f1(now(byE.get(x.e)))})`).join("; ")}. Hindsight is easy; what matters is whether the advisor saw it coming.`)}
+  else L.push(`<b>Hits and misses</b> show up once most of your players have ${MIN}+ games, around late November. Come back then.`);
+  h+=`<div class="chart-card"><h4>What to learn</h4><ul class="heads" style="margin-top:8px">${L.map(t=>`<li>${t}</li>`).join("")}</ul></div>`;
+  // ---- league grades, then and now
+  h+=`<div class="chart-card"><h4>League draft grades</h4><div class="eq">draft day vs now</div><div class="tablebox"><table class="rev"><thead><tr><th class="l">Team</th><th>Grade</th><th>Pts / week<br>draft day</th><th>Title odds<br>draft day</th>${started?"<th>Record</th>":""}<th>Pts / week<br>now</th></tr></thead><tbody>
+    ${rk.map(t=>{const d=D.teams[t],r=LEAGUE.rec&&LEAGUE.rec[t];return `<tr${t===S.slot?' style="background:var(--mine-soft);font-weight:600"':""}><td class="l">${esc(nm(t))}</td><td class="num"><b>${gradeOf((d.wk-mu)/sd)}</b></td><td class="num">${f0(d.wk)}</td><td class="num">${d.title!=null?pc(d.title):"–"}</td>${started?`<td class="num">${r?r[0]+"-"+r[1]:"–"}</td>`:""}<td class="num">${f0(cur(t))}</td></tr>`}).join("")}</tbody></table></div>
+    <p>Grades compare each team's projected starter points per week on draft day with the league: about one spread above average is an A, average is a B. "Now" uses today's projections and today's rosters, so it moves with injuries, form and pickups.</p></div>`;
+  // ---- the league's best values and biggest reaches
+  const all=picks.map(([o,t,e])=>({o,t,e,s:D.pl[e]})).filter(x=>x.s&&x.s[2]),st=[...all].sort((a,b)=>(b.o-b.s[2])-(a.o-a.s[2])).slice(0,5),re=[...all].sort((a,b)=>(a.o-a.s[2])-(b.o-b.s[2])).slice(0,5);
+  const li=(x,k)=>`<li>${pb(x.e)} at #${x.o} by <b>${esc(nm(x.t))}</b> <span class="mut">usually #${Math.round(x.s[2])} · ${k>0?"+":""}${Math.round(x.o-x.s[2])}</span></li>`;
+  h+=`<div class="chart-card"><h4>Steals and reaches across the league</h4><div class="sum-grid"><div><h5>Best values</h5><ul class="heads">${st.map(x=>li(x,1)).join("")}</ul></div><div><h5>Biggest reaches</h5><ul class="heads">${re.map(x=>li(x,-1)).join("")}</ul></div></div></div>`;
+  v.innerHTML=h;countUp(v)}
+// save the draft-day numbers soon after the draft even if the page is never opened, so they're from draft day
+setTimeout(()=>{if(draftDone()&&!snapOf())SNAP_P=SNAP_P||takeDraftSnap().finally(()=>{SNAP_P=null})},6000);
+const TABS=["board","today","team","lab","ana","players","season","waivers","trades","rosters","models","news","insights","mock","review","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
+$("tab-review").addEventListener("click",renderReview);
 $("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
 // ---- Today: what to do today, in one screen: tonight's lineup, news that touches your team, your matchup, one move ----
@@ -2039,6 +2106,7 @@ document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest
 // ---- what each tab is for, one line at the top, and the Guide (opened from "?" and once on a first visit)
 const INTRO={board:"Every draftable player, ranked. Press Draft for your picks and Taken for everyone else's; the Pick Advisor on the right recommends your next pick.",
   insights:"What the other teams are likely to take before your next pick, and where the value and risk sit on the board. Enter traded picks here.",mock:"Practice a full draft against computer teams that draft the way real managers do.",
+  review:"How your draft went: grades for every team, your picks against the Pick Advisor, and as the season goes on, which picks hit and which missed.",
   today:"Your daily checklist: who to start tonight, news about your players, how your matchup stands and the one move worth making.",
   team:"How your team stacks up for the rest of the season: standing, playoff odds, strengths and gaps, and moves that would help.",
   players:"Every player, ranked by the fantasy points he's projected to score from here. Switch the columns to see movers, next games, stats and more.",

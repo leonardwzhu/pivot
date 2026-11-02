@@ -68,7 +68,7 @@ if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: f
 else keep_last p2_fp.js p2_sched.js p2_league.js p2_games.js p2_mates.js p2_preds.js; fi
 printf '%s\n' "${STATUS[@]}" | python3 -P tools/build_status.py "$MODE" work
 
-assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
+assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js static/p2_draftsnap.js src/p3_model.js src/p3_rest.js > build/draft-room.html; }
 
 # 6) Assemble and smoke-test; if today's data breaks the page, fall back to the last good data set
 assemble work

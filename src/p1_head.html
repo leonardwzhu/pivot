@@ -301,6 +301,7 @@ details.how>summary::-webkit-details-marker{display:none}details.how>summary::be
 .st b{font-family:var(--display);font-style:italic;font-weight:600;font-size:17px;line-height:1.15;white-space:nowrap;font-variant-numeric:tabular-nums}.st small{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .smeter{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11.5px;color:var(--muted)}.smeter b{color:var(--ink);font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
 .smeter-t{height:6px;background:var(--panel);border-radius:3px;overflow:hidden}.smeter-t span{display:block;height:100%;border-radius:3px}.smeter-t .lo{background:var(--bad)}.smeter-t .mid{background:var(--warn)}.smeter-t .hi{background:var(--ok)}
+.rev td,.rev th{vertical-align:top}.rev td.l{white-space:normal;min-width:120px}
 .avoid{border-top:1px solid var(--line);margin-top:10px;padding-top:8px}.avoid summary{cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--bad)}
 .avd{padding:7px 0;border-top:1px dashed var(--line);font-size:13px}.avoid summary+.avd{border-top:0}.avd .expander{font-weight:600}.avd .why{font-size:12px;color:var(--muted);font-style:italic;margin-top:2px}
 .adv.busy #adv{opacity:.55;transition:opacity .12s}
@@ -463,6 +464,7 @@ details.ngrp>summary h3::before{content:"▸";font-style:normal;font-size:13px;c
       <button role="tab" id="tab-board" data-mode="draft" aria-selected="true">Big Board</button>
       <button role="tab" id="tab-insights" data-mode="draft" aria-selected="false">Insights</button>
       <button role="tab" id="tab-mock" data-mode="draft" aria-selected="false">Mock Draft</button>
+      <button role="tab" id="tab-review" data-mode="draft" aria-selected="false">Draft Review</button>
       <button role="tab" id="tab-today" data-mode="season" aria-selected="false">Today</button>
       <button role="tab" id="tab-team" data-mode="season" aria-selected="false">My Team</button>
       <button role="tab" id="tab-players" data-mode="season" aria-selected="false">Players</button>
@@ -519,6 +521,7 @@ details.ngrp>summary h3::before{content:"▸";font-style:normal;font-size:13px;c
 
     <div id="view-insights" hidden class="models"></div>
     <div id="view-mock" hidden class="models"></div>
+    <div id="view-review" hidden class="models"></div>
     <div id="view-how" hidden class="prose">
       <h3>Where everything comes from</h3>
       <p><b>My Team</b> shows your record and standing (from ESPN), projected points a week, playoff odds from replaying your league's schedule, where your points come from, your lineup and depth by position, and suggestions: IR moves, pickups, streaming, sell-high and buy-low candidates, and 1-for-1 trades that help both sides. It also explains how rosters, lineups, scoring and playoffs work in your league.</p>
