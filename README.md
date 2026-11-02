@@ -42,7 +42,7 @@ Needs `python3` with `beautifulsoup4` and `lxml` (installed automatically if mis
 
 ## League settings
 
-`LEAGUE_ID` and `MY_TEAM` at the top of `refresh.sh` pick the ESPN league (it must be viewable to the public) and your team in it. The matchup calendar follows the league: when a league drafts after opening night, Week 1 starts the Monday after the draft. Once the draft is done, it uses ESPN's own matchup periods.
+`LEAGUE_ID` and `MY_TEAM` at the top of `refresh.sh` pick the ESPN league (it must be viewable to the public) and your team in it. The matchup calendar follows the league: once the draft is done it uses ESPN's own matchup periods, numbered as ESPN numbers them (weeks run Monday to Sunday from opening night, the All-Star weeks are one matchup, and weeks before a late draft are simply past). Before the draft, a league that drafts after opening night is shown starting the Monday after the draft.
 
 ## Tests
 
