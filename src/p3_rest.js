@@ -683,7 +683,7 @@ function startSeasonFromDraft(){const L={};for(let t=1;t<=S.teams;t++)L[t]=[];S.
 function renderSeason(view){const v=$("view-"+view);if(!v)return;
   if(view==="rosters"){v.innerHTML=rostersView();hookSeason();return}
   const g=seasonGate(view);if(g){v.innerHTML=(view==="waivers"?falloutCard():"")+g;hookSeason();return}  // injury fallout needs no roster
-  v.innerHTML=view==="season"?seasonView():view==="waivers"?waiversView():tradesView();hookSeason()}
+  v.innerHTML=view==="season"?seasonView():view==="waivers"?waiversView():tradesView();hookSeason();if(view==="trades")tfRender()}
 function weekSelect(id,sel){return `<select id="${id}">${WEEKS.map((w,i)=>i<CUR_WEEK?"":`<option value="${i}" ${i===sel?"selected":""}>Week ${w.i}${w.po?" (playoffs)":""} · ${new Date(w.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(w.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</option>`).join("")}</select>`}
 function seasonView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),opp=leagueOpp(w),O=opp?rosterOf(opp):[],P=weekProj(my,w),days=weekDays(w);
   let h=`<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Your week${opp?` · vs ${esc(teamName(opp))}`:""}</h4><div class="row-btns">${weekSelect("seasonWeek",w)}</div></div>${opp?"":`<p class="empty" style="margin-top:8px" data-keep>${WEEKS[w].po?"Playoff opponents are set by seeding once the regular season ends.":"No opponent on your league schedule this week."} The Scout tab sizes up any team.</p>`}`;
@@ -720,12 +720,64 @@ function waiversView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),fa=freeAgent
       <td class="num bcell ${r.wk>0?"zpos":"zneg"}">${r.wk>=0?"+":""}${f0(r.wk)}${dbar(r.wk,WMX.wk,`${p.name}: ${r.wk>=0?"+":""}${f0(r.wk)} starter points this week`)}</td><td class="num bcell ${r.ros>0?"zpos":"zneg"}">${r.ros>=0?"+":""}${f1(r.ros)}${dbar(r.ros,WMX.ros,`${p.name}: ${r.ros>=0?"+":""}${f1(r.ros)} a week for the rest of the season`)}</td><td class="num">${p.poGames}</td><td class="num">${moveTag(moveOf(p,7),1)}</td><td class="num mut">${f0(p.own||0)}%</td><td><button class="btn mine" data-add="${p.id}">Add</button></td></tr>`}).join("")}</tbody></table></div>
     <p class="empty" style="margin-top:6px">Free agents are standard-contract players not on any roster in your league. "Rostered" is ESPN's share across all leagues. Add records the move in Rosters${full?` and drops ${esc(drop.name)}`:""}.</p></div>`}
 const weekGames=(p,w)=>weekDays(w).filter(q=>p.daySet.has(q)).length;
+// ---- Trade Finder: deals that make you better and give the other manager a reason to say yes. Every team is scanned for 1-for-1,
+// 2-for-1 and 1-for-2 swaps, each judged for both sides with the daily-lineup simulation. A side left a player short adds the best
+// free agent, a side left one over drops its least valuable player. The scan runs in slices (the page stays responsive) and is cached
+// until rosters or your projection mix change
+const trimTo13=(R,keep)=>R.length>13?R.filter(p=>p!==[...R].filter(q=>!keep.includes(q)).sort((a,b)=>a.projTot-b.projTot)[0]):R;
+const bestFA=()=>freeAgents().filter(p=>!p.out).sort((a,b)=>b.projTot-a.projTot)[0];
+const settle=(R,keep,fa)=>R.length>13?withPickup(trimTo13(R,keep),fa):R.length<13&&fa&&!R.includes(fa)?R.concat(fa):withPickup(R,fa);
+function withPickup(R,fa){if(!fa||R.includes(fa))return R;const w=[...R].sort((a,b)=>a.projTot-b.projTot)[0],A=R.filter(p=>p!==w).concat(fa);return h2hValue(A).total>h2hValue(R).total?A:R}
+let TF={key:"",res:null,run:null};const TF_TYPES=[["any","Any"],["1-1","1-for-1"],["2-1","2-for-1"],["1-2","1-for-2"]];
+async function tradeFinder(onProg){const L=leagueRosters(),teams=Object.keys(L).map(Number).filter(t=>t!==S.slot),my=myRoster(),wk=REMAIN_WEEKS(),fa=bestFA();
+  const val=R=>h2hValue(R).total/wk,mB=val(withPickup(my,fa)),out=[],pairs=R=>R.flatMap((a,i)=>R.slice(i+1).map(b=>[a,b]));let n=0;
+  const fix=(R,keep)=>settle(R,keep,fa);
+  for(const [ti,t] of teams.entries()){const th=rosterOf(t);if(!th.length)continue;const tB=val(withPickup(th,fa)),C=[];
+    for(const a of my)for(const b of th){const r=b.projTot/Math.max(1,a.projTot);if(r>.75&&r<1.4)C.push([[a],[b]])}
+    for(const [a1,a2] of pairs(my))for(const b of th){const s=a1.projTot+a2.projTot;if(b.projTot>Math.max(a1.projTot,a2.projTot)*1.1&&b.projTot<s*.9)C.push([[a1,a2],[b]])}
+    for(const a of my)for(const [b1,b2] of pairs(th)){const s=b1.projTot+b2.projTot;if(a.projTot>Math.max(b1.projTot,b2.projTot)*1.1&&a.projTot<s*.9)C.push([[a],[b1,b2]])}
+    const bal=([g,r])=>{const a=g.reduce((s,p)=>s+p.projTot,0),b=r.reduce((s,p)=>s+p.projTot,0);return Math.abs(b/a-(g.length>r.length?1.4:r.length>g.length?.7:1))};
+    const C2=["1-1","2-1","1-2"].flatMap(k=>C.filter(([g,r])=>`${g.length}-${r.length}`===k).sort((x,y)=>bal(x)-bal(y)).slice(0,k==="1-1"?80:k==="2-1"?70:40));C.length=0;C.push(...C2);
+    for(const [give,get] of C){const M=fix(my.filter(p=>!give.includes(p)).concat(get),get);
+      if(get.every(b=>capOk(M.filter(x=>x!==b),b))){const g=val(M)-mB;if(g>=3){const h=val(fix(th.filter(p=>!get.includes(p)).concat(give),give))-tB;if(h>=-5)out.push({t,give,get,g,h,ty:`${give.length}-${get.length}`})}}
+      if(++n%60===0){onProg&&onProg((ti+C.indexOf(give)/C.length)/teams.length);await new Promise(r=>setTimeout(r,0))}}}
+  // best first: a deal is as good as its weaker side (theirs gets some slack); one deal per player pairing
+  out.sort((x,y)=>Math.min(y.g,y.h+6)-Math.min(x.g,x.h+6));const res=[];
+  const cnt=new Map(),inc=k=>cnt.set(k,(cnt.get(k)||0)+1),c=k=>cnt.get(k)||0;
+  for(const x of out){if(res.some(r=>r.t===x.t&&r.give.some(p=>x.give.includes(p))&&r.get.some(p=>x.get.includes(p))))continue;
+    if(x.get.some(p=>c("g"+p.id)>=2)||x.give.some(p=>c("v"+p.id)>=3)||c("t"+x.t)>=8)continue;x.get.forEach(p=>inc("g"+p.id));x.give.forEach(p=>inc("v"+p.id));inc("t"+x.t);res.push(x);if(res.length>=60)break}
+  return res}
+function tfCards(){if(!TF.res)return "";const fa=bestFA();const tf=S.tfT||0,ty=S.tfTy||"any",n=S.tfN||6;let L=TF.res.filter(x=>(!tf||x.t===tf)&&(ty==="any"||x.ty===ty));
+  if(!tf){const by=new Map();L.forEach(x=>{if(!by.has(x.t))by.set(x.t,[]);by.get(x.t).push(x)});const Q=[...by.values()],R=[];for(let i=0;R.length<L.length;i++)Q.forEach(q=>{if(q[i])R.push(q[i])});L=R}
+  const teams=[...new Set(TF.res.map(x=>x.t))],pl=p=>`<div class="tp">${pBtn(p)}<span class="mut">${p.pos.join("/")} · ${p.team}${p.out?' · <span class="chip out">Out</span>':""}</span><b>${f1(p.proj.fp)}</b></div>`,mx=Math.max(1,...L.slice(0,n).flatMap(x=>[Math.abs(x.g),Math.abs(x.h)]));
+  const bar=(lab,v)=>`<div class="wf-row"><span>${lab}</span><div class="wf-track"><span style="left:${v>=0?50:50-Math.min(1,Math.abs(v)/mx)*50}%;width:${(Math.min(1,Math.abs(v)/mx)*50).toFixed(1)}%;background:var(${v>=0?"--ok":"--bad"})"></span><i class="ref" style="left:50%"></i></div><span class="amt ${v>=0?"zpos":"zneg"}">${v>=0?"+":""}${f0(v)}</span></div>`;
+  const why=x=>{const dep=Q=>rosterOf(x.t).filter(p=>p.pos.includes(Q)).length,thin=["PG","SG","SF","PF","C"].sort((a,b)=>dep(a)-dep(b))[0],fills=x.give.some(p=>p.pos.includes(thin));
+    return x.ty==="2-1"?`You consolidate two players into one better one and fill the open roster spot with ${fa?esc(fa.name):"a free agent"}${fills?`; they get depth at ${thin}, their thinnest position`:""}.`:x.ty==="1-2"?`You turn one player into two starters and drop your least valuable player${fills?`; ${esc(x.give[0].name)} plays ${thin}, their thinnest position`:""}.`:fills?`${esc(x.give[0].name)} plays ${thin}, their thinnest position, which is why it helps them too.`:"Each side gets a better fit for its own lineup and schedule."};
+  const acc=h=>h>=6?'<span class="need-chip ok">They\'d likely say yes</span>':h>=0?'<span class="need-chip">Fair for both</span>':'<span class="need-chip med">A tough sell</span>';
+  return `<div class="ntabs" style="margin-top:10px">${[[0,"All teams"],...teams.map(t=>[t,teamName(t)])].map(([t,l])=>`<button data-tft="${t}" aria-selected="${t===tf}">${esc(l)}</button>`).join("")}</div>
+    <div class="ntabs">${TF_TYPES.map(([k,l])=>`<button data-tfty="${k}" aria-selected="${k===ty}">${l}</button>`).join("")}</div>
+    ${L.length?`<div class="tgrid">${L.slice(0,n).map(x=>`<div class="tcard"><div class="tcard-h"><b>${esc(teamName(x.t))}</b>${acc(x.h)}</div>
+      <div class="tsides"><div><h5>You get</h5>${x.get.map(pl).join("")}</div><div class="tarrow" aria-hidden="true">⇄</div><div><h5>You give</h5>${x.give.map(pl).join("")}</div></div>
+      <div class="wf" style="margin-top:8px">${bar("You",x.g)}${bar(esc(teamShort(x.t)),x.h)}</div><div class="lab-key" style="margin:2px 0 0"><span>starter points a week gained or lost</span></div>
+      <p class="tw">${why(x)}</p><div class="row-btns"><button class="btn primary" data-tfload="${TF.res.indexOf(x)}">Open in the evaluator</button></div></div>`).join("")}</div>
+      ${L.length>n?`<div class="row-btns" style="margin-top:10px"><button class="btn" id="tfMore">Show more (${L.length-n} left)</button></div>`:""}`:`<p class="empty" style="margin-top:8px">No deals here that help you by 3+ starter points a week without costing them too much. Try another team or trade type.</p>`}`}
+function tfRender(){const el=$("tfBox");if(!el)return;const k=teamKey();
+  if(TF.key===k&&TF.res){el.innerHTML=tfCards();return}
+  el.innerHTML=`<p class="empty" style="margin-top:8px">Scanning every team for deals that help both sides…</p><div class="pb" style="margin-top:6px"><span class="pb-a" id="tfProg" style="width:0%"></span><span class="pb-b"></span></div>`;
+  if(TF.run&&TF.key===k){TF.run.then(()=>{const b=$("tfBox");if(b&&TF.res)b.innerHTML=tfCards()});return}TF.key=k;TF.res=null;
+  TF.run=tradeFinder(f=>{const p=$("tfProg");if(p)p.style.width=(f*100).toFixed(0)+"%"}).then(r=>{if(TF.key!==k)return;TF.res=r;TF.run=null;const b=$("tfBox");if(b){b.innerHTML=tfCards()}})}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-tft],[data-tfty],#tfMore,[data-tfload]");if(!b)return;
+  if(b.dataset.tft!=null){S.tfT=+b.dataset.tft;S.tfN=6}else if(b.dataset.tfty){S.tfTy=b.dataset.tfty;S.tfN=6}else if(b.id==="tfMore")S.tfN=(S.tfN||6)+6;
+  else{const x=TF.res&&TF.res[+b.dataset.tfload];if(!x)return;S.tTeam=x.t;S.tGive=x.give.map(p=>p.id);S.tGet=x.get.map(p=>p.id);save();renderSeason("trades");
+    setTimeout(()=>{const h=[...document.querySelectorAll("#view-trades .chart-card h4")].find(h=>h.innerText.startsWith("Trade verdict"));if(h)h.scrollIntoView({behavior:REDUCED?"auto":"smooth",block:"start"})},60);return}
+  save();const el=$("tfBox");if(el)el.innerHTML=tfCards()});
 function tradesView(){const teams=Object.keys(leagueRosters()).map(Number).filter(t=>t!==S.slot),T=S.tTeam&&teams.includes(S.tTeam)?S.tTeam:teams[0],my=myRoster(),their=rosterOf(T),give=new Set(S.tGive||[]),get=new Set(S.tGet||[]);
   const list=(ros,set,attr)=>`<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px">${[...ros].sort((a,b)=>b.projTot-a.projTot).map(p=>`<li><label class="chk" style="color:var(--ink)"><input type="checkbox" data-${attr}="${p.id}" ${set.has(p.id)?"checked":""}> ${esc(p.name)} <span class="mut">${p.pos.join("/")} · ${f1(p.proj.fp)} FP/G · ${Math.round(p.projGP)} g</span></label></li>`).join("")}</ul>`;
-  let h=`<div class="chart-grid"><div class="chart-card"><h4>You give</h4>${list(my,give,"tgive")}</div><div class="chart-card"><h4><select id="tTeam">${teams.map(t=>`<option value="${t}" ${t===T?"selected":""}>${esc(teamName(t))}</option>`).join("")}</select> gives</h4>${list(their,get,"tget")}</div></div>`;
+  let h=`<div class="chart-card"><h4>Trade Finder</h4><div class="eq">deals that make your team better and give the other manager a reason to say yes</div><div id="tfBox"></div></div>
+    <h3 style="margin:18px 0 8px">Build your own</h3><div class="chart-grid"><div class="chart-card"><h4>You give</h4>${list(my,give,"tgive")}</div><div class="chart-card"><h4><select id="tTeam">${teams.map(t=>`<option value="${t}" ${t===T?"selected":""}>${esc(teamName(t))}</option>`).join("")}</select> gives</h4>${list(their,get,"tget")}</div></div>`;
   if(give.size||get.size){const wks=Math.max(1,WEEKS.filter(x=>!x.po&&x.p[1]>=CUR_PERIOD).length);
-    const after=(ros,out,inn)=>ros.filter(p=>!out.has(p.id)).concat(players.filter(p=>inn.has(p.id)));
-    const mB=h2hValue(my),mA=h2hValue(after(my,give,get)),tB=h2hValue(their),tA=h2hValue(after(their,get,give));
+    const fa=bestFA(),after=(ros,out,inn)=>{const got=players.filter(p=>inn.has(p.id));return settle(ros.filter(p=>!out.has(p.id)).concat(got),got,fa)};
+    const mB=h2hValue(withPickup(my,fa)),mA=h2hValue(after(my,give,get)),tB=h2hValue(withPickup(their,fa)),tA=h2hValue(after(their,get,give));
     const d=(A,B)=>({wk:(A.reg-B.reg)/wks,po:(A.po-B.po)/PO_NW});const me=d(mA,mB),them=d(tA,tB);
     const verdict=me.wk>=5&&me.po>=-5?"Good for you":me.wk<=-5?"Bad for you":"Close to even for you";
     h+=`<div class="chart-card"><h4>Trade verdict: ${verdict}</h4><div class="kpis">
@@ -733,12 +785,12 @@ function tradesView(){const teams=Object.keys(leagueRosters()).map(Number).filte
       <div class="kpi"><div class="k">You · playoff weeks</div><div class="v ${me.po>=0?"zpos":"zneg"}">${me.po>=0?"+":""}${f0(me.po)}</div><div class="d">per playoff week</div></div>
       <div class="kpi"><div class="k">${esc(teamName(T))} · per week</div><div class="v ${them.wk>=0?"zpos":"zneg"}">${them.wk>=0?"+":""}${f0(them.wk)}</div><div class="d">what they'd gain or lose</div></div>
       <div class="kpi"><div class="k">${esc(teamName(T))} · playoff weeks</div><div class="v ${them.po>=0?"zpos":"zneg"}">${them.po>=0?"+":""}${f0(them.po)}</div><div class="d">per playoff week</div></div></div>
-      ${(()=>{const aM=after(my,give,get),aT=after(their,get,give),o0=playoffOdds(),o1=playoffOdds({[S.slot]:aM,[T]:aT}),tn=esc(teamName(T)),sB=sourcesOf(my),sA=sourcesOf(aM),dS=SRC.map(([k,l])=>({l,v:sA[k]-sB[k]})),mx=Math.max(1,...dS.map(x=>Math.abs(x.v)));
+      ${(()=>{const aM=after(my,give,get),aT=after(their,get,give),o0=playoffOdds({[S.slot]:withPickup(my,fa),[T]:withPickup(their,fa)}),o1=playoffOdds({[S.slot]:aM,[T]:aT}),tn=esc(teamName(T)),sB=sourcesOf(my),sA=sourcesOf(aM),dS=SRC.map(([k,l])=>({l,v:sA[k]-sB[k]})),mx=Math.max(1,...dS.map(x=>Math.abs(x.v)));
         return `<div class="sm2" style="margin-top:14px">${o0&&o1?`<div><h5>Title odds</h5>${dumbRows([{l:"You",a:o0.title[S.slot]*100,b:o1.title[S.slot]*100,me:1,tip:`You: ${pc(o0.title[S.slot])} now, ${pc(o1.title[S.slot])} after the trade`},{l:tn,a:o0.title[T]*100,b:o1.title[T]*100,tip:`${teamName(T)}: ${pc(o0.title[T])} now, ${pc(o1.title[T])} after`}],{fmt:v=>f0(v)+"%"})}</div>`:""}
           <div><h5>Starter points per week</h5>${dumbRows([{l:"You",a:mB.reg/wks,b:mA.reg/wks,me:1,tip:"You, regular season"},{l:"You · playoffs",a:mB.po/PO_NW,b:mA.po/PO_NW,me:1,tip:"You, per playoff week"},{l:tn,a:tB.reg/wks,b:tA.reg/wks,tip:`${teamName(T)}, regular season`},{l:tn+" · playoffs",a:tB.po/PO_NW,b:tA.po/PO_NW,tip:`${teamName(T)}, per playoff week`}],{zoom:true})}</div></div>
           <h5 class="h5s">Where your points change, per week</h5><div class="wf">${dS.map(x=>`<div class="wf-row" data-tip="${esc(`${x.l}: ${x.v>=0?"+":""}${f1(x.v)} a week`)}"><span>${x.l}</span><div class="wf-track"><span style="left:${x.v>=0?50:50-Math.min(1,Math.abs(x.v)/mx)*50}%;width:${(Math.min(1,Math.abs(x.v)/mx)*50).toFixed(1)}%;background:var(${x.v>=0?"--ok":"--bad"})"></span><i class="ref" style="left:50%"></i></div><span class="amt">${x.v>=0?"+":""}${f0(x.v)}</span></div>`).join("")}</div>
           <div class="lab-key"><span><i class="dot hol"></i>now</span><span><i class="dot" style="background:var(--ball)"></i>after the trade</span></div>`})()}
-      <p>Measured with the daily-lineup simulation, so it accounts for positions, schedules, injuries and who would actually start for each team. Title odds replay the season with both new rosters. ${me.wk>0&&them.wk>0?"Both teams improve, so this one has a real chance of being accepted.":me.wk>0?"They'd lose value, so expect pushback.":"Look for a deal that helps both sides."}</p>
+      <p>Measured with the daily-lineup simulation, so it accounts for positions, schedules, injuries and who would actually start for each team. Each side is compared with its roster after its best free-agent pickup, and a side left a player short fills the spot from free agency, so only what the trade itself adds counts. Title odds replay the season with both new rosters. ${me.wk>0&&them.wk>0?"Both teams improve, so this one has a real chance of being accepted.":me.wk>0?"They'd lose value, so expect pushback.":"Look for a deal that helps both sides."}</p>
       <div class="row-btns"><button class="btn primary" id="tDo">Record this trade</button><button class="btn" id="tClear">Clear</button></div></div>`}
   else h+=`<p class="empty">Tick players on both sides to evaluate a trade.</p>`;
   return h}
@@ -1722,7 +1774,6 @@ const SRC=[["pts","Points",l=>l.pts*SC.pts],["reb","Rebounds",l=>l.reb*SC.reb],[
 function sourcesOf(R){const top=[...R].sort((a,b)=>b.projTot-a.projTot).slice(0,10),out={};SRC.forEach(([k,,f])=>out[k]=top.reduce((s,p)=>s+f(p.proj.line)*p.avail*p.rate/Math.max(1,REMAIN_WEEKS()),0));return out}
 const REMAIN_WEEKS=()=>Math.max(1,WEEKS.filter(x=>x.p[1]>=CUR_PERIOD).length);
 // suggestions, each scored in projected starter points per week (rest of season, playoff weeks weighted as in your mix)
-let TEAM_CACHE={key:"",trades:null};
 function teamKey(){return JSON.stringify([leagueRosters(),S.slot,S.mix,S.adj,SC])}
 function waiverIdeas(my){const base=h2hValue(my).total,wk=REMAIN_WEEKS(),full=my.length>=13,drop=[...my].sort((a,b)=>a.projTot-b.projTot)[0];
   return freeAgents().filter(p=>p.projTot>0&&!my.includes(p)).sort((a,b)=>b.projTot-a.projTot).slice(0,40).map(p=>{const R=full?my.filter(q=>q!==drop).concat(p):my.concat(p);return {p,drop:full?drop:null,g:(h2hValue(R).total-base)/wk}}).filter(x=>x.g>0.5).sort((a,b)=>b.g-a.g).slice(0,3)}
@@ -1789,13 +1840,6 @@ function irCard(my,today){const P=irPlan(my);if(!P||(today&&!P.action))return ""
     ${today?"":`<p class="empty">ESPN's IR slot takes players listed Out and doesn't count toward your 13. IR status comes from ESPN at each refresh, so a move you make there shows here after the next update.</p>`}</div>`}
 function irIdea(my){const lg=HAS_LG()?LEAGUE.irSlots:1;if(!lg)return null;const out=my.filter(p=>p.out&&p.retP-CUR_PERIOD>=7).sort((a,b)=>b.projTot-a.projTot)[0];if(!out)return null;
   const base=h2hValue(my).total,best=freeAgents().sort((a,b)=>b.projTot-a.projTot).slice(0,30).map(p=>({p,g:(h2hValue(my.concat(p)).total-base)/REMAIN_WEEKS()})).sort((a,b)=>b.g-a.g)[0];return best&&best.g>0?{out,...best}:null}
-// 1-for-1 trades where both sides gain projected starter points (a trade the other manager has a reason to accept)
-function tradeIdeas(my){const base=h2hValue(my).total,wk=REMAIN_WEEKS(),L=leagueRosters(),out=[];
-  for(const t of Object.keys(L).map(Number).filter(t=>t!==S.slot)){const their=rosterOf(t);if(!their.length)continue;const tb=h2hValue(their).total;
-    for(const a of my)for(const b of their){if(Math.abs(a.projTot-b.projTot)>.3*Math.max(a.projTot,b.projTot))continue;
-      const M=my.filter(x=>x!==a).concat(b),T2=their.filter(x=>x!==b).concat(a);if(!capOk(M.filter(x=>x!==b),b))continue;
-      const g=(h2hValue(M).total-base)/wk;if(g<3)continue;const h=(h2hValue(T2).total-tb)/wk;if(h>0)out.push({t,give:a,get:b,g,h})}}
-  return out.sort((x,y)=>Math.min(y.g,y.h*1.5)-Math.min(x.g,x.h*1.5)).filter((x,i,a)=>a.findIndex(z=>z.give===x.give||z.get===x.get)===i).filter((x,i,a)=>a.slice(0,i).filter(z=>z.t===x.t).length<2).slice(0,4)}
 function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(LEAGUE.rec||{}).some(r=>r[0]+r[1]+r[2]>0);
   let h="";
   if(!my.length){h+=`<div class="chart-card" style="max-width:760px"><h4>Your team appears here after the draft</h4><p style="font-size:13px;color:var(--ink)">${lg?`${esc(LEAGUE.name)} drafts ${new Date(LEAGUE.draftDate).toLocaleString(undefined,{weekday:"long",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}. The morning after, ESPN's rosters load here automatically. During the draft, picks you enter on the Big Board show up here right away.`:"Enter your draft on the Big Board, or your roster in the Rosters tab."}</p></div>`;return h+howTeamsWork(my)}
@@ -1851,8 +1895,12 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
     <h4 style="margin-top:12px">Trade ideas</h4><div id="tradeIdeas"><p class="empty">Searching every 1-for-1 swap with each team…</p></div>
     <p>Each suggestion is scored by how many projected starter points a week it adds, after daily lineup limits. Trade ideas only list swaps where the other team's projection improves too, so they have a reason to say yes.</p></div>`;
   return h+howTeamsWork(my)}
-function fillTradeIdeas(){const el=$("tradeIdeas");if(!el)return;const k=teamKey();if(TEAM_CACHE.key!==k){TEAM_CACHE={key:k,trades:tradeIdeas(myRoster())}}
-  const X=TEAM_CACHE.trades;el.innerHTML=X.length?`<ul class="heads">${X.map(x=>`<li class="good">Trade ${pBtn(x.give)} to <b>${esc(teamName(x.t))}</b> for ${pBtn(x.get)}: you +${f1(x.g)} a week, them +${f1(x.h)} a week. <span class="mut">(${x.give.pos.join("/")} for ${x.get.pos.join("/")})</span></li>`).join("")}</ul>`:'<p class="empty">No 1-for-1 swap helps both sides right now. That usually means rosters are balanced; check again after injuries or hot starts.</p>'}
+// My Team's trade ideas are the Trade Finder's best three, so both screens (and the evaluator) agree
+function fillTradeIdeas(){const el=$("tradeIdeas");if(!el)return;const k=teamKey(),show=()=>{const e=$("tradeIdeas");if(!e||!TF.res)return;const X=TF.res.filter(x=>x.h>=0).slice(0,3);
+    e.innerHTML=(X.length?`<ul class="heads">${X.map(x=>`<li class="good">Get ${x.get.map(p=>pBtn(p)).join(" and ")} from <b>${esc(teamName(x.t))}</b> for ${x.give.map(p=>pBtn(p)).join(" and ")}: you +${f0(x.g)} a week, them +${f0(x.h)}.</li>`).join("")}</ul>`:'<p class="empty">No deal helps both sides right now. That usually means rosters are balanced; check again after injuries or hot starts.</p>')
+      +`<p class="empty" style="margin-top:6px"><button class="expander" style="color:var(--mine);font-weight:600" onclick="$('tab-trades').click()">All deals in the Trade Finder →</button></p>`};
+  if(TF.key===k&&TF.res){show();return}el.innerHTML='<p class="empty">Scanning every team for deals that help both sides…</p>';
+  if(!(TF.run&&TF.key===k)){TF.key=k;TF.res=null;TF.run=tradeFinder().then(r=>{if(TF.key!==k)return;TF.res=r;TF.run=null;show()})}else TF.run.then(show)}
 const ordinal=n=>n+(["th","st","nd","rd"][(n%100-20)%10]||["th","st","nd","rd"][n%100]||"th");
 const kpT=(k,v,d)=>`<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
 // plain-language rules: how a team is put together and how it scores, using this league's settings
@@ -2218,7 +2266,7 @@ const INTRO={board:"Every draftable player, ranked. Press Draft for your picks a
   scout:"Any team in your league: their lineup, strengths and gaps, injuries, how they stack up against you, and where a trade might fit.",
   waivers:"Free agents worth adding, for this week or the rest of the season, and who gains when a regular is hurt.",
   lab:"The season as charts: who's beating his projection, roles and efficiency, positional scarcity, the biggest movers, the schedule and every defense. Each chart has a table view.",
-  trades:"Try a trade with any team in your league and see what it does to both teams' starter points.",
+  trades:"The Trade Finder suggests deals that help you and give the other manager a reason to say yes; or build your own and see what it does to both teams.",
   rosters:"Every team's roster. Record adds, drops and trades here; ESPN's rosters replace them each morning.",
   ana:"Grade a team from any league: how it ranks, its strengths and gaps, and trades and pickups that would help.",
   models:"How accurate Pivot is: tests on past seasons, and a live scorecard of this season's predictions.",
@@ -2271,7 +2319,7 @@ const GUIDE=`<div class="row-btns" style="justify-content:space-between;align-it
   // a first visit opens it once (not for automated checks, which would have to dismiss it)
   if(!S.guideSeen&&!navigator.webdriver)setTimeout(open,600)})();
 // ---- More: the rarer tabs sit in a menu; the More button takes the selected style while one of them is open
-const MORE=["trades","rosters","models","how"],moreMenu=$("moreMenu"),moreBtn=$("moreBtn"),curTab=()=>TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");
+const MORE=["rosters","models","how"],moreMenu=$("moreMenu"),moreBtn=$("moreBtn"),curTab=()=>TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");
 const markMore=()=>moreBtn.classList.toggle("on",MORE.includes(curTab())),closeMore=()=>{moreMenu.hidden=true;moreBtn.setAttribute("aria-expanded","false")};
 moreBtn.onclick=e=>{e.stopPropagation();if(!moreMenu.hidden)return closeMore();const c=curTab();
   moreMenu.innerHTML=MORE.filter(t=>!$("tab-"+t).hidden).map(t=>`<button role="menuitem" data-moretab="${t}" aria-current="${t===c}">${esc($("tab-"+t).textContent.trim())}</button>`).join("");
