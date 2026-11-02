@@ -1,6 +1,6 @@
 # Pivot
 
-Fantasy basketball hub for an ESPN head-to-head points league: draft room with a pick advisor, mock drafts and opponent scouting, then an in-season hub (Today, My Team, matchups, waivers, trades, rosters). The Team Analyzer grades a team from any league. Projections come from a model fit on every NBA player-season since 2016-17, tuned walk-forward and blended with ESPN's projections. Next-game predictions come from a second model fit walk-forward on two seasons of game logs (recent form, opponent defense by position, home court, back-to-backs).
+Fantasy basketball hub for an ESPN head-to-head points league: draft room with a pick advisor, mock drafts and opponent scouting, then an in-season hub (Today, My Team, matchups, scouting other teams, waivers, trades, rosters). The Team Analyzer grades a team from any league. Projections come from a model fit on every NBA player-season since 2016-17, tuned walk-forward and blended with ESPN's projections. Next-game predictions come from a second model fit walk-forward on two seasons of game logs (recent form, opponent defense by position, home court, back-to-backs).
 
 The app is one self-contained HTML page (no framework, no build step beyond concatenation), published as a claude.ai artifact and rebuilt daily with fresh data.
 

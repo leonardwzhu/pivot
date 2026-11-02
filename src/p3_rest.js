@@ -1523,7 +1523,7 @@ function newsFilter(){const q=(S.newsQ||"").trim().toLowerCase();document.queryS
   document.querySelectorAll("#newsList .ngrp").forEach(g=>{g.hidden=!!q&&!g.querySelector("[data-q]:not([hidden])");if(q&&g.tagName==="DETAILS"&&!g.hidden)g.open=true})}
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-ntab]");if(!b)return;S.newsTab=b.dataset.ntab;save();renderNews();if(b.closest(".nlinks"))$("view-news").scrollIntoView({block:"start"})});
 document.addEventListener("input",e=>{if(e.target.id!=="newsQ")return;S.newsQ=e.target.value;newsFilter();clearTimeout(newsFilter.t);newsFilter.t=setTimeout(save,600)});
-function renderAll(){DAYS=null;applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();if(!$("view-players").hidden)renderPlayers();if(!$("view-today").hidden)renderToday();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});save()}
+function renderAll(){DAYS=null;applyOrder();renderBoard();renderSide();if(openId!==null)openPlayer(openId);if(!$("view-insights").hidden)renderInsights();if(!$("view-players").hidden)renderPlayers();if(!$("view-today").hidden)renderToday();["season","waivers","trades","rosters"].forEach(t=>{if(!$("view-"+t).hidden)renderSeason(t)});if(!$("view-scout").hidden)renderScout();save()}
 
 // ================= LEAGUE SCORING =================
 function renderScoring(){
@@ -1934,11 +1934,48 @@ function renderReview(){const v=$("view-review");
   v.innerHTML=h;countUp(v)}
 // save the draft-day numbers soon after the draft even if the page is never opened, so they're from draft day
 setTimeout(()=>{if(draftDone()&&!snapOf())SNAP_P=SNAP_P||takeDraftSnap().finally(()=>{SNAP_P=null})},6000);
-const TABS=["board","today","team","lab","ana","players","season","waivers","trades","rosters","models","news","insights","mock","review","how"];
+const TABS=["board","today","team","lab","ana","players","season","scout","waivers","trades","rosters","models","news","insights","mock","review","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-review").addEventListener("click",renderReview);
+$("tab-scout").addEventListener("click",renderScout);
 $("tab-news").addEventListener("click",()=>renderNews());
 function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team"));setTimeout(fillTradeIdeas,30)}
+// ---- Scout: any team in your league, the way My Team shows yours: standing, lineup, strengths and gaps, injuries, this week
+// against you, and the trade angle (their thinnest position and which of your players fit it). Opens on this week's opponent
+function scoutView(){const L=leagueRosters(),T=Object.keys(L).map(Number),others=T.filter(t=>t!==S.slot);if(!others.length||!myRoster().length)return `<div class="chart-card"><h4>Scout</h4><p class="empty" style="margin-top:6px" data-keep>Once rosters are set after your draft, this page scouts every team in your league.</p></div>`;
+  const cw=Math.max(0,CUR_WEEK),t=others.includes(S.scoutT)?S.scoutT:(others.includes(leagueOpp(cw))?leagueOpp(cw):others[0]),R=rosterOf(t),my=myRoster(),nm=teamName(t);
+  const tw=Object.fromEntries(T.map(u=>[u,teamWeekly(rosterOf(u))])),rank=[...T].sort((a,b)=>tw[b].mu-tw[a].mu),odds=playoffOdds(),rec=HAS_LG()&&LEAGUE.rec&&LEAGUE.rec[t],started=HAS_LG()&&Object.values(LEAGUE.rec||{}).some(r=>r[0]+r[1]+r[2]>0);
+  const nxt=WEEKS.map((w,i)=>i).find(i=>i>=cw&&!WEEKS[i].po&&leagueOpp(i)===t),M=nxt!=null?matchupSim(my,R,nxt,400):null;
+  let h=`<div class="ntabs" role="tablist" aria-label="Team to scout">${others.map(u=>`<button role="tab" data-scout="${u}" aria-selected="${u===t}">${esc(teamName(u))}${leagueOpp(cw)===u?' <span class="count">this week</span>':""}</button>`).join("")}</div>`;
+  h+=`<div class="kpis">${started&&rec?kpT("Record",`${rec[0]}-${rec[1]}${rec[2]?"-"+rec[2]:""}`,`${f0(rec[3])} points for`):""}${kpT("Starter points / week",f0(tw[t].mu),`${ordinal(rank.indexOf(t)+1)} of ${T.length} · you ${f0(tw[S.slot].mu)}`)}
+    ${odds?kpT("Title odds",pc(odds.title[t]),`you ${pc(odds.title[S.slot])} · even odds ${pc(1/T.length)}`):""}${M?kpT(`You vs them · week ${WEEKS[nxt].i}`,`<span class="call">${pc(M.p)}</span>`,`your chance to win · projected ${f0(M.a)}–${f0(M.b)}`):kpT("You vs them","–","no regular-season matchup left")}</div>`;
+  // this week, day by day, against you
+  const w=nxt!=null&&nxt===cw?cw:cw,P=weekProj(my,w),Q=weekProj(R,w),mx=Math.max(1,...P.per.map(d=>d.v),...Q.per.map(d=>d.v));
+  h+=`<div class="chart-card"><h4>Week ${WEEKS[w].i}, day by day</h4><div class="eq">projected starter points each day${leagueOpp(w)===t?" · your matchup this week; the projected score is in the tile above":""}</div>
+    <div class="dcols" role="img" aria-label="Projected starter points by day, ${esc(nm)} and you">${Q.per.map((d,i)=>{const o=P.per[i]?P.per[i].v:0;return `<div class="dcol" data-tip="${esc(`${dayLabel(d.q)}: ${nm} ${f0(d.v)} from ${d.L.starters.length} starters, you ${f0(o)}`)}"><div class="dcol-b"><span class="opp" style="height:${pctOf(d.v,mx)}%"></span><span class="me" style="height:${pctOf(o,mx)}%"></span></div><div class="dcol-l">${dayLabel(d.q).split(",")[0]}</div></div>`}).join("")}</div>
+    <div class="lab-key"><span><i class="dot" style="background:var(--accent);opacity:.55"></i>${esc(nm)}</span><span><i class="dot" style="background:var(--mine)"></i>You</span><span>· tap a day for details</span></div></div>`;
+  // their lineup
+  const A=assignLineup(R),row=(lab,p)=>`<tr${lab==="Bench"?' class="mut"':""}><td class="l">${lab}</td><td class="l">${p?`${pBtn(p)} <span class="mut">${p.pos.join("/")} · ${p.team}</span>${p.out?` <span class="chip out">Out</span>`:p.dtd?' <span class="chip dtd">GTD</span>':""}${p.hot?' <span class="chip hot">Hot</span>':""}`:'<span style="color:var(--bad)">Empty</span>'}</td><td class="num bcell">${p?f1(p.proj.fp)+ibar(p.proj.fp,65,{tip:`${p.name}: ${f1(p.proj.fp)} FP/G projected`}):"–"}</td><td class="num">${p?weekGames(p,w):""}</td><td class="num">${p&&p.nowFp!=null?f1(p.nowFp):'<span class="mut">–</span>'}</td></tr>`;
+  h+=`<div class="chart-card"><h4>Their lineup</h4><div class="eq">typical starting lineup by slot, best players placed first</div><div class="tablebox"><table><thead><tr><th class="l">Slot</th><th class="l">Player</th><th>Proj FP/G</th><th>Games wk ${WEEKS[w].i}</th><th>So far</th></tr></thead><tbody>
+    ${LINEUP.map(([lab],i)=>row(lab,A.slot[i])).join("")}${A.bench.map(p=>row("Bench",p)).join("")}</tbody></table></div><p class="empty" style="margin-top:6px">"So far" is fantasy points per game (FP/G) this season.</p></div>`;
+  // strengths and gaps, depth, injuries
+  const sT=sourcesOf(R),sL=Object.fromEntries(SRC.map(([k])=>[k,mean(T.filter(u=>u!==t).map(u=>sourcesOf(rosterOf(u))[k]))])),D=SRC.map(([k,lab])=>({lab,d:sT[k]-sL[k]})),dm=Math.max(1,...D.map(x=>Math.abs(x.d)));
+  const depth=["PG","SG","SF","PF","C"].map(Q=>({Q,n:R.filter(p=>p.pos.includes(Q)).length,lg:mean(T.filter(u=>u!==t).map(u=>rosterOf(u).filter(p=>p.pos.includes(Q)).length))})),thin=[...depth].sort((a,b)=>(a.n-a.lg)-(b.n-b.lg))[0],sd=[...D].sort((a,b)=>b.d-a.d);
+  h+=`<div class="chart-grid"><div class="chart-card"><h4>Where their points come from</h4><div class="eq">their top 10 vs the rest of the league, fantasy points per week</div><div class="wf" style="margin-top:8px">${D.map(x=>`<div class="wf-row" data-tip="${esc(`${x.lab}: ${x.d>=0?"+":""}${f1(x.d)} a week vs the league`)}"><span>${x.lab}</span><div class="wf-track"><span style="left:${x.d>=0?50:50-Math.abs(x.d)/dm*50}%;width:${(Math.abs(x.d)/dm*50).toFixed(1)}%;background:var(${x.d>=0?"--ok":"--bad"})"></span><i class="ref" style="left:50%"></i></div><span class="amt">${x.d>=0?"+":""}${f0(x.d)}</span></div>`).join("")}</div>
+    <p data-keep>Biggest edge: <b>${sd[0].lab.toLowerCase()}</b> (+${f0(sd[0].d)} a week). Biggest gap: <b>${sd[sd.length-1].lab.toLowerCase()}</b> (${f0(sd[sd.length-1].d)}).</p></div>
+    <div class="chart-card"><h4>Depth and injuries</h4><div class="eq">players eligible at each position, against the league average</div><div class="needs" style="margin-top:8px">${depth.map(d=>`<span class="need-chip ${d.n<2?"high":d.n<d.lg-1?"med":"ok"}">${d.Q}: ${d.n} (avg ${f1(d.lg)})</span>`).join("")}</div>
+    ${injTimeline(R,new Set(HAS_LG()&&LEAGUE.ir&&LEAGUE.ir[t]||[]))||'<p class="empty" style="margin-top:8px">Nobody on their roster is injured.</p>'}</div></div>`;
+  // the trade angle: their thinnest position, and your spare players who play it
+  const fits=my.filter(p=>p.pos.includes(thin.Q)&&!p.out).sort((a,b)=>a.projTot-b.projTot).slice(0,3);
+  h+=`<div class="chart-card"><h4>Trade angle</h4><ul class="heads" style="margin-top:8px"><li class="${thin.n<thin.lg-.5?"warn":""}">Their thinnest spot is <b>${thin.Q}</b>: ${thin.n} eligible against ${f1(thin.lg)} on an average team${thin.n<2?", so a ${thin.Q} injury would leave a starting slot empty":""}.</li>
+    ${fits.length?`<li>Your ${thin.Q}-eligible players they might want: ${fits.map(p=>`${pBtn(p)} <span class="mut">(${f1(p.proj.fp)} FP/G)</span>`).join(", ")}. Lead with whoever you'd miss least.</li>`:""}
+    <li>Their biggest gap is ${sd[sd.length-1].lab.toLowerCase()}; a player strong there is worth more to them than his ranking says.</li></ul>
+    <div class="row-btns"><button class="btn primary" data-scout-trade="${t}">Try a trade with ${esc(nm)}</button></div></div>`;
+  return h}
+function renderScout(){const v=$("view-scout");if(v)v.innerHTML=scoutView()}
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-scout],[data-scout-trade]");if(!b)return;
+  if(b.dataset.scout){S.scoutT=+b.dataset.scout;save();renderScout();return}
+  S.tTeam=+b.dataset.scoutTrade;S.tGive=[];S.tGet=[];save();$("tab-trades").click()});
 // ---- Today: what to do today, in one screen: tonight's lineup, news that touches your team, your matchup, one move ----
 function tonight(my){const d=PDATE(CUR_PERIOD),P=my.map(p=>{const g=nextGames(p,1)[0];return {p,g:g&&g.date===d?g:null}});
   const play=P.filter(x=>x.g&&!x.g.out).sort((a,b)=>b.g.fp-a.g.fp),slot=new Array(LINEUP.length).fill(-1);
@@ -2179,6 +2216,7 @@ const INTRO={board:"Every draftable player, ranked. Press Draft for your picks a
   team:"How your team stacks up for the rest of the season: standing, playoff odds, strengths and gaps, and moves that would help.",
   players:"Every player, ranked by the fantasy points he's projected to score from here. Switch the columns to see movers, next games, stats and more.",
   season:"This week's head-to-head: projected scores, your chance to win, and who starts for you each day.",
+  scout:"Any team in your league: their lineup, strengths and gaps, injuries, how they stack up against you, and where a trade might fit.",
   waivers:"Free agents worth adding, for this week or the rest of the season, and who gains when a regular is hurt.",
   lab:"The season as charts: who's beating his projection, roles and efficiency, positional scarcity, the biggest movers, the schedule and every defense. Each chart has a table view.",
   trades:"Try a trade with any team in your league and see what it does to both teams' starter points.",
@@ -2195,7 +2233,7 @@ const GUIDE=`<div class="row-btns" style="justify-content:space-between;align-it
 <li><b>Draft day:</b> Pivot opens Draft Day on its own 12 hours before. Press <b>Draft</b> for your picks and <b>Taken</b> for others'. The <b>Pick Advisor</b> recommends each pick.</li>
 <li><b>Every day after:</b> open <b>Today</b>. It tells you who to start tonight, what changed for your players, how your matchup stands and whether a pickup is worth it.</li></ol>
 <h3>The tabs</h3><dl>
-<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd><dt>Lab</dt><dd>${INTRO.lab}</dd>
+<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Scout</dt><dd>${INTRO.scout}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd><dt>Lab</dt><dd>${INTRO.lab}</dd>
 <dt>Team Analyzer</dt><dd>${INTRO.ana}</dd><dt>News</dt><dd>${INTRO.news}</dd><dt>More</dt><dd>Trades, Rosters, Models (accuracy) and Method & Import.</dd>
 <dt>Draft Day</dt><dd>Big Board, Insights and Mock Draft, for the draft itself. Switch at the top left.</dd></dl>
 <h3>Reading the screens</h3><dl>
