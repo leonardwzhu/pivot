@@ -6,8 +6,8 @@ const {chromium}=require('playwright');const fs=require('fs');const path=require
 const E=JSON.parse(html.match(/const ESPN=(\[.*?\]);\n/s)[1]).filter(o=>o.rk).sort((a,b)=>a.rk-b.rk).slice(0,104);
 const L=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);L.drafted=true;L.fetched='2026-11-02';const at=o=>{const r=Math.floor((o-1)/8),i=(o-1)%8;return r%2===0?i+1:8-i};
 L.picks=E.map((o,i)=>[i+1,at(i+1),o.e]);L.rosters={};L.picks.forEach(p=>(L.rosters[p[1]]=L.rosters[p[1]]||[]).push(p[2]));
-const W=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);W.drafted=false;W.draftDate=Date.now()+2*36e5;const soon=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(W)+';\n');
-const B=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);B.drafted=false;B.draftDate=Date.now()+3*864e5;const before=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(B)+';\n');
+const W=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);W.drafted=false;W.picks=[];W.rosters=null;W.ir={};W.draftDate=Date.now()+2*36e5;const soon=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(W)+';\n');
+const B=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);B.drafted=false;B.picks=[];B.rosters=null;B.ir={};B.draftDate=Date.now()+3*864e5;const before=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(B)+';\n');
 const post=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(L)+';\n');
 const b=await chromium.launch();let fail=0;const check=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)fail++};
 const state=pg=>pg.evaluate(()=>({mode:S.mode,tabs:[...document.querySelectorAll('.tabs [role=tab]')].filter(x=>!x.hidden).map(x=>x.id.slice(4)),

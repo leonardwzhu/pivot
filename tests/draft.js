@@ -2,7 +2,7 @@
 // button once it has finished updating, one undo along the way, on desktop and a phone. Every pick must register, the advisor must
 // always have suggestions, nothing may scroll sideways, and Today and My Team must fill in afterwards. Usage: node tests/draft.js [page]
 const {chromium}=require('playwright');const fs=require('fs');
-(async()=>{let html=fs.readFileSync(process.argv[2]||require('path').join(__dirname,'../build/draft-room.html'),'utf8');let fail=0;const L=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);L.draftDate=Date.now()+30*60e3;html=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(L)+';\n');
+(async()=>{let html=fs.readFileSync(process.argv[2]||require('path').join(__dirname,'../build/draft-room.html'),'utf8');let fail=0;const L=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);L.draftDate=Date.now()+30*60e3;L.drafted=false;L.inProgress=false;L.picks=[];L.rosters=null;L.ir={};html=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(L)+';\n');
 const b=await chromium.launch();
 for(const [w,h] of [[1300,900],[390,844]]){const pg=await b.newPage({viewport:{width:w,height:h}});const errs=[];pg.on('pageerror',e=>errs.push(e.message));
   await pg.setContent(html,{waitUntil:'load'});await pg.waitForTimeout(4000);

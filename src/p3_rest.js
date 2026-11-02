@@ -1698,6 +1698,28 @@ let TEAM_CACHE={key:"",trades:null};
 function teamKey(){return JSON.stringify([leagueRosters(),S.slot,S.mix,S.adj,SC])}
 function waiverIdeas(my){const base=h2hValue(my).total,wk=REMAIN_WEEKS(),full=my.length>=13,drop=[...my].sort((a,b)=>a.projTot-b.projTot)[0];
   return freeAgents().filter(p=>p.projTot>0&&!my.includes(p)).sort((a,b)=>b.projTot-a.projTot).slice(0,40).map(p=>{const R=full?my.filter(q=>q!==drop).concat(p):my.concat(p);return {p,drop:full?drop:null,g:(h2hValue(R).total-base)/wk}}).filter(x=>x.g>0.5).sort((a,b)=>b.g-a.g).slice(0,3)}
+// ---- injured reserve: who is in your IR slot (from ESPN), who should go there, and what to do when he's healthy. ESPN takes only
+// players listed Out, and blocks every add and drop while a healthy player sits on IR. The player out longest goes first, since he
+// frees the roster spot for longest; the drop when someone comes back is the player whose loss costs the fewest starter points
+const irIds=()=>new Set(HAS_LG()&&LEAGUE.ir&&LEAGUE.ir[S.slot]||[]);
+function dropOf(R,keep){const wk=Math.max(1,WEEKS.filter(w=>!w.po&&w.p[1]>=CUR_PERIOD).length),base=h2hValue(R).reg;return R.filter(p=>p!==keep).map(p=>({p,c:(base-h2hValue(R.filter(q=>q!==p)).reg)/wk})).sort((a,b)=>a.c-b.c)[0]}
+function irPlan(my){const slots=HAS_LG()?LEAGUE.irSlots||0:1,ids=irIds(),inIR=my.filter(p=>ids.has(p.espnId)),act=my.filter(p=>!ids.has(p.espnId)),wk=1,out=[];
+  if(!slots)return null;const days=p=>Math.max(0,(p.retP||CUR_PERIOD)-CUR_PERIOD);
+  inIR.forEach(p=>{if(!p.out){const d=dropOf(act.concat(p),p);out.push({k:"bad",t:`<b>${pBtn(p)} is on IR but no longer listed Out.</b> ESPN blocks every add and drop until he's off IR. Move him to your bench and drop ${d?pBtn(d.p):"someone"}${d?`, the player you'll miss least (about ${f1(d.c/wk)} starter points a week)`:""}.`})}
+    else if(days(p)<=7){const d=dropOf(act.concat(p),p);out.push({k:"warn",t:`<b>${pBtn(p)} is due back about ${dayLabel(p.retP)}.</b> To activate him you'll need an open spot: ${d?`${pBtn(d.p)} is the one you'd miss least (about ${f1(d.c/wk)} starter points a week)`:"plan who to drop"}.`})}
+    else out.push({k:"",t:`${pBtn(p)} is on IR, out until about ${dayLabel(p.retP)} (${retLabel(p)}). Nothing to do yet.`})});
+  const free=slots-inIR.length,cand=act.filter(p=>p.out&&days(p)>=3).sort((a,b)=>days(b)-days(a));
+  if(free>0&&cand.length){// the add is judged on this week with him still on the roster (he's only on IR), like the One move pickup
+    const c=cand[0],w=Math.max(0,CUR_WEEK),base=weekProj(act,w).pts,fa=freeAgents().filter(p=>!p.out),C=new Set([...fa].sort((a,b)=>b.projTot-a.projTot).slice(0,30).concat([...fa].sort((a,b)=>weekGames(b,w)*b.proj.fp-weekGames(a,w)*a.proj.fp).slice(0,20)));
+    const add=[...C].map(p=>({p,g:weekProj(act.concat(p),w).pts-base})).sort((a,b)=>b.g-a.g)[0];
+    out.push({k:"good",act:1,c,add,t:`<b>Move ${pBtn(c)} to IR</b>: he's out until about ${dayLabel(c.retP)}, roughly ${Math.round(days(c)/7*3.4)} games. IR doesn't count toward your 13, so the spot is free${add&&add.g>0?`: <b>add ${pBtn(add.p,"call")}</b> (${add.p.pos.join("/")}, ${esc(add.p.team)}, ${f1(add.p.proj.fp)} FP/G), about +${f0(add.g)} fantasy points this week from his games and your open lineup slots`:""}.`});
+    cand.slice(1).forEach(p=>out.push({k:"",t:`${pBtn(p)} is also out (until about ${dayLabel(p.retP)}), but your IR slot${slots>1?"s are":" is"} taken. ${days(p)>days(c)?"He's out longer, so he's the better IR stash; swap them.":"Keep him on your bench."}`}))}
+  else if(free>0)act.filter(p=>p.out&&days(p)<3).forEach(p=>out.push({k:"",t:`${pBtn(p)} is out but back about ${dayLabel(p.retP)}. Too short to be worth an IR move.`}));
+  return {slots,inIR,free,out,action:out.some(x=>x.k==="bad"||x.k==="warn"||x.act)}}
+function irCard(my,today){const P=irPlan(my);if(!P||(today&&!P.action))return "";
+  return `<div class="chart-card"><h4>Injured reserve <span class="mut" style="font-family:var(--body);font-style:normal;font-size:12px;font-weight:400">· ${P.slots} slot${P.slots>1?"s":""}, ${P.inIR.length?`${P.inIR.map(p=>esc(p.name)).join(", ")} on it`:"empty"}</span></h4>
+    ${P.out.length?`<ul class="heads" style="margin-top:8px">${P.out.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:`<p class="empty" style="margin-top:6px">Nobody on your roster is listed Out. If someone is, Pivot will suggest moving him here.</p>`}
+    ${today?"":`<p class="empty">ESPN's IR slot takes players listed Out and doesn't count toward your 13. IR status comes from ESPN at each refresh, so a move you make there shows here after the next update.</p>`}</div>`}
 function irIdea(my){const lg=HAS_LG()?LEAGUE.irSlots:1;if(!lg)return null;const out=my.filter(p=>p.out&&p.retP-CUR_PERIOD>=7).sort((a,b)=>b.projTot-a.projTot)[0];if(!out)return null;
   const base=h2hValue(my).total,best=freeAgents().sort((a,b)=>b.projTot-a.projTot).slice(0,30).map(p=>({p,g:(h2hValue(my.concat(p)).total-base)/REMAIN_WEEKS()})).sort((a,b)=>b.g-a.g)[0];return best&&best.g>0?{out,...best}:null}
 // 1-for-1 trades where both sides gain projected starter points (a trade the other manager has a reason to accept)
@@ -1721,6 +1743,7 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
     ${odds?kpT("Title odds",PO_TEAMS<T.length?pc(odds.title[S.slot]):`<span class="call">${pc(odds.title[S.slot])}</span>`,`${PO_TEAMS>=T.length?`all ${T.length} teams make the playoffs · `:""}win ${PO_ROUNDS} playoff round${PO_ROUNDS===1?"":"s"} · even odds ${pc(1/T.length)}`):""}
     ${M?kpT(`Week ${WEEKS[w].i} vs ${esc(teamShort(opp))}`,pc(M.p),`projected ${f0(M.a)}–${f0(M.b)}`):""}
     ${kpT("Playoff-week games",String(my.reduce((s,p)=>s+p.poGames,0)),`your 13 players, ${PO_RANGE} · league avg ${f0(mean(T.filter(t=>t!==S.slot).map(t=>rosterOf(t).reduce((s,p)=>s+p.poGames,0))))}`)}</div>`;
+  h+=irCard(my);
   // ---- season so far (ESPN results)
   if(lg&&(LEAGUE.results||[]).length){const mine=LEAGUE.results.filter(r=>r[1]===S.slot||r[3]===S.slot).sort((a,b)=>a[0]-b[0]);
     h+=`<div class="chart-card"><h4>Season so far</h4><div class="tablebox"><table><thead><tr><th class="l">Week</th><th class="l">Opponent</th><th>You</th><th>Them</th><th class="l">Result</th></tr></thead><tbody>${mine.map(r=>{const home=r[1]===S.slot,me2=home?r[2]:r[4],th=home?r[4]:r[2],o=home?r[3]:r[1],res=r[5]==="TIE"?"T":(r[5]==="HOME")===home?"W":"L";
@@ -1743,7 +1766,7 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
     <div class="needs" style="margin-top:8px">${depth.map(d=>`<span class="need-chip ${d.n<2?"high":d.n<d.lg-1?"med":"ok"}">${d.P}: ${d.n} eligible (avg ${f1(d.lg)})</span>`).join("")}</div>
     <p>A week has 70 starts to fill (10 slots × 7 days). NBA teams play 3–4 games a week, so a 13-man roster fills about ${f0(70-me.H.emptyPerWeek)} of them and ${f0(me.H.emptyPerWeek)} go empty. That's normal in daily leagues, and it's why streaming players with games on light days pays off. ${pc(me.H.wastePct)} of your bench's games are wasted because every slot they fit is already taken.</p></div></div>`;
   // ---- suggestions
-  const S2=[],ir=irIdea(my),myA=ir?my.filter(p=>p!==ir.out).concat(ir.p):my,wv=waiverIdeas(myA),hot=my.filter(p=>p.hot&&p.nowFp&&p.nowFp>p.proj.fp*1.15).sort((a,b)=>(b.nowFp-b.proj.fp)-(a.nowFp-a.proj.fp))[0],
+  const S2=[],irP=irPlan(my),irA=irP&&irP.out.find(x=>x.act&&x.add&&x.add.g>0),ir=irA?{out:irA.c,p:irA.add.p,g:irA.add.g}:null,myA=ir?my.filter(p=>p!==ir.out).concat(ir.p):my,wv=waiverIdeas(myA),hot=my.filter(p=>p.hot&&p.nowFp&&p.nowFp>p.proj.fp*1.15).sort((a,b)=>(b.nowFp-b.proj.fp)-(a.nowFp-a.proj.fp))[0],
     cold=T.filter(t=>t!==S.slot).flatMap(t=>rosterOf(t).map(p=>({p,t}))).filter(x=>x.p.cold&&x.p.proj.fp>=25).sort((a,b)=>b.p.proj.fp-a.p.proj.fp)[0],
     poAvg=mean(players.filter(p=>p.projTot>0).map(p=>p.poGames)),poLow=my.filter(p=>p.poGames<=poAvg-2).sort((a,b)=>b.projTot-a.projTot)[0],dl=lg&&LEAGUE.tradeDeadline?new Date(LEAGUE.tradeDeadline):null;
   if(ir)S2.push({g:ir.g,t:`<b>Move ${esc(ir.out.name)} to IR, then add ${pBtn(ir.p)}</b> (${ir.p.pos.join("/")}, ${esc(ir.p.team)}). ${esc(ir.out.name)} is out until about ${dayLabel(ir.out.retP)}. The IR slot doesn't count against your 13, so this is a free add worth about +${f1(ir.g)} starter points a week.`});
@@ -1807,6 +1830,7 @@ function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PD
   let h=head;
   h+=`<div class="chart-card"><h4>Tonight's lineup</h4>${T.starters.length?`<div class="tablebox"><table class="today-tbl"><tbody>${T.starters.map(x=>row(x,LINEUP[x.k][0])).join("")}${T.bench.map(x=>row(x,"Bench",x.close?` <span class="chip dtd" title="Within 3 FP of ${esc(x.close.p.name)}, who starts at ${LINEUP[x.close.k][0]}">close call vs ${esc(x.close.p.name.split(" ").pop())}</span>`:"")).join("")}</tbody></table></div>`:'<p class="empty">None of your players has a game tonight.</p>'}
     <p class="empty" style="margin-top:6px">${T.open?`${T.open} open slot${T.open>1?"s":""} tonight: a free agent with a game could fill ${T.open>1?"them":"it"}. `:""}${T.out.length?`Out tonight: ${T.out.map(x=>esc(x.p.name)).join(", ")}. `:""}${T.idle.length?`No game: ${T.idle.length} player${T.idle.length>1?"s":""}. `:""}Starters are the best valid lineup by tonight's expected points.</p></div>`;
+  h+=irCard(my,1);
   const news=[];my.forEach(p=>{if(p.out||p.dtd)news.push(`<li><b>${pBtn(p)}</b> <span class="chip ${p.out?"out":"dtd"}">${p.out?"Out":"GTD"}</span> ${esc(p.inj&&p.inj.short||"")}${p.out?` <span class="mut">(${retLabel(p)})</span>`:""}</li>`)});
   T.starters.concat(T.bench).forEach(x=>{const m=x.g.mate;if(m.adj>=1.5){const who=m.list.filter(q=>q.out&&q.x>0).map(q=>q.q.name);if(who.length)news.push(`<li><b>${pBtn(x.p)}</b> <span class="zpos">+${f1(m.adj)} FP tonight</span> with ${esc(who.join(" and "))} out</li>`)}});
   my.map(p=>({p,m:moveOf(p,3)})).filter(x=>x.m&&Math.abs(x.m.dr)>=8).sort((a,b)=>Math.abs(b.m.dr)-Math.abs(a.m.dr)).slice(0,3).forEach(({p,m})=>news.push(`<li><b>${pBtn(p)}</b> ${m.dr>0?"climbed":"slid"} ${Math.abs(m.dr)} places in 3 days ${moveTag(m)} <span class="mut">now #${seasonRank(p)}</span></li>`));
@@ -1823,6 +1847,7 @@ function todayDigest(){const my=myRoster();if(!my.length)return "";const T=tonig
   const close=T.bench.filter(x=>x.close);if(close.length)out.push(`Close call: ${close[0].close.p.name} over ${close[0].p.name} tonight`);
   const newOut=my.filter(p=>p.out&&T.out.some(x=>x.p===p));if(newOut.length)out.push(`Out tonight: ${newOut.map(p=>p.name).join(", ")}`);
   out.push(`${T.starters.length} starting tonight${T.open?`, ${T.open} open slot${T.open>1?"s":""}`:""}`);
+  const irP=irPlan(my),irx=irP&&irP.out.find(x=>x.k==="bad"||x.act);if(irx)out.push(irx.k==="bad"?`IR: move ${irP.inIR.find(p=>!p.out).name} off IR, ESPN is blocking your moves`:`IR: move ${irx.c.name} to IR${irx.add&&irx.add.g>0?` and add ${irx.add.p.name}`:""}`);
   if(M)out.push(`Win chance this week ${pc(M.p)}`);if(mv)out.push(`Pickup: ${mv.p.name} (+${f0(mv.g)} FP this week)`);return out.join(". ")+"."}
 $("tab-today").addEventListener("click",renderToday);
 // ---- Team Analyzer: any team from any league. It's graded against a league of the same size drafted by ESPN average
