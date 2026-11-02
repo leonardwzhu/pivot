@@ -2608,7 +2608,7 @@ function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.
   if(x.rosters){LEAGUE.rosters=x.rosters;const L={};for(const t in x.rosters)L[t]=x.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L}return true}
 // the update panel: the quick league sync (seconds, in this page) and the full refresh (about 2 minutes, a scheduled task that
 // republishes Pivot), each with its own status; the full one is followed through get_trigger until it finishes
-const UPD={q:{st:"idle"},f:{st:"idle"},open:false,since:null};
+const UPD={q:{st:"idle"},f:{st:"idle"},g:{st:"idle"},open:false,since:null};
 // a published artifact may not call ESPN itself (a TypeError from fetch is the sandbox saying no): then the full update is the one path
 let FETCH_OFF=false;
 const pNm=e=>BY_ESPN.has(e)?players[BY_ESPN.get(e)].name:"a player";
@@ -2647,6 +2647,13 @@ async function fullRun(){if(UPD.f.st==="run"||UPD.f.st==="start")return;UPD.f={s
   try{const s=await fullStatus(m).catch(()=>null);if(s&&s.fired&&!s.done&&Date.now()-s.fired<10*6e4){UPD.f={st:"run",at:s.fired};updRender();followFull(m,s.fired);return}
     await m.callTool(FULL_REFRESH.server,FULL_REFRESH.tool,{trigger_id:FULL_REFRESH.trigger,text:"Started from Pivot's Update button."});const at=Date.now();UPD.f={st:"run",at};updRender();followFull(m,at)}
   catch(e){UPD.f={st:"bad",msg:mcpWhy(e)};updRender()}}
+// on GitHub Pages the full update is the repository's Pages workflow, run from GitHub's own page (signed in there, so the site needs
+// no key); the site then polls its own address until a build newer than this one is live. Owner and repository come from the URL
+const GH=(()=>{const m=location.hostname.match(/^([^.]+)\.github\.io$/),r=location.pathname.split("/")[1];return m&&r?{url:`https://github.com/${m[1]}/${r}/actions/workflows/pages.yml`}:null})();
+function ghWatch(){if(UPD.g.st==="wait")return;UPD.g={st:"wait",at:Date.now()};updRender();const mine=typeof BUILD!=="undefined"?BUILD.at:"";
+  const poll=async()=>{if(UPD.g.st!=="wait")return;try{const r=await fetch(location.pathname+"?v="+Date.now(),{cache:"no-store"}),t=await r.text(),m=t.match(/const BUILD=\{"at":"([^"]+)"/);
+      if(m&&m[1]>mine){UPD.g={st:"done"};$("updBtn").classList.add("ready");updRender();toast("A new version of Pivot is live. Tap the update button to reload.");return}}catch(e){}
+    if(Date.now()-UPD.g.at>15*6e4){UPD.g={st:"late"};updRender();return}setTimeout(poll,3e4)};setTimeout(poll,6e4)}
 // the full update runs through claude.ai; elsewhere (GitHub Pages) the scheduled refresh is the only one, so the row is left out
 const FULL_OK=()=>!!(window.claude&&window.claude.use);
 function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st==="run"||f.st==="run"||f.st==="start";b.classList.toggle("spin",busy);b.classList.toggle("ready",f.st==="done"||(!!UPD.since&&!UPD.seen));b.setAttribute("aria-expanded",UPD.open);
@@ -2658,10 +2665,10 @@ function updRender(){const b=$("updBtn"),p=$("updPop"),q=UPD.q,f=UPD.f,busy=q.st
   ${UPD.since&&UPD.since.length?`<div class="ur"><span class="ud ok" aria-hidden="true"></span><div><b>Since your last visit</b><ul class="uch">${UPD.since.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${UPD.since.length>8?`<li class="mut">and ${UPD.since.length-8} more</li>`:""}</ul></div></div>`:""}
   ${FETCH_OFF?"":row({idle:"",run:"run",ok:"ok",bad:"bad"}[q.st],"League",esc(qd))}
   ${!FETCH_OFF&&q.ch&&q.ch.length?`<ul class="uch">${q.ch.slice(0,8).map(c=>`<li>${esc(c)}</li>`).join("")}${q.ch.length>8?`<li class="mut">and ${q.ch.length-8} more</li>`:""}</ul>`:""}
-  ${FULL_OK()?row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],FETCH_OFF?"Update":"Full update",esc(fd)):row("","Injuries, stats and schedule","Refreshed on their own every morning, before tip-off and after the last game.")}
-  <div class="uf"><span class="mut">This page's data: built ${built?agoTxt(built):"–"}</span>${f.st==="done"?`<button class="btn" data-upd="reload">Reload</button>`:!FETCH_OFF&&q.st!=="run"?`<button class="btn" data-upd="again">Check ESPN again</button>`:""}</div>`}
+  ${FULL_OK()?row({idle:"",start:"run",run:"run",done:"ok",bad:"bad",off:""}[f.st],FETCH_OFF?"Update":"Full update",esc(fd)):GH?row({idle:"",wait:"run",done:"ok",late:"bad"}[UPD.g.st],"Full update",esc({idle:"Injury news for every player, stats and the schedule. It runs on GitHub: open it, tap Run workflow, and Pivot offers the new version here in about 3 minutes.",wait:`Waiting for the new version, started ${agoTxt(UPD.g.at)}. You can keep using Pivot.`,done:"The new version is live. Reload to see it.",late:"No new version after 15 minutes. GitHub's Actions page shows how the run went."}[UPD.g.st]))+(UPD.g.st==="done"?"":`<div class="row-btns" style="margin:2px 0 6px 18px"><a class="btn" href="${GH.url}" target="_blank" rel="noopener" data-upd="gh">${UPD.g.st==="wait"?"Open GitHub again":"Open GitHub"}</a></div>`):row("","Injuries, stats and schedule","Refreshed on their own every morning, before tip-off and after the last game.")}
+  <div class="uf"><span class="mut">This page's data: built ${built?agoTxt(built):"–"}</span>${f.st==="done"||UPD.g.st==="done"?`<button class="btn" data-upd="reload">Reload</button>`:!FETCH_OFF&&q.st!=="run"?`<button class="btn" data-upd="again">Check ESPN again</button>`:""}</div>`}
 $("updBtn").addEventListener("click",()=>{if(UPD.open){UPD.open=false;updRender();return}UPD.open=true;UPD.seen=true;if(!FETCH_OFF&&!(UPD.q.at&&Date.now()-UPD.q.at<3e4))quickSync();if(FULL_OK()&&(UPD.f.st==="idle"||UPD.f.st==="bad"))fullRun();updRender()});
-$("updPop").addEventListener("click",e=>{const a=e.target.closest("[data-upd]");if(!a)return;const k=a.dataset.upd;if(k==="close"){UPD.open=false;updRender();$("updBtn").focus()}else if(k==="reload")location.reload();else if(k==="again")quickSync()});
+$("updPop").addEventListener("click",e=>{const a=e.target.closest("[data-upd]");if(!a)return;const k=a.dataset.upd;if(k==="close"){UPD.open=false;updRender();$("updBtn").focus()}else if(k==="reload")location.reload();else if(k==="again")quickSync();else if(k==="gh")setTimeout(ghWatch)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&UPD.open){UPD.open=false;updRender();$("updBtn").focus()}});
 document.addEventListener("click",e=>{if(UPD.open&&!e.target.closest("#updPop,#updBtn")){UPD.open=false;updRender()}});
 // keep the league current without a tap: once on open if the last sync is over 10 minutes old, then every 5 minutes while the page is visible

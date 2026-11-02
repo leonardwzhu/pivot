@@ -60,6 +60,7 @@ node tests/draft.js                  # a full 104-pick draft on desktop and phon
 node tests/espn_rosters.js           # after the draft, rosters match ESPN exactly and nothing edits them
 node tests/recap.js                  # on a made-up week: the win chance counts points already scored, the day-by-day chart, last week's recap, the luck meter
 node tests/injuries.js               # the league sync updates rostered players' injuries between builds, without clearing the injury report's
+node tests/pages.js                  # the GitHub Pages copy: Update links to the Pages workflow and offers Reload once a newer build is live (about 2 minutes)
 ```
 
 ## Publishing
@@ -76,6 +77,6 @@ Each run republishes `build/draft-room.html` to the same link and saves the upda
 
 ### GitHub Pages
 
-`.github/workflows/pages.yml` publishes the same page as a website at `https://leonardwzhu.github.io/pivot/`. Turn it on once in the repository's Settings → Pages → Source: GitHub Actions. A push to `main` rebuilds from `last/` without fetching (`bash refresh.sh build`). Three scheduled runs at the same Eastern times as above run the matching refresh and commit the new `last/` back to `main`, and you can start one by hand from the Actions tab. `refresh.sh` writes `build/index.html` for this: the same page with its own charset and viewport tags, which claude.ai otherwise adds. The site reads your league live from ESPN like the artifact does. Two things work only on claude.ai: the Full update button and syncing your edits across devices. On the website your edits stay in the browser you made them in.
+`.github/workflows/pages.yml` publishes the same page as a website at `https://leonardwzhu.github.io/pivot/`. Turn it on once in the repository's Settings → Pages → Source: GitHub Actions. A push to `main` rebuilds from `last/` without fetching (`bash refresh.sh build`). Three scheduled runs at the same Eastern times as above run the matching refresh and commit the new `last/` back to `main`, and you can start one by hand from the Actions tab. `refresh.sh` writes `build/index.html` for this: the same page with its own charset and viewport tags, which claude.ai otherwise adds. The site reads your league live from ESPN like the artifact does. Its Update button's full update opens the workflow on GitHub (tap Run workflow; you're signed in there, so the site holds no key), then offers Reload once the new build is live. Syncing your edits across devices works only on claude.ai. On the website your edits stay in the browser you made them in.
 
 Your own edits (draft picks entered by hand, roster moves, projection adjustments, settings) are kept in the browser and, through the artifact's private per-person store, synced across your devices: the newest copy wins when the page loads, and an open page offers a reload when another device changes something.
