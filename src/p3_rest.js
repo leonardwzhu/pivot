@@ -418,7 +418,7 @@ const dumb=(a,b,max,tip="",min=0)=>{const x=+pctOf(a-min,max-min),y=+pctOf(b-min
 // these use Pivot's own bar rows (the "Where your points come from" style): label, a 12px track, the amount on the right
 // zoom: dots sit on a range around the values, so small changes still show
 function dumbRows(rows,{max,fmt=f0,zoom=false}={}){const V=rows.flatMap(r=>[r.a,r.b]),lo=Math.min(...V),hi=Math.max(...V,1),m0=zoom?Math.max(0,lo-(hi-lo)*.35-hi*.02):0,M=max||(zoom?hi+(hi-lo)*.35+hi*.02:hi*1.05),P=v=>pctOf(v-m0,M-m0);
-  return `<div class="wf wf-w">${rows.map(r=>{const x=+P(r.a),y=+P(r.b);return `<div class="wf-row${r.me?" me":""}" data-tip="${esc(r.tip||"")}"><span>${r.l}</span><div class="wf-track"><span class="dl ${r.b>=r.a?"up":"dn"}" style="left:${Math.min(x,y)}%;width:${Math.abs(y-x)}%"></span><i class="da" style="left:${x}%"></i><i class="db2" style="left:${y}%"></i></div><span class="amt"><span class="mut">${fmt(r.a)}</span> → <b class="${r.b>r.a?"zpos":r.b<r.a?"zneg":""}">${fmt(r.b)}</b></span></div>`}).join("")}</div>`}
+  return `<div class="wf wf-w">${rows.map(r=>{const x=+P(r.a),y=+P(r.b);return `<div class="wf-row${r.me?" me":""}" data-tip="${esc(r.tip||"")}"><span>${r.l}</span><div class="wf-track"><span class="dl ${r.b>=r.a?"up":"dn"}" style="left:${Math.min(x,y)}%;width:${Math.abs(y-x)}%"></span><i class="da" style="left:${x}%"></i><i class="db2" style="left:${y}%;--from:${x}%"></i></div><span class="amt"><span class="mut">${fmt(r.a)}</span> → <b class="${r.b>r.a?"zpos":r.b<r.a?"zneg":""}">${fmt(r.b)}</b></span></div>`}).join("")}</div>`}
 // labeled bars, one per row, with an optional reference line (league average, even odds)
 function hbars(rows,{max,avg,fmt=f0,avgLab="league average"}={}){const M=max||Math.max(...rows.map(r=>r.v),1)*1.04;
   return `<div class="wf">${rows.map(r=>`<div class="wf-row${r.me?" me":""}" data-tip="${esc(r.tip||"")}"><span>${r.l}</span><div class="wf-track"><span style="left:0;width:${pctOf(r.v,M)}%;background:var(${r.me?"--mine":"--accent"})"></span>${avg!=null?`<i class="ref" style="left:${pctOf(avg,M)}%"></i>`:""}</div><span class="amt">${fmt(r.v)}</span></div>`).join("")}</div>${avg!=null?`<div class="lab-key"><span><i class="refk"></i>${avgLab} ${fmt(avg)}</span></div>`:""}`}
@@ -1764,12 +1764,12 @@ function outlookCard(T,tw){const W=WEEKS.map((w,i)=>({w,i})).filter(x=>x.w.p[1]>
   [.25,.5,.75].forEach(f=>{const v=top*f;g+=`<line class="gr" x1="${L}" x2="${Wd-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`});
   g+=`<line class="ax" x1="${L}" x2="${Wd-R}" y1="${Y(0)}" y2="${Y(0)}"/>`;
   pt.forEach((x,k)=>{const cx=X(k),y=Y(x.v),h=Y(0)-y,r=Math.min(4,bw/2);
-    g+=`<path d="M${(cx-bw/2).toFixed(1)},${Y(0)}V${(y+r).toFixed(1)}q0,-${r} ${r},-${r}h${(bw-2*r).toFixed(1)}q${r},0 ${r},${r}V${Y(0)}Z" fill="${col(x)}" fill-opacity="${op(x)}"${x.part?' stroke="var(--ink)" stroke-dasharray="3 2" stroke-width="1"':""}/>`;
+    g+=`<path data-k="${k}" class="col" d="M${(cx-bw/2).toFixed(1)},${Y(0)}V${(y+r).toFixed(1)}q0,-${r} ${r},-${r}h${(bw-2*r).toFixed(1)}q${r},0 ${r},${r}V${Y(0)}Z" fill="${col(x)}" fill-opacity="${op(x)}"${x.part?' stroke="var(--ink)" stroke-dasharray="3 2" stroke-width="1"':""}/>`;
     g+=`<line x1="${(cx-bw/2-3).toFixed(1)}" x2="${(cx+bw/2+3).toFixed(1)}" y1="${Y(x.a).toFixed(1)}" y2="${Y(x.a).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5" opacity=".55"/>`;
-    if(wide)g+=`<text x="${cx.toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" class="olp">${Math.round(x.p*100)}</text>`;
+    if(wide)g+=`<text data-k="${k}" x="${cx.toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" class="olp">${Math.round(x.p*100)}</text>`;
     if(wide||k%2===0||k===n-1)g+=`<text x="${cx.toFixed(1)}" y="${Ht-B+13}" text-anchor="middle" class="olw${x.part?" now":""}">${x.part?"now":x.w.i}</text>`;
     if(wide&&x.o)g+=`<text x="${cx.toFixed(1)}" y="${Ht-B+26}" text-anchor="middle" class="olo">${esc(ab(x.o))}</text>`;
-    g+=`<rect class="hit" x="${(cx-cw/2).toFixed(1)}" y="0" width="${cw.toFixed(1)}" height="${Ht}" data-tip="${esc(`${lab(x)}, ${dates(x)}${x.part?" (rest of the week)":""}: you ${f0(x.v)}, league average ${f0(x.a)}${x.o?` · vs ${teamName(x.o)} (${f0(x.ov)}): ${pc(x.p)} to win`:x.w.po?" · playoffs: "+pc(x.p)+" against an average team":""}`)}"/>`});
+    g+=`<rect class="hit" data-k="${k}" x="${(cx-cw/2).toFixed(1)}" y="0" width="${cw.toFixed(1)}" height="${Ht}" data-tip="${esc(`${lab(x)}, ${dates(x)}${x.part?" (rest of the week)":""}: you ${f0(x.v)}, league average ${f0(x.a)}${x.o?` · vs ${teamName(x.o)} (${f0(x.ov)}): ${pc(x.p)} to win`:x.w.po?" · playoffs: "+pc(x.p)+" against an average team":""}`)}"/>`});
   const st=(k,v,d)=>`<div><i>${k}</i><b>${v}</b><small>${d}</small></div>`;
   return `<div class="chart-card"><h4>Your season, week by week</h4><div class="eq">projected starter points each week, colored by your chance to win that matchup</div>
     <div class="olk">${st("Projected record",`${f0(wins)}–${f0(games-wins)}`,`${reg.length} weeks left in the regular season`)}${tough?st("Toughest matchup",lab(tough),`${pc(tough.p)} vs ${esc(teamShort(tough.o))}`):""}${easy?st("Easiest matchup",lab(easy),`${pc(easy.p)} vs ${esc(teamShort(easy.o))}`):""}${po.length?st("Playoff weeks",f0(mean(po.map(x=>x.v))),`a week · league average ${f0(mean(po.map(x=>x.a)))}`):""}</div>
@@ -2252,7 +2252,20 @@ const howWrap=root=>{if(!root.querySelectorAll)return;root.querySelectorAll(".ch
   if(p.hasAttribute("data-keep")||p.closest("details.how")||p.querySelector("button,input,select,textarea")||p.textContent.length<160)return;
   const d=document.createElement("details");d.className="how";d.innerHTML="<summary>How this works</summary>";p.replaceWith(d);d.appendChild(p)})};
 document.querySelectorAll(".card[data-fold]").forEach(applyFold);
-new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;howWrap(n.parentElement||n);if(n.matches(".dr-sec"))applyFold(n);n.querySelectorAll(".dr-sec").forEach(applyFold)}}).observe(document.body,{childList:true,subtree:true});
+// ---- motion: a chart draws in once, when it scrolls into view: bars grow from their baseline (a loss grows leftward from the
+// center), the season columns rise left to right, a trade's "after" dot slides over from "now". Each card animates once per visit
+// (by its title), so re-renders don't replay it; reduced motion, or no IntersectionObserver, leaves everything drawn and still
+const SEEN=new Set();let animWatch=()=>{};
+if(!REDUCED&&"IntersectionObserver" in window){document.documentElement.classList.add("anim");
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const c=e.target;io.unobserve(c);
+    c.querySelectorAll(".wf-track>span").forEach(s=>{const t=s.parentElement.getBoundingClientRect(),r=s.getBoundingClientRect();if(r.width>1&&Math.abs(r.right-(t.left+t.width/2))<2||s.classList.contains("dn"))s.style.transformOrigin="right"});
+    c.querySelectorAll("svg.ol [data-k]").forEach(p=>p.style.animationDelay=(+p.dataset.k*30)+"ms");c.classList.add("go")}),{threshold:.15});
+  animWatch=root=>{if(!root.querySelectorAll)return;[...(root.matches(".chart-card")?[root]:[]),...root.querySelectorAll(".chart-card")].forEach(c=>{const k=((c.querySelector("h4")||{}).textContent||"").trim();if(!k||SEEN.has(k)){c.classList.add("go","still");return}SEEN.add(k);io.observe(c)})}}
+// hovering a week in the season chart dims the others
+document.addEventListener("pointerover",e=>{const r=e.target.closest&&e.target.closest("svg.ol rect.hit");const sv=e.target.closest&&e.target.closest("svg.ol");if(!sv)return;sv.classList.toggle("hl",!!r);sv.querySelectorAll(".on").forEach(x=>x.classList.remove("on"));if(r)sv.querySelectorAll(`[data-k="${r.dataset.k}"]`).forEach(x=>x.classList.add("on"))});
+document.addEventListener("pointerout",e=>{const sv=e.target.closest&&e.target.closest("svg.ol");if(sv&&!sv.contains(e.relatedTarget))sv.classList.remove("hl")});
+new MutationObserver(ms=>{for(const m of ms)for(const n of m.addedNodes){if(n.nodeType!==1)continue;howWrap(n.parentElement||n);if(n.matches(".dr-sec"))applyFold(n);n.querySelectorAll(".dr-sec").forEach(applyFold);animWatch(n)}}).observe(document.body,{childList:true,subtree:true});
+animWatch(document.body);
 // ---- modes: Draft Day (board, insights, mock) and Season (my team, matchup, waivers, trades, rosters) ----
 const modeOf=t=>$("tab-"+t).dataset.mode||null;
 S.lastTab=S.lastTab||{draft:"board",season:"today"};if(!S.todaySeen){S.lastTab.season="today";S.todaySeen=1}  // Today is the Season home

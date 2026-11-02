@@ -324,7 +324,16 @@ details.how>summary::-webkit-details-marker{display:none}details.how>summary::be
 .itl{margin-top:12px}.itl-ax{height:14px}.itl-ax>div{position:relative;font-size:10.5px;color:var(--muted)}.itl-ax>div span{position:absolute;transform:translateX(-50%);white-space:nowrap}.itl .wf-row>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sm2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:12px 28px;margin-top:8px}.sm2 h5{margin:0 0 8px;font-family:var(--body);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
 .sm2 .wf-row>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}/* the week-by-week chart: headline row, win % over the columns, week and opponent under them */
-.chart-card svg.ol text{font-size:10.5px;fill:var(--muted)}.chart-card svg.ol .olp{font-size:10px;fill:var(--ink);font-variant-numeric:tabular-nums}.chart-card svg.ol .olw{font-size:10.5px;fill:var(--ink)}.chart-card svg.ol .olw.now{font-weight:700;fill:var(--mine)}
+.chart-card svg.ol text{font-size:10.5px;fill:var(--muted)}
+svg.ol .col{transform-box:fill-box;transform-origin:bottom;transition:opacity .15s}svg.ol.hl .col{opacity:.35}svg.ol.hl .col.on{opacity:1}svg.ol .olp{transition:opacity .15s}svg.ol.hl .olp:not(.on){opacity:.3}
+@media (prefers-reduced-motion:no-preference){
+  .anim .chart-card:not(.go) .wf-track>span,.anim .chart-card:not(.go) .ib>span,.anim .chart-card:not(.go) .pb-a{transform:scaleX(0)}
+  .anim .chart-card:not(.go) svg.ol .col{transform:scaleY(0)}.anim .chart-card:not(.go) svg.ol .olp,.anim .chart-card:not(.go) .wf-track .db2{opacity:0}
+  .go:not(.still) .wf-track>span,.go:not(.still) .ib>span,.go:not(.still) .pb-a{transform-origin:left;animation:growx .7s cubic-bezier(.25,.8,.25,1) both}
+  .go:not(.still) svg.ol .col{animation:growy .6s cubic-bezier(.25,.8,.25,1) both}.go:not(.still) svg.ol .olp{animation:fadein .35s .55s both}
+  .go:not(.still) .wf-track .db2{animation:slidedot .8s .3s cubic-bezier(.25,.8,.25,1) both}.go:not(.still) .wf-track .dl{animation-delay:.3s}
+}
+@keyframes growx{from{transform:scaleX(0)}}@keyframes growy{from{transform:scaleY(0)}}@keyframes slidedot{from{left:var(--from);opacity:1}}.chart-card svg.ol .olp{font-size:10px;fill:var(--ink);font-variant-numeric:tabular-nums}.chart-card svg.ol .olw{font-size:10.5px;fill:var(--ink)}.chart-card svg.ol .olw.now{font-weight:700;fill:var(--mine)}
 .chart-card svg.ol .olo{font-size:9.5px;letter-spacing:.04em}.chart-card svg.ol .olh{font-family:var(--display);font-style:italic;font-size:13px;fill:var(--ink)}
 .olk{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:8px;margin:10px 0 6px}.olk>div{background:var(--soft);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;min-width:0}
 .olk i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}.olk b{font-family:var(--display);font-style:italic;font-weight:600;font-size:21px;line-height:1.2}.olk small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
