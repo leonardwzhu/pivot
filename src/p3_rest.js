@@ -1902,7 +1902,7 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
   // ---- headline numbers
   const rec=lg&&LEAGUE.rec&&LEAGUE.rec[S.slot];const stand=lg&&LEAGUE.rec?[...T].sort((a,b)=>{const A=LEAGUE.rec[a]||[0,0,0,0],B=LEAGUE.rec[b]||[0,0,0,0];return (B[0]+B[2]/2)-(A[0]+A[2]/2)||B[3]-A[3]}).indexOf(S.slot)+1:null;
   const w=Math.max(0,CUR_WEEK),opp=leagueOpp(w),M=opp&&rosterOf(opp).length?matchupSim(my,rosterOf(opp),w):null;
-  h+=`<div class="kpis">${started?kpT("Record",`${rec[0]}-${rec[1]}${rec[2]?"-"+rec[2]:""}`,`${ordinal(stand)} of ${T.length} · ${f0(rec[3])} points for`):kpT("Season",lg?"Starts Nov 2":"Not started",lg?"Week 1 is Nov 2–8":"")}
+  h+=`<div class="kpis">${started?kpT("Record",`${rec[0]}-${rec[1]}${rec[2]?"-"+rec[2]:""}`,`${ordinal(stand)} of ${T.length} · ${f0(rec[3])} points for`):kpT("Season",lg?`Week ${WEEKS[w].i}`:"Not started",lg?`your first matchup, ${gDate(WEEKS[w].s)}–${gDate(WEEKS[w].e)}`:"")}
     ${kpT("Starter points / week",f0(me.mu),`${ordinal(myRank)} of ${T.length} · league average ${f0(lgAvg)}`)}
     ${odds&&PO_TEAMS<T.length?kpT("Playoff odds",`<span class="call">${pc(odds.po[S.slot])}</span>`,`top ${PO_TEAMS} of ${T.length} make it · projected ${f1(odds.wins[S.slot])} wins`):""}
     ${odds?kpT("Title odds",PO_TEAMS<T.length?pc(odds.title[S.slot]):`<span class="call">${pc(odds.title[S.slot])}</span>`,`${PO_TEAMS>=T.length?`all ${T.length} teams make the playoffs · `:""}win ${PO_ROUNDS} playoff round${PO_ROUNDS===1?"":"s"} · even odds ${pc(1/T.length)}`):""}

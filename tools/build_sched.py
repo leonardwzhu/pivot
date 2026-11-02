@@ -42,6 +42,22 @@ if LG:
         weeks=[list(range(x[0],x[-1]+1)) for x in per[:reg_n]];p=weeks[-1][-1]+1
         while p<=last and len(weeks)<total:weeks.append(list(range(p,min(last,p+6)+1)));p+=7
         print('calendar: league matchup periods')
+    elif LG.get('draftDetail',{}).get('drafted') and per and max(len(x) for x in per)<5:
+        # matchup periods list ESPN's NBA week numbers, not days. ESPN's weeks run Monday to Sunday from opening night
+        # through the league's final day, with the two weeks around the All-Star break (February's longest stretch with no games) as one.
+        # February only: December has blank days held for NBA Cup games that aren't scheduled yet
+        st=LG.get('status',{});fin=st.get('finalScoringPeriod') or last;nw=max(max(x) for x in per)
+        cal=[list(range(1,next(q for q in range(1,8) if dateOf(q).weekday()==6)+1))]
+        while cal[-1][-1]<fin:p=cal[-1][-1]+1;cal.append(list(range(p,min(fin,p+6)+1)))
+        def gap(i):
+            run=best=0
+            for q in cal[i]+cal[i+1]:run=0 if q in days else run+1;best=max(best,run)
+            return best
+        while len(cal)>nw:i=max(range(len(cal)-1),key=lambda i:(dateOf(cal[i][-1]).month==2,gap(i)));cal[i]=cal[i]+cal.pop(i+1)
+        weeks=[[q for k in x for q in cal[k-1]] for x in per[:total]];weeks=[list(range(w[0],w[-1]+1)) for w in weeks]
+        cm=st.get('currentMatchupPeriod');i=next((i for i,w in enumerate(weeks) if w[0]<=cur<=w[-1]),None)
+        if cm and i is not None and i+1!=cm:print('WARN calendar: today falls in matchup',i+1,'but ESPN says',cm)
+        print('calendar: league matchup periods by NBA week')
     else:
         dday=(datetime.datetime.fromtimestamp(LG['settings']['draftSettings']['date']/1000,datetime.timezone.utc)-datetime.timedelta(hours=5)).date()
         if dday>dateOf(1):
@@ -55,7 +71,7 @@ if weeks is None:
     weeks.append(list(range(1,first_end+1)));p=first_end+1
     while p<=last:
         weeks.append(list(range(p,p+7)));p+=7
-weeks=[w for w in weeks if gd(w)>0]
+weeks=[w for w in weeks if gd(w)>0] if not (LG and len(weeks)==total) else weeks
 # a late draft starts week 1 on its own calendar, and any NBA weeks after the fantasy playoffs don't count. Otherwise too many
 # weeks for the league's calendar: merge the lightest regular-season week into the next one
 if late:weeks=weeks[:total]
