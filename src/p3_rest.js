@@ -1746,26 +1746,36 @@ function irPlan(my){const slots=HAS_LG()?LEAGUE.irSlots||0:1,ids=irIds(),inIR=my
     cand.slice(free).forEach(p=>out.push({k:"",t:`${pBtn(p)} is also out, until about ${dayLabel(p.retP)}. With ${slots} IR slot${slots>1?"s":""}, ${esc(c.name)} is the better stash because he's out ${days(c)>days(p)?"longer":"as long"}. Keep ${esc(p.name.split(" ").pop())} on your bench; he doesn't cost you a spot for long.`}))}
   else if(free>0)act.filter(p=>p.out&&days(p)<3).forEach(p=>out.push({k:"",t:`${pBtn(p)} is out but back about ${dayLabel(p.retP)}. Too short to be worth an IR move.`}));
   return {slots,inIR,free,out,action:out.some(x=>x.k==="bad"||x.k==="warn"||x.act)}}
-// the season ahead: your projected starter points each remaining week against the league average, playoff weeks shaded.
-// The current week counts only its remaining days, so it's drawn hollow
+// the season ahead, one column per remaining week: height = your projected starter points (from zero), color = your chance to
+// beat that week's opponent (both teams' projections and weekly swings, as in the season simulation), a tick for the league average.
+// Playoff opponents aren't set yet, so those columns are judged against an average team
 function outlookCard(T,tw){const W=WEEKS.map((w,i)=>({w,i})).filter(x=>x.w.p[1]>=CUR_PERIOD);if(W.length<2)return "";
-  const me=tw[S.slot],oth=T.filter(t=>t!==S.slot),pt=W.map(x=>({...x,v:me.H.weekly[x.i],a:mean(oth.map(t=>tw[t].H.weekly[x.i])),part:x.w.p[0]<CUR_PERIOD,opp:leagueOpp(x.i)}));
-  const full=pt.filter(x=>!x.part),vals=full.flatMap(x=>[x.v,x.a]),lo=Math.min(...vals),hi=Math.max(...vals),pad=(hi-lo)*.15||50,y0=Math.max(0,lo-pad),y1=hi+pad;
-  const Wd=Math.max(300,Math.min(1000,((document.querySelector("main>section")||{}).clientWidth||640)-34)),Ht=Wd<500?180:200,L=40,R=10,Tp=12,B=26,X=k=>L+(k+.5)*(Wd-L-R)/pt.length,Y=v=>Tp+(1-(v-y0)/(y1-y0))*(Ht-Tp-B),bw=(Wd-L-R)/pt.length;
-  const ticks=[0,1,2,3].map(k=>y0+(y1-y0)*k/3),path=(f,arr)=>arr.map((x,k)=>`${k?"L":"M"}${X(pt.indexOf(x)).toFixed(1)},${Y(f(x)).toFixed(1)}`).join("");
-  const po=pt.filter(x=>x.w.po),reg=full.filter(x=>!x.w.po),worst=reg.length?[...reg].sort((a,b)=>(a.v-a.a)-(b.v-b.a))[0]:null,best=reg.length?[...reg].sort((a,b)=>(b.v-b.a)-(a.v-a.a))[0]:null;
-  const lab=x=>`Week ${x.w.i} (${gDate(x.w.s)}–${gDate(x.w.e)})`;
-  let g=ticks.map(v=>`<line class="gr" x1="${L}" x2="${Wd-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text x="${L-6}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end">${f0(v)}</text>`).join("");
-  if(po.length)g+=`<rect class="band" x="${(X(pt.indexOf(po[0]))-bw/2).toFixed(1)}" y="${Tp}" width="${(bw*po.length).toFixed(1)}" height="${Ht-Tp-B}" rx="4"/><text x="${(X(pt.indexOf(po[0]))-bw/2+4).toFixed(1)}" y="${Tp+11}" class="lbl">Playoffs</text>`;
-  g+=`<path d="${path(x=>x.a,full)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/><path d="${path(x=>x.v,full)}" fill="none" stroke="var(--mine)" stroke-width="2.2" stroke-linejoin="round"/>`;
-  g+=pt.map((x,k)=>`<circle cx="${X(k).toFixed(1)}" cy="${Y(Math.max(y0,x.v)).toFixed(1)}" r="3.5" fill="${x.part?"var(--panel)":"var(--mine)"}" stroke="var(--mine)" stroke-width="${x.part?2:1.5}"/>`).join("");
-  g+=pt.filter((x,k)=>pt.length<=(Wd<500?8:12)||k%(Wd<500?3:2)===0||x===pt[pt.length-1]).map(x=>`<text x="${X(pt.indexOf(x)).toFixed(1)}" y="${Ht-8}" text-anchor="middle">${x.w.i}</text>`).join("");
-  if(worst&&worst.v<worst.a)g+=`<text x="${X(pt.indexOf(worst)).toFixed(1)}" y="${(Y(worst.v)+16).toFixed(1)}" text-anchor="middle" class="lbl">low</text>`;
-  g+=pt.map((x,k)=>`<rect class="hit" x="${(X(k)-bw/2).toFixed(1)}" y="${Tp}" width="${bw.toFixed(1)}" height="${Ht-Tp-B}" data-tip="${esc(`${lab(x)}${x.part?", rest of the week":""}: you ${f0(x.v)}, league average ${f0(x.a)}${x.opp?` · vs ${teamName(x.opp)}`:x.w.po?" · playoffs":""}`)}"/>`).join("");
-  return `<div class="chart-card"><h4>Your season, week by week</h4><div class="eq">projected starter points each week · weeks along the bottom</div>
-    <svg class="ol" viewBox="0 0 ${Wd} ${Ht}" style="max-width:${Wd}px" role="img" aria-label="Projected starter points per week, you against the league average">${g}</svg>
-    <div class="lab-key"><span><i style="background:var(--mine)"></i>You</span><span><i class="refk"></i>League average</span>${po.length?`<span><i class="dot" style="background:var(--band);border:1px solid var(--accent)"></i>Playoffs, weeks ${po[0].w.i}–${po[po.length-1].w.i}</span>`:""}</div>
-    <p data-keep>${best&&worst?`Strongest week: ${lab(best)}, ${f0(best.v-best.a)} above average. Lightest: ${lab(worst)}, ${worst.v>=worst.a?`still ${f0(worst.v-worst.a)} above`:`${f0(worst.a-worst.v)} below`} average${worst.v<worst.a?", a good week to stream a free agent with extra games":""}. `:""}Weeks differ mostly because NBA teams play 2 to 4 games a week (fewer around the NBA Cup knockouts and the All-Star break); injuries count too, as players return.</p></div>`}
+  const me=tw[S.slot],oth=T.filter(t=>t!==S.slot),Phi=z=>.5*(1+erf(z/Math.SQRT2)),ab=t=>((HAS_LG()&&LEAGUE.teams[t]||{}).abbrev||teamShort(t)).slice(0,4);
+  const pt=W.map(x=>{const v=me.H.weekly[x.i],a=mean(oth.map(t=>tw[t].H.weekly[x.i])),o=x.w.po?null:leagueOpp(x.i),ov=o&&tw[o]?tw[o].H.weekly[x.i]:a,sd=Math.hypot(me.sd,o&&tw[o]?tw[o].sd:mean(oth.map(t=>tw[t].sd)));
+    let p=Phi((v-ov)/(sd||1));if(x.i===Math.max(0,CUR_WEEK)&&o){const R=myRoster(),O=rosterOf(o);if(R.length&&O.length)p=matchupSim(R,O,x.i,300).p}
+    return {...x,v,a,o,ov,p:Math.min(.99,Math.max(.01,p)),part:x.w.p[0]<CUR_PERIOD}});
+  const reg=pt.filter(x=>!x.w.po),po=pt.filter(x=>x.w.po),rec=HAS_LG()&&LEAGUE.rec&&LEAGUE.rec[S.slot]||[0,0,0],wins=rec[0]+rec[2]/2+reg.reduce((t,x)=>t+x.p,0),games=rec[0]+rec[1]+rec[2]+reg.length;
+  const tough=[...reg].sort((a,b)=>a.p-b.p)[0],easy=[...reg].sort((a,b)=>b.p-a.p)[0],lab=x=>`Week ${x.w.i}`,dates=x=>`${gDate(x.w.s)}–${gDate(x.w.e)}`;
+  const Wd=Math.max(300,Math.min(1000,((document.querySelector("main>section")||{}).clientWidth||640)-34)),wide=Wd>=640,Ht=wide?250:210,L=4,R=4,Tp=wide?30:14,B=wide?36:22;
+  const n=pt.length,cw=(Wd-L-R)/n,bw=Math.max(5,Math.min(30,cw*.62)),top=Math.max(...pt.map(x=>Math.max(x.v,x.a)))*1.06,Y=v=>Tp+(1-v/top)*(Ht-Tp-B),X=k=>L+(k+.5)*cw;
+  const col=x=>x.p>=.5?"var(--ok)":"var(--bad)",op=x=>(.3+.7*Math.min(1,Math.abs(x.p-.5)*2.4)).toFixed(2);
+  let g="";
+  if(po.length){const k0=pt.indexOf(po[0]);g+=`<rect x="${(L+k0*cw).toFixed(1)}" y="${Tp-(wide?26:12)}" width="${(cw*po.length).toFixed(1)}" height="${Ht-Tp-B+(wide?26:12)}" rx="6" fill="var(--soft)"/><text x="${(wide?L+(k0+po.length/2)*cw:Wd-R-3).toFixed(1)}" y="${Tp-(wide?13:3)}" text-anchor="${wide?"middle":"end"}" class="olh">Playoffs</text>`}
+  [.25,.5,.75].forEach(f=>{const v=top*f;g+=`<line class="gr" x1="${L}" x2="${Wd-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`});
+  g+=`<line class="ax" x1="${L}" x2="${Wd-R}" y1="${Y(0)}" y2="${Y(0)}"/>`;
+  pt.forEach((x,k)=>{const cx=X(k),y=Y(x.v),h=Y(0)-y,r=Math.min(4,bw/2);
+    g+=`<path d="M${(cx-bw/2).toFixed(1)},${Y(0)}V${(y+r).toFixed(1)}q0,-${r} ${r},-${r}h${(bw-2*r).toFixed(1)}q${r},0 ${r},${r}V${Y(0)}Z" fill="${col(x)}" fill-opacity="${op(x)}"${x.part?' stroke="var(--ink)" stroke-dasharray="3 2" stroke-width="1"':""}/>`;
+    g+=`<line x1="${(cx-bw/2-3).toFixed(1)}" x2="${(cx+bw/2+3).toFixed(1)}" y1="${Y(x.a).toFixed(1)}" y2="${Y(x.a).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5" opacity=".55"/>`;
+    if(wide)g+=`<text x="${cx.toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" class="olp">${Math.round(x.p*100)}</text>`;
+    if(wide||k%2===0||k===n-1)g+=`<text x="${cx.toFixed(1)}" y="${Ht-B+13}" text-anchor="middle" class="olw${x.part?" now":""}">${x.part?"now":x.w.i}</text>`;
+    if(wide&&x.o)g+=`<text x="${cx.toFixed(1)}" y="${Ht-B+26}" text-anchor="middle" class="olo">${esc(ab(x.o))}</text>`;
+    g+=`<rect class="hit" x="${(cx-cw/2).toFixed(1)}" y="0" width="${cw.toFixed(1)}" height="${Ht}" data-tip="${esc(`${lab(x)}, ${dates(x)}${x.part?" (rest of the week)":""}: you ${f0(x.v)}, league average ${f0(x.a)}${x.o?` · vs ${teamName(x.o)} (${f0(x.ov)}): ${pc(x.p)} to win`:x.w.po?" · playoffs: "+pc(x.p)+" against an average team":""}`)}"/>`});
+  const st=(k,v,d)=>`<div><i>${k}</i><b>${v}</b><small>${d}</small></div>`;
+  return `<div class="chart-card"><h4>Your season, week by week</h4><div class="eq">projected starter points each week, colored by your chance to win that matchup</div>
+    <div class="olk">${st("Projected record",`${f0(wins)}–${f0(games-wins)}`,`${reg.length} weeks left in the regular season`)}${tough?st("Toughest matchup",lab(tough),`${pc(tough.p)} vs ${esc(teamShort(tough.o))}`):""}${easy?st("Easiest matchup",lab(easy),`${pc(easy.p)} vs ${esc(teamShort(easy.o))}`):""}${po.length?st("Playoff weeks",f0(mean(po.map(x=>x.v))),`a week · league average ${f0(mean(po.map(x=>x.a)))}`):""}</div>
+    <svg class="ol" viewBox="0 0 ${Wd} ${Ht}" style="max-width:${Wd}px" role="img" aria-label="Projected starter points and win chance for each remaining week">${g}</svg>
+    <div class="lab-key"><span><i class="dot" style="background:var(--ok)"></i>likely win</span><span><i class="dot" style="background:var(--bad)"></i>likely loss</span><span>· deeper color = surer</span><span><i style="background:var(--ink);opacity:.55;height:2px"></i>league average</span>${wide?"<span>· win % on top, opponent below; playoff weeks against an average team</span>":"<span>· tap a week for details</span>"}</div>
+    <p data-keep>${tough&&tough.p<.5?`${lab(tough)} (${dates(tough)}) is your toughest: ${pc(tough.p)} against ${esc(teamName(tough.o))}. `:""}Weeks with few NBA games (the NBA Cup knockouts in early December, the All-Star break in February) drop for every team, so the color, not the height, says whether you're favored.</p></div>`}
 // who's out and until when, on the calendar of matchup weeks: one bar per injured player from today to his expected return
 function injTimeline(my,ids){const L=my.filter(p=>p.out||p.dtd||ids.has(p.espnId)).map(p=>({p,end:p.inj&&(p.inj.fs==="OFS"||(p.inj.ret&&p.inj.ret>SEASON_END))?Infinity:Math.max(CUR_PERIOD+1,p.retP||CUR_PERIOD+1)})).sort((a,b)=>b.end-a.end);if(!L.length)return "";
   const span=Math.min(42,Math.max(15,...L.map(x=>x.end===Infinity?42:x.end-CUR_PERIOD+3))),q1=CUR_PERIOD+span,P=q=>pctOf(q-CUR_PERIOD,span),wk=WEEKS.filter(w=>w.p[0]>CUR_PERIOD&&w.p[0]<q1);
