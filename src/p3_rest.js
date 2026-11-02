@@ -414,7 +414,10 @@ const rbar=(lo,mid,hi,max,tip="")=>`<span class="rb"${tip?` data-tip="${esc(tip)
 // your win chance as one split bar, you on the left
 const probBar=(p,a,b)=>`<div class="pb" data-tip="${esc(`${a} ${pc(p)} · ${b} ${pc(1-p)}`)}"><span class="pb-a" style="width:${(p*100).toFixed(1)}%"></span><span class="pb-b"></span></div><div class="pb-l"><span><i class="sw me"></i>${esc(a)} ${pc(p)}</span><span>${esc(b)} ${pc(1-p)}<i class="sw opp"></i></span></div>`;
 // then (hollow dot) against now (filled dot) on one scale, joined by a line that's green when now is higher
-const dumb=(a,b,max,tip="")=>{const x=+pctOf(a,max),y=+pctOf(b,max);return `<span class="dmb"${tip?` data-tip="${esc(tip)}"`:""}><span class="dmb-l ${b>=a?"up":"dn"}" style="left:${Math.min(x,y)}%;width:${Math.abs(y-x)}%"></span><span class="dmb-a" style="left:${x}%"></span><span class="dmb-b" style="left:${y}%"></span></span>`};
+const dumb=(a,b,max,tip="",min=0)=>{const x=+pctOf(a-min,max-min),y=+pctOf(b-min,max-min);return `<span class="dmb"${tip?` data-tip="${esc(tip)}"`:""}><span class="dmb-l ${b>=a?"up":"dn"}" style="left:${Math.min(x,y)}%;width:${Math.abs(y-x)}%"></span><span class="dmb-a" style="left:${x}%"></span><span class="dmb-b" style="left:${y}%"></span></span>`};
+// zoom: dots sit on a range around the values, so small changes still show
+function dumbRows(rows,{max,fmt=f0,zoom=false}={}){const V=rows.flatMap(r=>[r.a,r.b]),lo=Math.min(...V),hi=Math.max(...V,1),m0=zoom?Math.max(0,lo-(hi-lo)*.35-hi*.02):0,M=max||(zoom?hi+(hi-lo)*.35+hi*.02:hi*1.05);
+  return `<div class="hb hbd">${rows.map(r=>`<div class="hb-r${r.me?" me":""}" data-tip="${esc(r.tip||"")}"><span class="hb-l">${r.l}</span>${dumb(r.a,r.b,M,"",m0)}<span class="hb-v dv"><span class="mut">${fmt(r.a)}</span> → <b class="${r.b>r.a?"zpos":r.b<r.a?"zneg":""}">${fmt(r.b)}</b></span></div>`).join("")}</div>`}
 // labeled horizontal bars, one per row, with an optional league-average line
 function hbars(rows,{max,avg,fmt=f0,avgLab="league average"}={}){const M=max||Math.max(...rows.map(r=>r.v),1)*1.04;
   return `<div class="hb">${rows.map(r=>`<div class="hb-r${r.me?" me":""}" data-tip="${esc(r.tip||"")}"><span class="hb-l">${r.l}</span><span class="hb-t"><span class="hb-f" style="width:${pctOf(r.v,M)}%"></span>${avg!=null?`<span class="hb-avg" style="left:${pctOf(avg,M)}%"></span>`:""}</span><span class="hb-v">${fmt(r.v)}</span></div>`).join("")}</div>${avg!=null?`<div class="hb-k"><i class="avgk"></i>${avgLab} ${fmt(avg)}</div>`:""}`}
@@ -729,7 +732,12 @@ function tradesView(){const teams=Object.keys(leagueRosters()).map(Number).filte
       <div class="kpi"><div class="k">You · playoff weeks</div><div class="v ${me.po>=0?"zpos":"zneg"}">${me.po>=0?"+":""}${f0(me.po)}</div><div class="d">per playoff week</div></div>
       <div class="kpi"><div class="k">${esc(teamName(T))} · per week</div><div class="v ${them.wk>=0?"zpos":"zneg"}">${them.wk>=0?"+":""}${f0(them.wk)}</div><div class="d">what they'd gain or lose</div></div>
       <div class="kpi"><div class="k">${esc(teamName(T))} · playoff weeks</div><div class="v ${them.po>=0?"zpos":"zneg"}">${them.po>=0?"+":""}${f0(them.po)}</div><div class="d">per playoff week</div></div></div>
-      <p>Measured with the daily-lineup simulation, so it accounts for positions, schedules, injuries and who would actually start for each team. ${me.wk>0&&them.wk>0?"Both teams improve, so this one has a real chance of being accepted.":me.wk>0?"They'd lose value, so expect pushback.":"Look for a deal that helps both sides."}</p>
+      ${(()=>{const aM=after(my,give,get),aT=after(their,get,give),o0=playoffOdds(),o1=playoffOdds({[S.slot]:aM,[T]:aT}),tn=esc(teamShort(T)),sB=sourcesOf(my),sA=sourcesOf(aM),dS=SRC.map(([k,l])=>({l,v:sA[k]-sB[k]})),mx=Math.max(1,...dS.map(x=>Math.abs(x.v)));
+        return `<div class="sm2" style="margin-top:14px">${o0&&o1?`<div><h5>Title odds</h5>${dumbRows([{l:"You",a:o0.title[S.slot]*100,b:o1.title[S.slot]*100,me:1,tip:`You: ${pc(o0.title[S.slot])} now, ${pc(o1.title[S.slot])} after the trade`},{l:tn,a:o0.title[T]*100,b:o1.title[T]*100,tip:`${teamName(T)}: ${pc(o0.title[T])} now, ${pc(o1.title[T])} after`}],{fmt:v=>f0(v)+"%"})}</div>`:""}
+          <div><h5>Starter points per week</h5>${dumbRows([{l:"You",a:mB.reg/wks,b:mA.reg/wks,me:1,tip:"You, regular season"},{l:"You · playoffs",a:mB.po/PO_NW,b:mA.po/PO_NW,me:1,tip:"You, per playoff week"},{l:tn,a:tB.reg/wks,b:tA.reg/wks,tip:`${teamName(T)}, regular season`},{l:tn+" · playoffs",a:tB.po/PO_NW,b:tA.po/PO_NW,tip:`${teamName(T)}, per playoff week`}],{zoom:true})}</div></div>
+          <h5 class="h5s">Where your points change, per week</h5><div class="hb">${dS.map(x=>`<div class="hb-r" data-tip="${esc(`${x.l}: ${x.v>=0?"+":""}${f1(x.v)} a week`)}"><span class="hb-l">${x.l}</span>${dbar(x.v,mx)}<span class="hb-v ${x.v>=.5?"zpos":x.v<=-.5?"zneg":"mut"}">${x.v>=0?"+":""}${f0(x.v)}</span></div>`).join("")}</div>
+          <div class="hb-k"><span class="dmk"><i class="a"></i>now <i class="b"></i>after the trade</span></div>`})()}
+      <p>Measured with the daily-lineup simulation, so it accounts for positions, schedules, injuries and who would actually start for each team. Title odds replay the season with both new rosters. ${me.wk>0&&them.wk>0?"Both teams improve, so this one has a real chance of being accepted.":me.wk>0?"They'd lose value, so expect pushback.":"Look for a deal that helps both sides."}</p>
       <div class="row-btns"><button class="btn primary" id="tDo">Record this trade</button><button class="btn" id="tClear">Clear</button></div></div>`}
   else h+=`<p class="empty">Tick players on both sides to evaluate a trade.</p>`;
   return h}
@@ -1692,8 +1700,8 @@ function teamWeekly(R){const H=R.length?h2hValue(R):{reg:0,po:0,weekly:new Float
   const top=[...R].sort((a,b)=>b.proj.fp-a.proj.fp).slice(0,10),avg=top.length?mean(top.map(p=>p.proj.fp)):0,sig=top.length?mean(top.map(p=>p.proj.sigma)):0;
   const starts=Math.max(1,H.started/wksLeft()),sd=Math.sqrt(starts*(MATCHUP.CV*avg)**2+(starts*sig*.5)**2);return {H,mu:perWk(H),sd}}
 // season simulation over your real schedule: current ESPN records plus each remaining week drawn from those spreads
-function playoffOdds(){const L=leagueRosters(),T=Object.keys(L).map(Number);if(T.length<2||!HAS_LG()||!LEAGUE.opp)return null;
-  const tw=Object.fromEntries(T.map(t=>[t,teamWeekly(rosterOf(t))])),rec=LEAGUE.rec||{},N=3000,po=Object.fromEntries(T.map(t=>[t,0])),wins=Object.fromEntries(T.map(t=>[t,0])),seed0=Object.fromEntries(T.map(t=>[t,0]));
+function playoffOdds(ovr){const L=leagueRosters(),T=Object.keys(L).map(Number);if(T.length<2||!HAS_LG()||!LEAGUE.opp)return null;
+  const tw=Object.fromEntries(T.map(t=>[t,teamWeekly(ovr&&ovr[t]||rosterOf(t))])),rec=LEAGUE.rec||{},N=3000,po=Object.fromEntries(T.map(t=>[t,0])),wins=Object.fromEntries(T.map(t=>[t,0])),seed0=Object.fromEntries(T.map(t=>[t,0]));
   let seed=987654321;const rnd=()=>{seed=seed+0x6D2B79F5|0;let x=Math.imul(seed^seed>>>15,1|seed);x=x+Math.imul(x^x>>>7,61|x)^x;return((x^x>>>14)>>>0)/4294967296};
   const gs=()=>{let u=0;while(!u)u=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd())};
   const champ=Object.fromEntries(T.map(t=>[t,0])),poIdx=WEEKS.map((w,i)=>i).filter(i=>WEEKS[i].po),perRd=Math.max(1,Math.round(poIdx.length/PO_ROUNDS)),done=new Set((LEAGUE.results||[]).map(r=>r[0]-1)),todo=WEEKS.map((w,i)=>i).filter(i=>!WEEKS[i].po&&!done.has(i)&&WEEKS[i].p[1]>=CUR_PERIOD&&LEAGUE.opp[i]);
@@ -1737,9 +1745,37 @@ function irPlan(my){const slots=HAS_LG()?LEAGUE.irSlots||0:1,ids=irIds(),inIR=my
     cand.slice(free).forEach(p=>out.push({k:"",t:`${pBtn(p)} is also out, until about ${dayLabel(p.retP)}. With ${slots} IR slot${slots>1?"s":""}, ${esc(c.name)} is the better stash because he's out ${days(c)>days(p)?"longer":"as long"}. Keep ${esc(p.name.split(" ").pop())} on your bench; he doesn't cost you a spot for long.`}))}
   else if(free>0)act.filter(p=>p.out&&days(p)<3).forEach(p=>out.push({k:"",t:`${pBtn(p)} is out but back about ${dayLabel(p.retP)}. Too short to be worth an IR move.`}));
   return {slots,inIR,free,out,action:out.some(x=>x.k==="bad"||x.k==="warn"||x.act)}}
+// the season ahead: your projected starter points each remaining week against the league average, playoff weeks shaded.
+// The current week counts only its remaining days, so it's drawn hollow
+function outlookCard(T,tw){const W=WEEKS.map((w,i)=>({w,i})).filter(x=>x.w.p[1]>=CUR_PERIOD);if(W.length<2)return "";
+  const me=tw[S.slot],oth=T.filter(t=>t!==S.slot),pt=W.map(x=>({...x,v:me.H.weekly[x.i],a:mean(oth.map(t=>tw[t].H.weekly[x.i])),part:x.w.p[0]<CUR_PERIOD,opp:leagueOpp(x.i)}));
+  const full=pt.filter(x=>!x.part),vals=full.flatMap(x=>[x.v,x.a]),lo=Math.min(...vals),hi=Math.max(...vals),pad=(hi-lo)*.15||50,y0=Math.max(0,lo-pad),y1=hi+pad;
+  const Wd=innerWidth<600?360:640,Ht=innerWidth<600?190:210,L=40,R=10,Tp=12,B=26,X=k=>L+(k+.5)*(Wd-L-R)/pt.length,Y=v=>Tp+(1-(v-y0)/(y1-y0))*(Ht-Tp-B),bw=(Wd-L-R)/pt.length;
+  const ticks=[0,1,2,3].map(k=>y0+(y1-y0)*k/3),path=(f,arr)=>arr.map((x,k)=>`${k?"L":"M"}${X(pt.indexOf(x)).toFixed(1)},${Y(f(x)).toFixed(1)}`).join("");
+  const po=pt.filter(x=>x.w.po),reg=full.filter(x=>!x.w.po),worst=reg.length?[...reg].sort((a,b)=>(a.v-a.a)-(b.v-b.a))[0]:null,best=reg.length?[...reg].sort((a,b)=>(b.v-b.a)-(a.v-a.a))[0]:null;
+  const lab=x=>`Week ${x.w.i} (${gDate(x.w.s)}–${gDate(x.w.e)})`;
+  let g=ticks.map(v=>`<line class="gr" x1="${L}" x2="${Wd-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text x="${L-6}" y="${(Y(v)+3).toFixed(1)}" text-anchor="end">${f0(v)}</text>`).join("");
+  if(po.length)g+=`<rect class="band" x="${(X(pt.indexOf(po[0]))-bw/2).toFixed(1)}" y="${Tp}" width="${(bw*po.length).toFixed(1)}" height="${Ht-Tp-B}" rx="4"/><text x="${(X(pt.indexOf(po[0]))-bw/2+4).toFixed(1)}" y="${Tp+11}" class="lbl">Playoffs</text>`;
+  g+=`<path d="${path(x=>x.a,full)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/><path d="${path(x=>x.v,full)}" fill="none" stroke="var(--mine)" stroke-width="2.2" stroke-linejoin="round"/>`;
+  g+=pt.map((x,k)=>`<circle cx="${X(k).toFixed(1)}" cy="${Y(Math.max(y0,x.v)).toFixed(1)}" r="4" fill="${x.part?"var(--panel)":"var(--mine)"}" stroke="var(--mine)" stroke-width="${x.part?2:1.5}"/>`).join("");
+  g+=pt.filter((x,k)=>pt.length<=(Wd<500?8:12)||k%(Wd<500?3:2)===0||x===pt[pt.length-1]).map(x=>`<text x="${X(pt.indexOf(x)).toFixed(1)}" y="${Ht-8}" text-anchor="middle">${x.w.i}</text>`).join("");
+  if(worst&&worst.v<worst.a)g+=`<text x="${X(pt.indexOf(worst)).toFixed(1)}" y="${(Y(worst.v)+16).toFixed(1)}" text-anchor="middle" class="lbl">low</text>`;
+  g+=pt.map((x,k)=>`<rect class="hit" x="${(X(k)-bw/2).toFixed(1)}" y="${Tp}" width="${bw.toFixed(1)}" height="${Ht-Tp-B}" data-tip="${esc(`${lab(x)}${x.part?", rest of the week":""}: you ${f0(x.v)}, league average ${f0(x.a)}${x.opp?` · vs ${teamName(x.opp)}`:x.w.po?" · playoffs":""}`)}"/>`).join("");
+  return `<div class="chart-card"><h4>Your season, week by week</h4><div class="eq">projected starter points each week · weeks along the bottom</div>
+    <svg viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="Projected starter points per week, you against the league average">${g}</svg>
+    <div class="hb-k"><span><i class="sw me"></i>You</span><span><i class="avgk"></i>League average</span>${po.length?`<span><i class="sw" style="background:var(--band);border:1px solid var(--accent)"></i>Playoffs, weeks ${po[0].w.i}–${po[po.length-1].w.i}</span>`:""}</div>
+    <p data-keep>${best&&worst?`Strongest week: ${lab(best)}, ${f0(best.v-best.a)} above average. Lightest: ${lab(worst)}, ${worst.v>=worst.a?`still ${f0(worst.v-worst.a)} above`:`${f0(worst.a-worst.v)} below`} average${worst.v<worst.a?", a good week to stream a free agent with extra games":""}. `:""}Weeks differ mostly because NBA teams play 2 to 4 games a week (fewer around the NBA Cup knockouts and the All-Star break); injuries count too, as players return.</p></div>`}
+// who's out and until when, on the calendar of matchup weeks: one bar per injured player from today to his expected return
+function injTimeline(my,ids){const L=my.filter(p=>p.out||p.dtd||ids.has(p.espnId)).map(p=>({p,end:p.inj&&(p.inj.fs==="OFS"||(p.inj.ret&&p.inj.ret>SEASON_END))?Infinity:Math.max(CUR_PERIOD+1,p.retP||CUR_PERIOD+1)})).sort((a,b)=>b.end-a.end);if(!L.length)return "";
+  const span=Math.min(42,Math.max(15,...L.map(x=>x.end===Infinity?42:x.end-CUR_PERIOD+3))),q1=CUR_PERIOD+span,P=q=>pctOf(q-CUR_PERIOD,span),wk=WEEKS.filter(w=>w.p[0]>CUR_PERIOD&&w.p[0]<q1);
+  const miss=(p,e)=>(SCHED[p.team]||[]).filter(q=>q>=CUR_PERIOD&&q<Math.min(e,LAST_PERIOD+1)).length;
+  return `<div class="tl"><div class="tl-ax">${wk.map(w=>`<span style="left:${P(w.p[0])}%">Wk ${w.i}</span>`).join("")}</div>${L.map(({p,end})=>{const on=ids.has(p.espnId),c=on?"ir":p.out?"out":"dtd",e=Math.min(end,q1),n=miss(p,end);
+      return `<div class="tl-r" data-tip="${esc(`${p.name}: ${on?"on IR, ":""}${p.out?"out":"day-to-day"} ${end===Infinity?"for the fantasy season":`until about ${dayLabel(p.retP)}`} · misses about ${n} game${n===1?"":"s"}`)}"><span class="tl-l">${pBtn(p)}</span><span class="tl-t">${wk.map(w=>`<i style="left:${P(w.p[0])}%"></i>`).join("")}<span class="tl-b ${c}" style="width:${P(e)}%"></span>${end>q1?'<span class="tl-more">→</span>':""}</span><span class="tl-v">${end===Infinity?"season":n+" g"}</span></div>`}).join("")}
+    <div class="hb-k"><span><i class="sw" style="background:var(--bad)"></i>Out</span><span><i class="sw" style="background:var(--warn)"></i>Day-to-day</span><span><i class="sw" style="background:var(--accent)"></i>On your IR</span><span class="mut">· bars run from today to the expected return; "g" is games missed</span></div></div>`}
 function irCard(my,today){const P=irPlan(my);if(!P||(today&&!P.action))return "";
   return `<div class="chart-card"><h4>Injured reserve <span class="mut" style="font-family:var(--body);font-style:normal;font-size:12px;font-weight:400">· ${P.slots} slot${P.slots>1?"s":""}, ${P.inIR.length?`${P.inIR.map(p=>esc(p.name)).join(", ")} on it`:"empty"}</span></h4>
     ${P.out.length?`<ul class="heads" style="margin-top:8px">${P.out.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:`<p class="empty" style="margin-top:6px">Nobody on your roster is listed Out. If someone is, Pivot will suggest moving him here.</p>`}
+    ${today?"":injTimeline(my,irIds())}
     ${today?"":`<p class="empty">ESPN's IR slot takes players listed Out and doesn't count toward your 13. IR status comes from ESPN at each refresh, so a move you make there shows here after the next update.</p>`}</div>`}
 function irIdea(my){const lg=HAS_LG()?LEAGUE.irSlots:1;if(!lg)return null;const out=my.filter(p=>p.out&&p.retP-CUR_PERIOD>=7).sort((a,b)=>b.projTot-a.projTot)[0];if(!out)return null;
   const base=h2hValue(my).total,best=freeAgents().sort((a,b)=>b.projTot-a.projTot).slice(0,30).map(p=>({p,g:(h2hValue(my.concat(p)).total-base)/REMAIN_WEEKS()})).sort((a,b)=>b.g-a.g)[0];return best&&best.g>0?{out,...best}:null}
@@ -1764,7 +1800,7 @@ function myTeamView(){const my=myRoster(),lg=HAS_LG(),started=lg&&Object.values(
     ${odds?kpT("Title odds",PO_TEAMS<T.length?pc(odds.title[S.slot]):`<span class="call">${pc(odds.title[S.slot])}</span>`,`${PO_TEAMS>=T.length?`all ${T.length} teams make the playoffs · `:""}win ${PO_ROUNDS} playoff round${PO_ROUNDS===1?"":"s"} · even odds ${pc(1/T.length)}`):""}
     ${M?kpT(`Week ${WEEKS[w].i} vs ${esc(teamShort(opp))}`,pc(M.p),`projected ${f0(M.a)}–${f0(M.b)}`):""}
     ${kpT("Playoff-week games",String(my.reduce((s,p)=>s+p.poGames,0)),`your 13 players, ${PO_RANGE} · league avg ${f0(mean(T.filter(t=>t!==S.slot).map(t=>rosterOf(t).reduce((s,p)=>s+p.poGames,0))))}`)}</div>`;
-  h+=irCard(my);
+  h+=outlookCard(T,tw)+irCard(my);
   if(draftDone())h+=`<p class="empty" style="margin:-4px 0 0"><button class="expander" style="color:var(--mine);font-weight:600" onclick="setMode('draft');$('tab-review').click()">Draft review: how your picks are holding up →</button></p>`;
   // ---- season so far (ESPN results)
   if(lg&&(LEAGUE.results||[]).length){const mine=LEAGUE.results.filter(r=>r[1]===S.slot||r[3]===S.slot).sort((a,b)=>a[0]-b[0]);
