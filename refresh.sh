@@ -14,6 +14,8 @@ ESPN="https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/2027"
 # Your ESPN league (must be viewable to the public) and your team id in it
 LEAGUE_ID=2005831999
 MY_TEAM=1
+# today's ESPN scoring period: lineups (and IR) are kept per day, and the API otherwise returns the last finished day's
+TODAY_SP=$(python3 -c "import datetime,zoneinfo;print((datetime.datetime.now(zoneinfo.ZoneInfo('America/New_York')).date()-datetime.date(2026,10,19)).days)")
 fetch(){ curl -sS -m 90 -A "$UA" "${@:3}" -o "$2" -w "%{http_code}" "$1" 2>/dev/null || echo 000; }
 use_last(){ cp "last/$1" "work/$1"; echo "WARN $2: using last good $1"; }
 STATUS=();MODE=${1:-daily}
@@ -46,7 +48,7 @@ else use_last p2_espn.js "ESPN"; STATUS+=("ESPN: last good"); fi
 
 if [ "$MODE" != injuries ]; then
 # 4a) Your league: teams, draft order, picks, rosters and matchups (public league, no login)
-c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup" work/league.json)
+c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup&scoringPeriodId=$TODAY_SP" work/league.json)
 if [ "$c" = 200 ] && python3 -P tools/build_league.py "$MY_TEAM"; then cp work/league.json last/league.json; STATUS+=("league: fresh"); else rm -f work/league.json; use_last p2_league.js "league"; STATUS+=("league: last good"); fi
 
 # 4b) ESPN schedule and current scoring period (matchup weeks follow your league's calendar)
