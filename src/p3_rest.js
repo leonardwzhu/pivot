@@ -145,11 +145,11 @@ function renderBoard(){
   computeDisp();const C=cols();
   if(!C.some(c=>c.k===S.sort.k))S.sort={k:"rank",d:1};
   $("thead").innerHTML=C.map(c=>{const on=S.sort.k===c.k;return `<th class="${c.k==="name"?"l":""}" data-k="${c.k}"${on?` aria-sort="${S.sort.d>0?"ascending":"descending"}"`:""}>${c.l}${on&&c.k!=="act"?(S.sort.d>0?" ▲":" ▼"):""}</th>`}).join("");
-  const q=$("q").value.trim().toLowerCase();
+  const q=$("q").value.trim().toLowerCase(),TQ=teamQ(q);
   const list=players.filter(p=>{
     if(S.hideTaken&&pickOf(p.id))return false;if(S.hideOut&&p.out)return false;
     if(S.pos!=="ALL"){const g={G:["PG","SG"],F:["SF","PF"]}[S.pos]||[S.pos];if(!p.pos.some(x=>g.includes(x)))return false}
-    if(q&&!(norm2(p.name).includes(norm2(q))||p.team.toLowerCase()===q))return false;return true});
+    if(q&&!(norm2(p.name).includes(norm2(q))||teamHit(p,TQ)))return false;return true});
   const col=C.find(c=>c.k===S.sort.k),dir=(col.asc?1:-1)*S.sort.d;
   list.sort((a,b)=>{const A=col.get(a),B=col.get(b);return (col.str?A.localeCompare(B):(A-B))*dir||a.disp-b.disp});
   const tierSort=S.sort.k==="rank"||S.sort.k==="tier";let last=null;
@@ -425,6 +425,15 @@ function dumbRows(rows,{max,fmt=f0,zoom=false}={}){const V=rows.flatMap(r=>[r.a,
 function hbars(rows,{max,avg,fmt=f0,avgLab="league average"}={}){const M=max||Math.max(...rows.map(r=>r.v),1)*1.04;
   return `<div class="wf">${rows.map(r=>`<div class="wf-row${r.me?" me":""}" data-tip="${esc(r.tip||"")}"><span>${r.l}</span><div class="wf-track"><span style="left:0;width:${pctOf(r.v,M)}%;background:var(${r.me?"--mine":"--accent"})"></span>${avg!=null?`<i class="ref" style="left:${pctOf(avg,M)}%"></i>`:""}</div><span class="amt">${fmt(r.v)}</span></div>`).join("")}</div>${avg!=null?`<div class="lab-key"><span><i class="refk"></i>${avgLab} ${fmt(avg)}</span></div>`:""}`}
 const norm2=s=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+// team search: NBA codes (ours and ESPN's spellings), nicknames and cities from the start of a word, and league team names
+const NBA_CITY={ATL:"Atlanta",BOS:"Boston",BRK:"Brooklyn",CHO:"Charlotte",CHI:"Chicago",CLE:"Cleveland",DAL:"Dallas",DEN:"Denver",DET:"Detroit",GSW:"Golden State",HOU:"Houston",IND:"Indiana",LAC:"LA Los Angeles",LAL:"LA Los Angeles",MEM:"Memphis",MIA:"Miami",MIL:"Milwaukee",MIN:"Minnesota",NOP:"New Orleans",NYK:"New York",OKC:"Oklahoma City",ORL:"Orlando",PHI:"Philadelphia Sixers",PHO:"Phoenix",POR:"Portland Blazers",SAC:"Sacramento",SAS:"San Antonio",TOR:"Toronto",UTA:"Utah",WAS:"Washington"},
+  NBA_ALIAS={PHX:"PHO",CHA:"CHO",BKN:"BRK",NO:"NOP",GS:"GSW",SA:"SAS",NY:"NYK",UTAH:"UTA",WSH:"WAS"},wordAt=(n,q)=>n.startsWith(q)||n.includes(" "+q);
+function teamQ(raw){const q=norm2(raw||"").trim().replace(/\s+/g," ");if(!q)return null;const up=q.toUpperCase(),codes=new Set(),fan=new Set();
+  if(typeof TEAM_COLORS!=="undefined"){if(TEAM_COLORS[up])codes.add(up);if(NBA_ALIAS[up])codes.add(NBA_ALIAS[up]);
+    if(q.length>=3)for(const c in TEAM_COLORS)if(wordAt(norm2(TEAM_COLORS[c][2]+" "+(NBA_CITY[c]||"")),q))codes.add(c)}
+  if(q.length>=3&&HAS_LG()){const L=leagueRosters();for(const t in L)if(wordAt(norm2(teamName(+t)+" "+((LEAGUE.teams||{})[t]||{}).name+(+t===S.slot?" my team":"")),q))L[t].forEach(id=>fan.add(id))}
+  return codes.size||fan.size?{codes,fan}:null}
+const teamHit=(p,T)=>!!T&&(T.codes.has(p.team)||T.fan.has(p.id));
 const p_z=z=>(z>=0?"+":"")+z.toFixed(1)+"z";
 function p_risk(p){return p.projGP<55?`Projects for only ~${Math.round(p.projGP)} games, which is where the risk comes from.`:`His per-game range is wide (±${f1(p.proj.sigma)} FP/G).`}
 // who to avoid at this pick: players priced near it (ESPN ADP) with a clear reason to pass: a long injury, the model ranking him well
@@ -1227,14 +1236,14 @@ function plCols(view){const w0=Math.max(0,CUR_WEEK),N=+S.pl.rn,line=(get,lab)=>[
     {k:"seas",h:"Seasons",t:"FP/G in each of the last three seasons, this season so far (dark dot) and the rest-of-season projection (hollow)",v:p=>{const l=p.hist[p.hist.length-1];return l?p.proj.fp-l.fp:-99},d:sparkSeasons},
     {k:"ros",h:"Season FP",t:"Projected fantasy points for the rest of the season: Proj FP/G × games he's expected to play. This sets the # rank",v:p=>p.projTot,d:p=>f0(p.projTot)},
     {k:"m7",h:"7-day move",t:"Places gained or lost in the # rank over the last 7 days",v:p=>(moveOf(p,7)||{dr:0}).dr,d:p=>moveTag(moveOf(p,7),1)}]}
-function playersView(){computeDisp();const L=leagueRosters(),owner={};for(const t in L)L[t].forEach(id=>owner[id]=+t);const w=Math.max(0,CUR_WEEK),q=S.pl.q.trim().toLowerCase(),N=+S.pl.rn;
+function playersView(){computeDisp();const L=leagueRosters(),owner={};for(const t in L)L[t].forEach(id=>owner[id]=+t);const w=Math.max(0,CUR_WEEK),q=S.pl.q.trim().toLowerCase(),TQ=teamQ(q),N=+S.pl.rn;
   players.forEach(p=>{const SG=SEASON_GAMES(p),G=SG.slice(0,5),all=gamesOf(p).filter(g=>g.date>=PERIOD0).slice(0,N);p._l5=G.length>=2?mean(G.map(g=>g.fp)):null;p._min=p.now&&p.now.gp?p.now.min:G.length?mean(G.map(g=>g.min)):null;p._wk=weekGames(p,w);
     p._r=avgGames(all.filter(g=>!g.dnp));p._miss=all.filter(g=>g.dnp).length;p._bs=(s=>s&&s.gp>=10&&s.min>=8?s:null)(baseSeason(p));const o=owner[p.id];p._own=o==null?"~":o===S.slot?" ":teamName(o)});
   // in-season rank: total fantasy points left, so missed games and schedule count, not just points per game
   players.forEach(p=>p._sr=seasonRank(p)??999);
   let list=players.filter(p=>(S.pl.pos==="ALL"||(S.pl.pos==="G"?p.pos.some(x=>x==="PG"||x==="SG"):S.pl.pos==="F"?p.pos.some(x=>x==="SF"||x==="PF"):p.pos.includes(S.pl.pos)))
     &&(S.pl.own==="all"||(S.pl.own==="fa"?owner[p.id]==null:S.pl.own==="mine"?owner[p.id]===S.slot:owner[p.id]!=null&&owner[p.id]!==S.slot))
-    &&(!q||p.name.toLowerCase().includes(q)||p.team.toLowerCase()===q));
+    &&(!q||norm2(p.name).includes(norm2(q))||teamHit(p,TQ)));
   const hasOwners=Object.keys(owner).length>0,C=[{k:"rk",h:"#",t:"Rest-of-season rank: projected FP/G × games he's expected to play from here",v:p=>p._sr,l:1},{k:"name",h:"Player",v:p=>p.name,l:1},...(hasOwners?[{k:"owner",h:"Owner",v:p=>p._own,l:1}]:[]),...plCols(S.pl.view)],col=C.find(c=>c.k===S.pl.sort)||C.find(c=>c.k==="proj")||C[2];
   list.sort((a,b)=>{const x=col.v(a),y=col.v(b);return (typeof x==="string"?x.localeCompare(y):x-y)*(C.find(c=>c.k===S.pl.sort)?S.pl.dir:-1)});
   const n=list.length,shown=list.slice(0,S.pl.n),first=hasOwners?3:2;
@@ -1245,7 +1254,7 @@ function playersView(){computeDisp();const L=leagueRosters(),owner={};for(const 
     stats:"Per-game averages this season, from Basketball Reference. vs proj compares his fantasy points per game with his rest-of-season projection.",recent:`Averages over his team's last ${N} games this season (games he missed are counted separately), from ESPN's box scores.`,
     adv:"From Basketball Reference: this season once he has 10 games, otherwise last season; players with fewer than 10 games at 8+ minutes show dashes. Per-36 numbers scale his production to 36 minutes so bench and starting players compare fairly.",proj:"The model's projected per-game line for the rest of the season, under your league's scoring.",
     sched:"Games he's expected to play (injuries included). Green weeks have 4 or more games, red weeks 2 or fewer.",mkt:"How the fantasy world values him: ESPN rostered share and draft position, ESPN's and this model's ranks, and the FantasyPros expert consensus."};
-  return `<div class="filters"><input type="search" id="plQ" placeholder="Search a player or team (e.g. DEN)" value="${esc(S.pl.q)}">${seg("pos",["ALL","PG","SG","SF","PF","C","G","F"].map(x=>[x,x]))}</div>
+  return `<div class="filters"><input type="search" id="plQ" placeholder="Search a player or team (e.g. Nuggets)" value="${esc(S.pl.q)}">${seg("pos",["ALL","PG","SG","SF","PF","C","G","F"].map(x=>[x,x]))}</div>
     <div class="filters"><span class="seg-lab">Show</span>${seg("own",[["all","Everyone"],["fa","Free agents"],["mine","My team"],["others","Other teams"]])}<span class="mut" style="font-size:12px">${n} player${n===1?"":"s"}${hasOwners?"":" · rosters appear after your draft"}</span></div>
     <div class="filters"><span class="seg-lab">Columns</span>${seg("view",PL_VIEWS)}${S.pl.view==="recent"?seg("rn",[["5","Last 5"],["10","Last 10"]]):""}</div>
     <div class="tablebox"><table class="board"><thead><tr>${C.map(th).join("")}</tr></thead><tbody>
@@ -1604,7 +1613,7 @@ function renderNews(){
   const inj=ESPN_INJ.filter(i=>poolNames.has(i.n)),news=[...ESPN_NEWS].sort((a,b)=>String(b.p).localeCompare(String(a.p)));
   const moves=players.filter(p=>p.prevTeam&&p.prevTeam!==p.team).sort((a,b)=>a.rank-b.rank);
   const rk=p=>p?`<span class="nrk" title="Rank on the board">#${p.disp||p.rank}</span>`:"",chip=t=>{const p=byName[t];return p?`<button class="ntag" data-open="${p.id}">${esc(t)} <span>#${p.disp||p.rank}</span></button>`:""};
-  const qOf=(...a)=>esc(a.join(" ").toLowerCase());
+  const qOf=(...a)=>esc(norm2(a.concat(a.filter(x=>typeof TEAM_COLORS!=="undefined"&&TEAM_COLORS[x]).map(x=>TEAM_COLORS[x][2]+" "+(NBA_CITY[x]||""))).join(" ")));
   $("newsCount").textContent=ESPN_NEWS.length;
   const tabs=[["brief","Briefing",""],["inj","Injuries",inj.length],["news","Headlines",news.length],["moves","Team changes",moves.length]];
   let h=`<div class="ntabs" role="tablist" aria-label="News sections">${tabs.map(([k,l,n])=>`<button role="tab" data-ntab="${k}" aria-selected="${k===tab}">${l}${n!==""?` <span class="count">${n}</span>`:""}</button>`).join("")}</div>`;
@@ -2225,10 +2234,10 @@ document.addEventListener("change",e=>{if(e.target.id==="anaN"){S.ana.n=+e.targe
   if(e.target.dataset&&e.target.dataset.anagive){const id=+e.target.dataset.anagive;S.ana.give=e.target.checked?[...new Set(S.ana.give.concat(id))]:S.ana.give.filter(x=>x!==id);save();renderAna()}});
 // ---- find a player from anywhere: the search button or "/" opens it, arrows move, Enter opens his profile ----
 (()=>{const box=document.createElement("div");box.className="finder";box.id="finder";box.hidden=true;box.setAttribute("role","dialog");box.setAttribute("aria-label","Find a player");
-  box.innerHTML='<div class="finder-box"><input id="findQ" placeholder="Find a player or team (e.g. DEN)" autocomplete="off" spellcheck="false" aria-controls="findList"><div id="findList" role="listbox"></div></div>';document.body.appendChild(box);
+  box.innerHTML='<div class="finder-box"><input id="findQ" placeholder="Find a player or team (e.g. Nuggets)" autocomplete="off" spellcheck="false" aria-controls="findList"><div id="findList" role="listbox"></div></div>';document.body.appendChild(box);
   const q=$("findQ"),list=$("findList"),norm=x=>x.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();let hits=[],sel=0;
-  const draw=()=>{const t=norm(q.value.trim());hits=!t?[]:players.filter(p=>norm(p.name).includes(t)||p.team.toLowerCase()===t).sort((a,b)=>(norm(b.name).split(" ").some(w=>w.startsWith(t))-norm(a.name).split(" ").some(w=>w.startsWith(t)))||b.proj.fp-a.proj.fp).slice(0,8);sel=0;
-    list.innerHTML=hits.length?hits.map((p,i)=>`<button class="hit" role="option" aria-selected="${i===sel}" data-i="${i}"><span><b>${esc(p.name)}</b> <span class="mut">${p.team} · ${p.pos.join("/")}</span>${p.out?' <span class="chip out">Out</span>':p.dtd?' <span class="chip dtd">GTD</span>':""}</span><span class="mut">${f1(p.proj.fp)} FP/G</span></button>`).join(""):`<div class="hint">${t?"No player matches.":"Type a name or a team code. Enter opens the profile; Esc closes."}</div>`};
+  const draw=()=>{const t=norm(q.value.trim()),TQ=teamQ(t);hits=!t?[]:players.filter(p=>norm(p.name).includes(t)||teamHit(p,TQ)).sort((a,b)=>{const k=p=>(norm(p.name).split(" ").some(w=>w.startsWith(t))||teamHit(p,TQ))?1:0;return k(b)-k(a)||b.proj.fp-a.proj.fp}).slice(0,TQ&&TQ.fan.size?13:8);sel=0;
+    list.innerHTML=hits.length?hits.map((p,i)=>`<button class="hit" role="option" aria-selected="${i===sel}" data-i="${i}"><span><b>${esc(p.name)}</b> <span class="mut">${p.team} · ${p.pos.join("/")}</span>${p.out?' <span class="chip out">Out</span>':p.dtd?' <span class="chip dtd">GTD</span>':""}</span><span class="mut">${f1(p.proj.fp)} FP/G</span></button>`).join(""):`<div class="hint">${t?"No player matches.":"Type a player, an NBA team (DEN, Nuggets, Denver) or a team in your league. Enter opens the profile; Esc closes."}</div>`};
   const mark=()=>list.querySelectorAll(".hit").forEach((b,i)=>b.setAttribute("aria-selected",i===sel));
   const open=()=>{box.hidden=false;q.value="";draw();q.focus()},close=()=>{box.hidden=true},go=i=>{const p=hits[i];if(!p)return;close();openPlayer(p.id)};
   $("findBtn").onclick=open;box.onclick=e=>{if(e.target===box)close();const h=e.target.closest(".hit");if(h)go(+h.dataset.i)};q.oninput=draw;
