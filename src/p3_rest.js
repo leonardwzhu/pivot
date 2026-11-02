@@ -111,6 +111,15 @@ const COLS_S=[...COMMON,
   ...["pts","reb","ast","stl","blk","tpm"].map(cs),
   {k:"fg",l:"FG%",get:p=>p.cur.fg,cell:p=>`<td class="num">${pct(p.cur.fg)}</td>`},{k:"ft",l:"FT%",get:p=>p.cur.ft,cell:p=>`<td class="num">${pct(p.cur.ft)}</td>`},
   cs("tov"),{k:"gp25",l:"GP",get:p=>p.curGp,cell:p=>`<td class="num">${p.curGp<0?'<span class="mut">Rookie</span>':p.curGp}</td>`}];
+// this season so far, from ESPN box scores (refreshed three times a day); a handful of games, so GP sits up front
+const nw=(k,l,f=f1)=>({k:"n_"+k,l,get:p=>p.now&&p.now.gp?p.now[k]:-1,asc:k==="tov"?1:0,cell:p=>`<td class="num">${p.now&&p.now.gp?f(p.now[k]):'<span class="mut">–</span>'}</td>`});
+const COLS_N=[...COMMON,
+  {k:"ngp",l:"GP",get:p=>p.now&&p.now.gp||0,cell:p=>`<td class="num">${p.now&&p.now.gp?p.now.gp:'<span class="mut">0</span>'}</td>`},
+  nw("min","MIN"),
+  {k:"nfp",l:"FP/G",get:p=>p.nowFp??-1,cell:p=>`<td class="num fp">${p.nowFp!=null?f1(p.nowFp):'<span class="mut">–</span>'}</td>`},
+  {k:"nvs",l:"vs Proj",get:p=>p.nowFp!=null?p.nowFp-p.proj.fp:-99,cell:p=>{const d=p.nowFp!=null?p.nowFp-p.proj.fp:null;return `<td class="num">${d===null||Math.abs(d)<1?'<span class="mut">–</span>':`<span class="${d>0?"zpos":"zneg"}">${d>0?"+":""}${f1(d)}</span>`}</td>`}},
+  {k:"fp",l:"Proj FP/G",get:p=>p.proj.fp,cell:p=>`<td class="num">${f1(p.proj.fp)}</td>`},
+  nw("pts","PTS"),nw("reb","REB"),nw("ast","AST"),nw("stl","STL"),nw("blk","BLK"),nw("tpm","3PM"),nw("fg","FG%",pct),nw("ft","FT%",pct),nw("tov","TO")];
 const pm=(k,l)=>({k:"h_"+k,l,get:p=>p.per100(k),cell:p=>`<td class="num">${f1(p.per100(k))}</td>`});
 const COLS_P=[...COMMON,
   {k:"mpgL",l:"MPG 25-26",get:p=>p.lastMpg??-1,cell:p=>`<td class="num">${p.lastMpg?f1(p.lastMpg):'<span class="mut">–</span>'}</td>`},
@@ -124,7 +133,7 @@ const COLS_P=[...COMMON,
   {k:"fp",l:"Proj FP/G",get:p=>p.proj.fp,cell:p=>`<td class="num">${f1(p.proj.fp)}</td>`}];
 const ACT={k:"act",l:""};
 const TEAMFIT_ON=BTALL.betaM>0||BTALL.betaU>0;
-const cols=()=>{const c=S.view==="model"?(TEAMFIT_ON?COLS_M:COLS_M.filter(x=>x.k!=="fitm")):S.view==="min"?COLS_P:COLS_S;return [c[0],c[1],ACT,...c.slice(2)]};
+const cols=()=>{const c=S.view==="model"?(TEAMFIT_ON?COLS_M:COLS_M.filter(x=>x.k!=="fitm")):S.view==="min"?COLS_P:S.view==="now"?COLS_N:COLS_S;return [c[0],c[1],ACT,...c.slice(2)]};
 function actCell(p){const pk=pickOf(p.id);if(MOCK())return `<td class="act"><div class="actw">${pk?`<span class="mut">${pk.mine?"Mine":esc(teamName(teamAt(pk.o)))} · #${pk.o}</span>`:`<button class="btn mine" data-mine="${p.id}">Draft</button>`}</div></td>`;return `<td class="act"><div class="actw">${pk?`<button class="btn" data-undo="${p.id}">${pk.mine?"Mine":"Taken"} · #${pk.o} ✕</button>`
   :`<button class="btn mine" data-mine="${p.id}">Draft</button><button class="btn" data-take="${p.id}">Taken</button>`}</div></td>`}
 let boardLimit=150;
@@ -1603,7 +1612,7 @@ $("slot").onchange=e=>{S.slot=+e.target.value;if(MOCK())startMock(S.mock.cpu);el
 function seg(a,b,key,va,vb){const set=v=>{S[key]=v;$(a).setAttribute("aria-pressed",v===va);$(b).setAttribute("aria-pressed",v===vb)};
   $(a).onclick=()=>{set(va);renderAll()};$(b).onclick=()=>{set(vb);renderAll()};set(S[key])}
 seg("scPts","scCat","scoring","pts","cat");
-(()=>{const ids={model:"vModel",min:"vMin",stats:"vStats"},set=v=>{S.view=v;Object.entries(ids).forEach(([k,id])=>$(id).setAttribute("aria-pressed",k===v))};
+(()=>{const ids={model:"vModel",now:"vNow",min:"vMin",stats:"vStats"},set=v=>{S.view=v;Object.entries(ids).forEach(([k,id])=>$(id).setAttribute("aria-pressed",k===v))};
   Object.entries(ids).forEach(([k,id])=>$(id).onclick=()=>{set(k);renderAll()});set(S.view)})();seg("rBoard","rModel","rankBy","board","model");
 $("posSeg").innerHTML=["ALL","PG","SG","SF","PF","C","G","F"].map(p=>`<button data-pos="${p}" aria-pressed="${p===S.pos}">${p}</button>`).join("");
 $("posSeg").onclick=e=>{const b=e.target.closest("button");if(!b)return;S.pos=b.dataset.pos;[...$("posSeg").children].forEach(x=>x.setAttribute("aria-pressed",x===b));renderAll()};
