@@ -1,6 +1,6 @@
 // The week so far and the weekly recap, on a made-up week 3 of box scores: mid-week (Friday) the win chance counts the points
 // already scored and the chart's last point is that same chance; the Monday after, Today shows last week's recap and the Matchup
-// tab opens the full one with every section. ESPN is blocked so the league sync can't replace the made-up week.
+// tab opens the full one with every section; My Team's luck meter compares records with all-play records. ESPN is blocked so the league sync can't replace the made-up week.
 // Needs a build whose league has drafted. Usage: node tests/recap.js [build/draft-room.html]
 const {chromium}=require('playwright');const path=require('path');const fs=require('fs');const os=require('os');
 const file=process.argv[2]||path.join(__dirname,'../build/draft-room.html'),html=fs.readFileSync(file,'utf8');
@@ -12,12 +12,14 @@ function fixture(cur){const i=html.indexOf('const LEAGUE='),j=html.indexOf(';\n'
   Object.values(days).forEach(d=>Object.values(d).flat().forEach(r=>dayP[r[0]]=["",[0,1,2,3,4,5,6,11]]));
   const pts=(q,t)=>days[q][t].filter(r=>r[1]!==12).reduce((s,r)=>s+r[2],0),tot=t=>Object.keys(days).reduce((s,q)=>s+pts(q,t),0);
   Object.assign(L,{days,dayP,dayPts:{},results:[],curMatchup:cur>=21?4:3});
-  if(cur>=21)Object.entries(L.opp['2']).forEach(([t,o])=>{if(+t<o){const a=tot(t),b=tot(o);L.results.push([3,+t,a,o,b,a>b?'HOME':'AWAY'])}});
+  if(cur>=21){Object.entries(L.opp['2']).forEach(([t,o])=>{if(+t<o){const a=tot(t),b=tot(o);L.results.push([3,+t,a,o,b,a>b?'HOME':'AWAY'])}});
+    // ESPN updates the season records with the results
+    L.rec=Object.fromEntries(Object.keys(L.rosters).map(t=>{const r=L.results.find(x=>x[1]==t||x[3]==t),me=r[1]==t,f=me?r[2]:r[4],g=me?r[4]:r[2];return [t,[f>g?1:0,f<g?1:0,0,f,g]]}))}
   else for(const t in L.rosters)L.dayPts[t]=Object.fromEntries(Object.keys(days).map(q=>[q,pts(q,t)]));
   const out=path.join(os.tmpdir(),`pivot_recap_${cur}.html`);fs.writeFileSync(out,(html.slice(0,i+13)+JSON.stringify(L)+html.slice(j)).replace(/CUR_PERIOD=\d+;/,`CUR_PERIOD=${cur};`));return out}
 (async()=>{const b=await chromium.launch();let fail=0;const check=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)fail++};
   if(!fixture(18)){console.log('skip: this build\'s league has not drafted');await b.close();return}
-  const open=async(cur,w)=>{const pg=await b.newPage({viewport:{width:w,height:900}});pg.errs=[];pg.on('pageerror',e=>pg.errs.push(e.message));
+  let last=null;const open=async(cur,w)=>{if(last)await last.close();const pg=last=await b.newPage({viewport:{width:w,height:900}});pg.errs=[];pg.on('pageerror',e=>pg.errs.push(e.message));
     await pg.route('**/lm-api-reads.fantasy.espn.com/**',r=>r.abort());await pg.goto('file://'+fixture(cur));await pg.waitForFunction(()=>typeof setMode==='function');await pg.waitForTimeout(800);await pg.evaluate(()=>setMode('season'));return pg};
   // Friday of week 3: four days played
   let pg=await open(18,1100);const M=await pg.evaluate(()=>{const o=leagueOpp(CUR_WEEK),A=myRoster(),B=rosterOf(o),m=matchupSim(A,B,CUR_WEEK),m0=matchupSim(A,B,CUR_WEEK,600,{bank:[0,0]}),P=winPath(CUR_WEEK,S.slot,o);
@@ -39,4 +41,16 @@ function fixture(cur){const i=html.indexOf('const LEAGUE='),j=html.indexOf(';\n'
     check(R.end,`${w}px: the line ends at 100% or 0%, matching the result`);check(R.sw<=w,`${w}px: no sideways scroll`);
     await pg.selectOption('#seasonWeek',{index:1});await pg.waitForTimeout(500);check(await pg.evaluate(()=>/^Your week/.test(document.querySelector('#view-season h4').textContent)),`${w}px: the week picker goes back to this week`);
     check(!pg.errs.length,`${w}px: no page errors `+pg.errs.join(' | '))}
+  // the luck meter on My Team: a note before any week is finished; after it, every team, all-play records that add up, and luck
+  // that sums to zero across the league (each matchup hands out one win)
+  pg=await open(18,1100);await pg.click('#tab-team');await pg.waitForTimeout(800);
+  check(await pg.evaluate(()=>[...document.querySelectorAll('#view-team .chart-card')].some(c=>/^Luck meter/.test(c.querySelector('h4')?.textContent||'')&&/Starts once/.test(c.textContent))),'before a finished week, the luck meter says when it starts');
+  for(const w of [1100,390]){pg=await open(21,w);await pg.click('#tab-team');await pg.waitForTimeout(800);
+    const K=await pg.evaluate(()=>{const c=[...document.querySelectorAll('#view-team .chart-card')].find(c=>/^Luck meter/.test(c.querySelector('h4')?.textContent||'')),L=luckOf(),n=L.rows.length;
+      return {rows:c?c.querySelectorAll('tbody tr').length:0,sum:L.rows.reduce((s,r)=>s+r.luck,0),ap:L.rows.every(r=>r.aw+r.al+r.ad===n-1),wins:L.rows.reduce((s,r)=>s+r.w,0),n,me:c?c.querySelector('p').textContent:'',sw:document.documentElement.scrollWidth}});
+    check(K.rows===K.n&&K.wins===K.n/2,`${w}px: luck meter lists all ${K.n} teams after week 3 (${K.wins} wins handed out)`);
+    check(K.ap&&Math.abs(K.sum)<1e-9,`${w}px: each all-play record covers every other team and luck sums to zero`);
+    check(/^You're \d+-\d+/.test(K.me),`${w}px: your line: "${K.me.slice(0,90)}…"`);check(K.sw<=w,`${w}px: no sideways scroll`);
+    await pg.click('#tab-scout');await pg.waitForTimeout(800);check(await pg.evaluate(()=>/all-play \d+-\d+/.test(document.querySelector('#view-scout .kpis').innerText)),`${w}px: Scout shows the team's all-play record`);
+    check(!pg.errs.length,`${w}px: luck meter, no page errors `+pg.errs.join(' | '))}
   await b.close();process.exit(fail?1:0)})();
