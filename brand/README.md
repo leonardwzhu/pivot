@@ -9,5 +9,7 @@ The official logo is the Orbit: a basketball turning on a curved arrow, beside t
 | `wordmark.svg` | mark and wordmark together (needs Libre Caslon Text installed to render the type) |
 | `app-icon.svg` | app or profile icon, navy tile |
 | `favicon.svg` | browser tab; the arrow turns light on dark tabs |
+| `favicon-32.png`, `favicon-192.png` | browser tab where SVG icons aren't supported (made from `favicon.svg`) |
+| `apple-touch-icon.png` | phone home screen, 180 px (made from `app-icon.svg`, square: iOS rounds the corners) |
 
 Colors: ink `#17202E`, ball orange `#E06A1B` (`#F2873D` on dark), paper `#FBF5EA`, tan `#E8D7B9`, dark `#15110C`. The orange italic o is the one spot of orange in the wordmark, the same orange the app uses to mark the pick it recommends.

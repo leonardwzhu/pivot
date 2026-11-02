@@ -66,7 +66,7 @@ jobs:
           for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && exit 0; sleep $((i*5)); done
           echo "::warning::couldn't push last/; the page still deploys"
       - name: Stage the site
-        run: mkdir -p _site && cp build/index.html _site/index.html && touch _site/.nojekyll
+        run: mkdir -p _site && cp build/index.html brand/favicon-32.png brand/favicon-192.png brand/apple-touch-icon.png _site/ && touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
