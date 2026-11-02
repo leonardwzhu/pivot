@@ -404,6 +404,16 @@ const pBtn=(p,cls="")=>p.id!=null?`<button class="expander" data-open="${p.id}">
 const norm2=s=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
 const p_z=z=>(z>=0?"+":"")+z.toFixed(1)+"z";
 function p_risk(p){return p.projGP<55?`Projects for only ~${Math.round(p.projGP)} games, which is where the risk comes from.`:`His per-game range is wide (±${f1(p.proj.sigma)} FP/G).`}
+// who to avoid at this pick: players priced near it (ESPN ADP) with a clear reason to pass: a long injury, the model ranking him well
+// below where drafters take him, few games in your playoff weeks, or few games projected
+function avoidList(a){const at=a.nx||a.cur,mr=p=>S.scoring==="pts"?p.modelRank:p.catRank,used=new Set(a.out.map(s=>s.p.id)),po=PO_AVG();
+  return players.filter(p=>!pickOf(p.id)&&!used.has(p.id)).map(p=>{const price=p.adp||p.rank;if(price<at-4||price>at+S.teams)return null;
+    const miss=p.out?Math.max(0,p.teamLeft-p.avail):0,gap=mr(p)-price,R=[];
+    if(miss>=10)R.push([miss/2,`Injured: out about ${miss} games${p.inj?` (${retText(p.inj.ret,p.inj.fs)})`:""}. That's a starting spot you fill with a backup for ${Math.round(miss/3.5)} weeks, and the model's ranking already counts those games as lost.`]);
+    if(gap>=12)R.push([gap/2,`Overpriced: drafters take him around #${Math.round(price)}, but the model ranks him #${mr(p)} (${f0(p.projTot)} projected points this season, counting games he's expected to miss). You'd be paying a pick-${Math.round(price)} price for pick-${mr(p)} production.`]);
+    if(p.poGames<=po-2)R.push([(po-p.poGames)*2,`Weak playoff schedule: only ${p.poGames} games in weeks ${PO_W.length?PO_W[0].i+"–"+PO_W[PO_W.length-1].i:""} (${PO_RANGE}), against ${f1(po)} for a typical player. Those weeks decide the title.`]);
+    if(p.projGP<50&&miss<10)R.push([(50-p.projGP)/3,`Durability: projects for only ~${Math.round(p.projGP)} games, from his recent history of missed time. Fewer games means fewer points, whatever his per-game average.`]);
+    return R.length?{p,price,s:R.reduce((t,r)=>t+r[0],0),why:R.sort((x,y)=>y[0]-x[0]).map(r=>r[1]).join(" ")}:null}).filter(Boolean).sort((x,y)=>y.s-x.s).slice(0,3)}
 function renderAdvisor(){
   const a=advisor(),card=$("advCard");if(!a){$("adv").innerHTML='<p class="empty">Everyone has been drafted.</p>';return}
   card.classList.toggle("live",a.onClock);
@@ -420,6 +430,7 @@ function renderAdvisor(){
     <div class="who"><button class="expander${s.key==="best"?" call":""}" data-open="${s.p.id}">${esc(s.p.name)}</button><div class="meta">${s.p.team} · <span class="big">${s.stat}</span> · <b class="slot-tag">${s.slot}</b></div></div>
     <button class="btn mine" data-mine="${s.p.id}">Draft</button><div class="why">${esc(s.why)}</div></div>`).join("")
    +(a.tierMsg?`<p class="empty" style="margin-top:6px;color:var(--warn)">${a.tierMsg}</p>`:"")
+   +(()=>{const A=avoidList(a);return A.length?`<details class="avoid" open><summary>Who to avoid at #${a.nx||a.cur}</summary><p class="empty" style="margin:4px 0 2px">Players drafters usually take around this pick, with a clear reason to pass. Worst first.</p>${A.map(x=>`<div class="avd"><div>${pBtn(x.p)} <span class="mut">${x.p.team} · ${x.p.pos.join("/")} · ADP ${f1(x.price)}</span></div><div class="why">${esc(x.why)}</div></div>`).join("")}</details>`:""})()
    +cmpTable(a.out);
 }
 function hookIns(){const b=$("toIns");if(b)b.onclick=()=>{$("tab-insights").click();window.scrollTo({top:0,behavior:"smooth"})}}
