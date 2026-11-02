@@ -685,15 +685,15 @@ function renderSeason(view){const v=$("view-"+view);if(!v)return;
   const g=seasonGate(view);if(g){v.innerHTML=(view==="waivers"?falloutCard():"")+g;hookSeason();return}  // injury fallout needs no roster
   v.innerHTML=view==="season"?seasonView():view==="waivers"?waiversView():tradesView();hookSeason()}
 function weekSelect(id,sel){return `<select id="${id}">${WEEKS.map((w,i)=>i<CUR_WEEK?"":`<option value="${i}" ${i===sel?"selected":""}>Week ${w.i}${w.po?" (playoffs)":""} · ${new Date(w.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(w.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}</option>`).join("")}</select>`}
-function seasonView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),opp=S.seasonOpp||leagueOpp(w)||Object.keys(leagueRosters()).map(Number).find(t=>t!==S.slot),O=rosterOf(opp),P=weekProj(my,w),days=weekDays(w);
-  let h=`<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Your week</h4><div class="row-btns">${weekSelect("seasonWeek",w)}<select id="seasonOpp">${Object.keys(leagueRosters()).map(Number).filter(t=>t!==S.slot).map(t=>`<option value="${t}" ${t===opp?"selected":""}>vs ${esc(teamName(t))}</option>`).join("")}</select></div></div>`;
+function seasonView(){const w=S.seasonWeek??CUR_WEEK,my=myRoster(),opp=leagueOpp(w),O=opp?rosterOf(opp):[],P=weekProj(my,w),days=weekDays(w);
+  let h=`<div class="chart-card"><div class="row-btns" style="justify-content:space-between;align-items:center"><h4 style="margin:0">Your week${opp?` · vs ${esc(teamName(opp))}`:""}</h4><div class="row-btns">${weekSelect("seasonWeek",w)}</div></div>${opp?"":`<p class="empty" style="margin-top:8px" data-keep>${WEEKS[w].po?"Playoff opponents are set by seeding once the regular season ends.":"No opponent on your league schedule this week."} The Scout tab sizes up any team.</p>`}`;
   if(O.length){const M=matchupSim(my,O,w);h+=`<div class="vs" style="margin-top:12px"><div><div class="k mut">You</div><div class="big">${f0(M.a)}</div><div class="mut" style="font-size:12px">80%: ${f0(M.aq[0])}–${f0(M.aq[1])} · ${P.games} starts</div></div>
       <div><div class="big" style="color:${M.p>=.5?"var(--ok)":"var(--bad)"}">${pc(M.p)}</div><div class="mut" style="font-size:12px">chance you win</div></div>
       <div><div class="k mut">${esc(teamName(opp))}</div><div class="big">${f0(M.b)}</div><div class="mut" style="font-size:12px">80%: ${f0(M.bq[0])}–${f0(M.bq[1])} · ${weekProj(O,w).games} starts</div></div></div>
       ${probBar(M.p,"You",teamShort(opp))}${(()=>{const Q=weekProj(O,w),mx=Math.max(1,...P.per.map(d=>d.v),...Q.per.map(d=>d.v));
         return `<div class="dcols" role="img" aria-label="Projected starter points by day, you and ${esc(teamName(opp))}">${P.per.map((d,i)=>{const o=Q.per[i]?Q.per[i].v:0;return `<div class="dcol" data-tip="${esc(`${dayLabel(d.q)}: you ${f0(d.v)}, ${teamName(opp)} ${f0(o)}`)}"><div class="dcol-b"><span class="me" style="height:${pctOf(d.v,mx)}%"></span><span class="opp" style="height:${pctOf(o,mx)}%"></span></div><div class="dcol-l">${dayLabel(d.q).split(",")[0]}</div></div>`}).join("")}</div>
         <div class="lab-key"><span><i class="dot" style="background:var(--mine)"></i>You</span><span><i class="dot" style="background:var(--accent);opacity:.55"></i>${esc(teamName(opp))}</span><span>· projected starter points each day</span></div>`})()}
-      <p class="empty" style="margin-top:8px">${days.length} day${days.length===1?"":"s"} left in this matchup (from ${dayLabel(days[0])}). Your opponent comes from your league's ESPN schedule; pick another team to compare.</p>`}
+      <p class="empty" style="margin-top:8px">${days.length} day${days.length===1?"":"s"} left in this matchup (from ${dayLabel(days[0])}). Your opponent comes from your league's ESPN schedule; the Scout tab sizes up any other team.</p>`}
   h+=`</div><div class="chart-card"><h4>Daily lineup · week ${WEEKS[w].i}</h4><div class="eq"><span style="color:var(--ok)">■</span> starts &nbsp;<span style="color:var(--warn)">■</span> has a game but no open slot &nbsp;<span style="color:var(--bad)">OUT</span> injured</div>
     <div class="tablebox"><table class="wkgrid"><thead><tr><th class="l">Player</th>${P.per.map(d=>`<th>${dayLabel(d.q)}</th>`).join("")}<th>Games</th></tr></thead><tbody>
     ${[...my].sort((a,b)=>b.proj.fp-a.proj.fp).map(p=>{let g=0;return `<tr><td class="l">${pBtn(p)} <span class="mut">${p.pos.join("/")} · ${f1(p.proj.fp)}</span></td>${P.per.map(d=>{const opp=(SCHED_OPP[p.team]||{})[d.q];if(!opp)return '<td class="no">·</td>';
@@ -753,8 +753,7 @@ function hookSeason(){const on=(id,ev,f)=>{const el=$(id);if(el)el[ev]=f};
   on("seasonFromDraft","onclick",startSeasonFromDraft);on("goRosters","onclick",()=>$("tab-rosters").click());
   on("seasonEmpty","onclick",()=>{const L={};for(let t=1;t<=S.teams;t++)L[t]=[];S.league=L;save();renderSeason("rosters")});
   on("seasonReset","onclick",e=>{if(!resetArmed){resetArmed=true;e.target.textContent="Click again to reset all rosters";setTimeout(()=>{resetArmed=false;if(e.target)e.target.textContent="Reset rosters"},3000);return}S.league=null;save();renderSeason("rosters");toast("Rosters reset")});
-  on("seasonWeek","onchange",e=>{S.seasonWeek=+e.target.value;S.seasonOpp=null;save();renderSeason(!$("view-waivers").hidden?"waivers":"season")});
-  on("seasonOpp","onchange",e=>{S.seasonOpp=+e.target.value;save();renderSeason("season")});
+  on("seasonWeek","onchange",e=>{S.seasonWeek=+e.target.value;save();renderSeason(!$("view-waivers").hidden?"waivers":"season")});
   on("wSort","onchange",e=>{S.wSort=e.target.value;save();renderSeason("waivers")});on("wDrop","onchange",e=>{S.wDrop=+e.target.value;save();renderSeason("waivers")});
   on("tTeam","onchange",e=>{S.tTeam=+e.target.value;S.tGet=[];save();renderSeason("trades")});on("tClear","onclick",()=>{S.tGive=[];S.tGet=[];save();renderSeason("trades")});
   on("tDo","onclick",()=>{const L=leagueRosters();if(!S.league)S.league=JSON.parse(JSON.stringify(L));const T=S.tTeam||Object.keys(S.league).map(Number).find(t=>t!==S.slot),g=new Set(S.tGive||[]),r=new Set(S.tGet||[]);
@@ -1752,7 +1751,7 @@ function irPlan(my){const slots=HAS_LG()?LEAGUE.irSlots||0:1,ids=irIds(),inIR=my
 function outlookCard(T,tw){const W=WEEKS.map((w,i)=>({w,i})).filter(x=>x.w.p[1]>=CUR_PERIOD);if(W.length<2)return "";
   const me=tw[S.slot],oth=T.filter(t=>t!==S.slot),Phi=z=>.5*(1+erf(z/Math.SQRT2)),ab=t=>((HAS_LG()&&LEAGUE.teams[t]||{}).abbrev||teamShort(t)).slice(0,4);
   const pt=W.map(x=>{const v=me.H.weekly[x.i],a=mean(oth.map(t=>tw[t].H.weekly[x.i])),o=x.w.po?null:leagueOpp(x.i),ov=o&&tw[o]?tw[o].H.weekly[x.i]:a,sd=Math.hypot(me.sd,o&&tw[o]?tw[o].sd:mean(oth.map(t=>tw[t].sd)));
-    let p=Phi((v-ov)/(sd||1));if(x.i===Math.max(0,CUR_WEEK)&&o){const R=myRoster(),O=rosterOf(o);if(R.length&&O.length)p=matchupSim(R,O,x.i,300).p}
+    let p=Phi((v-ov)/(sd||1));if(x.i===Math.max(0,CUR_WEEK)&&o){const R=myRoster(),O=rosterOf(o);if(R.length&&O.length)p=matchupSim(R,O,x.i).p}
     return {...x,v,a,o,ov,p:Math.min(.99,Math.max(.01,p)),part:x.w.p[0]<CUR_PERIOD}});
   const reg=pt.filter(x=>!x.w.po),po=pt.filter(x=>x.w.po),rec=HAS_LG()&&LEAGUE.rec&&LEAGUE.rec[S.slot]||[0,0,0],wins=rec[0]+rec[2]/2+reg.reduce((t,x)=>t+x.p,0),games=rec[0]+rec[1]+rec[2]+reg.length;
   const tough=[...reg].sort((a,b)=>a.p-b.p)[0],easy=[...reg].sort((a,b)=>b.p-a.p)[0],lab=x=>`Week ${x.w.i}`,dates=x=>`${gDate(x.w.s)}–${gDate(x.w.e)}`;
@@ -1945,7 +1944,7 @@ function renderTeam(){$("view-team").innerHTML=myTeamView();countUp($("view-team
 function scoutView(){const L=leagueRosters(),T=Object.keys(L).map(Number),others=T.filter(t=>t!==S.slot);if(!others.length||!myRoster().length)return `<div class="chart-card"><h4>Scout</h4><p class="empty" style="margin-top:6px" data-keep>Once rosters are set after your draft, this page scouts every team in your league.</p></div>`;
   const cw=Math.max(0,CUR_WEEK),t=others.includes(S.scoutT)?S.scoutT:(others.includes(leagueOpp(cw))?leagueOpp(cw):others[0]),R=rosterOf(t),my=myRoster(),nm=teamName(t);
   const tw=Object.fromEntries(T.map(u=>[u,teamWeekly(rosterOf(u))])),rank=[...T].sort((a,b)=>tw[b].mu-tw[a].mu),odds=playoffOdds(),rec=HAS_LG()&&LEAGUE.rec&&LEAGUE.rec[t],started=HAS_LG()&&Object.values(LEAGUE.rec||{}).some(r=>r[0]+r[1]+r[2]>0);
-  const nxt=WEEKS.map((w,i)=>i).find(i=>i>=cw&&!WEEKS[i].po&&leagueOpp(i)===t),M=nxt!=null?matchupSim(my,R,nxt,400):null;
+  const nxt=WEEKS.map((w,i)=>i).find(i=>i>=cw&&!WEEKS[i].po&&leagueOpp(i)===t),M=nxt!=null?matchupSim(my,R,nxt):null;
   let h=`<div class="ntabs" role="tablist" aria-label="Team to scout">${others.map(u=>`<button role="tab" data-scout="${u}" aria-selected="${u===t}">${esc(teamName(u))}${leagueOpp(cw)===u?' <span class="count">this week</span>':""}</button>`).join("")}</div>`;
   h+=`<div class="kpis">${started&&rec?kpT("Record",`${rec[0]}-${rec[1]}${rec[2]?"-"+rec[2]:""}`,`${f0(rec[3])} points for`):""}${kpT("Starter points / week",f0(tw[t].mu),`${ordinal(rank.indexOf(t)+1)} of ${T.length} · you ${f0(tw[S.slot].mu)}`)}
     ${odds?kpT("Title odds",pc(odds.title[t]),`you ${pc(odds.title[S.slot])} · even odds ${pc(1/T.length)}`):""}${M?kpT(`You vs them · week ${WEEKS[nxt].i}`,`<span class="call">${pc(M.p)}</span>`,`your chance to win · projected ${f0(M.a)}–${f0(M.b)}`):kpT("You vs them","–","no regular-season matchup left")}</div>`;
@@ -1998,7 +1997,7 @@ function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PD
     return `${head}<div class="chart-card"><h4>${hrs!=null&&hrs>0?`Your draft is ${hrs<24?`in ${Math.max(1,Math.round(hrs))} hour${Math.round(hrs)===1?"":"s"}`:`in ${Math.round(hrs/24)} day${Math.round(hrs/24)===1?"":"s"}`}`:"After your draft"}</h4><p class="empty" style="margin:0" data-keep>${when?`${esc(LEAGUE.name)} drafts ${when}. Draft Day opens on its own 12 hours before. `:""}After the draft, this screen is your daily checklist: who to start tonight, news that touches your team, how your matchup stands, and the one pickup worth making.</p>
       <div class="row-btns" style="margin-top:8px"><button class="btn primary" onclick="setMode('draft')">Open Draft Day</button><button class="btn" onclick="setMode('draft');$('tab-mock').click()">Practice with a mock draft</button></div></div>
       ${top.length&&(RMAX=Math.max(...top.map(x=>x.g.hi))*1.02)?`<div class="chart-card"><h4>Tonight's best bets</h4><div class="tablebox"><table class="today-tbl"><tbody>${top.map((x,i)=>row(x,"#"+(i+1))).join("")}</tbody></table></div><p class="empty">Expected fantasy points tonight from the next-game model, with the range 8 in 10 games land in.</p></div>`:""}${falloutCard()}`}
-  const T=tonight(my),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w,400):null,mv=bestMove(my,w);
+  const T=tonight(my),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w):null,mv=bestMove(my,w);
   const live=HAS_LG()&&LEAGUE.live?LEAGUE.live.find(r=>r[0]===LEAGUE.curMatchup&&(r[1]===S.slot||r[3]===S.slot)):null,sc=live?(live[1]===S.slot?[live[2],live[4]]:[live[4],live[2]]):null;
   let h=head;RMAX=Math.max(30,...T.starters.concat(T.bench).map(x=>x.g.hi))*1.02;
   h+=`<div class="chart-card"><h4>Tonight's lineup</h4>${T.starters.length?`<div class="tablebox"><table class="today-tbl"><tbody>${T.starters.map(x=>row(x,LINEUP[x.k][0])).join("")}${T.bench.map(x=>row(x,"Bench",x.close?` <span class="chip dtd" title="Within 3 FP of ${esc(x.close.p.name)}, who starts at ${LINEUP[x.close.k][0]}">close call vs ${esc(x.close.p.name.split(" ").pop())}</span>`:"")).join("")}</tbody></table></div>`:'<p class="empty">None of your players has a game tonight.</p>'}
@@ -2016,7 +2015,7 @@ function todayView(){const my=myRoster(),w=Math.max(0,CUR_WEEK),wk=WEEKS[w],d=PD
   return h}
 function renderToday(){$("view-today").innerHTML=todayView()}
 // one-line summary for the pre-game phone notification (tools/digest.js)
-function todayDigest(){const my=myRoster();if(!my.length)return "";const T=tonight(my),w=Math.max(0,CUR_WEEK),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w,400):null,mv=bestMove(my,w),out=[];
+function todayDigest(){const my=myRoster();if(!my.length)return "";const T=tonight(my),w=Math.max(0,CUR_WEEK),opp=leagueOpp(w),O=opp?rosterOf(opp):[],M=O.length?matchupSim(my,O,w):null,mv=bestMove(my,w),out=[];
   const close=T.bench.filter(x=>x.close);if(close.length)out.push(`Close call: ${close[0].close.p.name} over ${close[0].p.name} tonight`);
   const newOut=my.filter(p=>p.out&&T.out.some(x=>x.p===p));if(newOut.length)out.push(`Out tonight: ${newOut.map(p=>p.name).join(", ")}`);
   out.push(`${T.starters.length} starting tonight${T.open?`, ${T.open} open slot${T.open>1?"s":""}`:""}`);
@@ -2316,7 +2315,7 @@ function setMode(m,{open=true}={}){S.mode=m;save();document.body.classList.toggl
   if(open){const cur=TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");if(!cur||modeOf(cur)!==m)$("tab-"+(S.lastTab[m]||(m==="draft"?"board":"today"))).click()}}
 function renderSeasonBar(){const el=$("seasonBar");if(!el)return;const w=Math.max(0,CUR_WEEK),wk=WEEKS[w],opp=leagueOpp(w),my=myRoster(),O=opp?rosterOf(opp):[];
   const dates=`${new Date(wk.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(wk.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;
-  const M=my.length&&O.length?matchupSim(my,O,w,300):null;
+  const M=my.length&&O.length?matchupSim(my,O,w):null;
   el.innerHTML=`<span><b>Week ${wk.i}</b> <span class="mut">${dates}</span><br>${opp?`vs ${esc(teamName(opp))}`:"no matchup set"}</span>${M?`<span class="pct" style="color:${M.p>=.5?"var(--ok)":"var(--bad)"}">${pc(M.p)}</span>`:`<span class="mut">${my.length?"":"after the draft"}</span>`}`;
   el.hidden=false;el.title="Open this week's matchup";el.onclick=()=>$("tab-season").click()}
 // reserve each tab's width for its selected (bold italic) form so choosing a tab never nudges its neighbours
