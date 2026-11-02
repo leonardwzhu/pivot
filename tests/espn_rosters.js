@@ -20,4 +20,8 @@ const {chromium}=require('playwright');const path=require('path');
   await pg.evaluate(()=>{closePlayer();setMode('draft');document.getElementById('tab-board').click()});await pg.waitForTimeout(1000);
   check(await pg.evaluate(()=>![...document.querySelectorAll('[data-mine],[data-take],#undo')].some(e=>e.offsetParent)),'Draft Day shows no Draft, Taken or Undo');
   await pg.evaluate(()=>startMock('adp'));await pg.waitForTimeout(1200);check(await pg.evaluate(()=>[...document.querySelectorAll('[data-mine]')].some(e=>e.offsetParent)),'a mock draft keeps its Draft buttons');
+  check(await pg.evaluate(()=>myRoster().length===LEAGUE.rosters[S.slot].filter(e=>BY_ESPN.has(e)).length),'a mock draft leaves the season screens on your ESPN roster');
+  // a new device that adopts a synced copy still mid mock draft from before the real draft: the mock is closed and every screen has the league
+  await pg.evaluate(()=>{S.mock={active:true,started:LEAGUE.draftDate-36e5};S.picks=[];save()});await pg.reload();await pg.waitForFunction(()=>typeof setMode==='function');await pg.waitForTimeout(800);
+  check(await pg.evaluate(()=>!MOCK()&&draftDone()&&Object.keys(LEAGUE.rosters).every(t=>rosterOf(+t).length===LEAGUE.rosters[t].filter(e=>BY_ESPN.has(e)).length)),'a stale synced mock draft is closed and every team is filled from ESPN');
   check(!errs.length,'no page errors '+errs.join(' | '));await b.close();process.exit(fail?1:0)})();

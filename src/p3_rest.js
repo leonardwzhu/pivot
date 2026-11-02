@@ -9,7 +9,10 @@ S.mix=S.mix||{};S.adj=S.adj||{};
 if(!S.rankDef){S.rankBy="model";S.rankDef=2}  // the board now ranks by the model by default; saved copies made before switch once
 // your ESPN league (synced daily): adopt its size, your draft slot and team names once; after the draft, load ESPN's picks and rosters whenever they're newer
 const BY_ESPN=new Map(players.map(p=>[p.espnId,p.id]));let LEAGUE_MSG="";
-(()=>{if(typeof LEAGUE==="undefined"||!LEAGUE||(S.mock&&S.mock.active))return;
+(()=>{if(typeof LEAGUE==="undefined"||!LEAGUE)return;
+  // a mock draft still open from before the real draft (often synced from another device) is closed, so it can't stand in for your league
+  if(LEAGUE.drafted&&S.mock&&S.mock.active&&(S.mock.started||0)<(LEAGUE.draftDate||0)+4*36e5){S.mock=null;S.picks=[];S.leaguePicksAt=null}
+  if(S.mock&&S.mock.active)return;
   if(S.leagueId!==LEAGUE.id){if(S.teams!==LEAGUE.size||S.slot!==LEAGUE.mySlot)S.picks=[];S.teams=LEAGUE.size;S.slot=LEAGUE.mySlot||S.slot;S.league=null;S.teamNames={};S.leagueId=LEAGUE.id;
     LEAGUE_MSG=`Loaded ${LEAGUE.name}: ${LEAGUE.size} teams, you pick ${S.slot}${["st","nd","rd"][S.slot-1]||"th"}`}
   S.teamNames=S.teamNames||{};for(const t in LEAGUE.teams)if(+t!==S.slot&&(LEAGUE.drafted||!S.teamNames[t]))S.teamNames[t]=LEAGUE.teams[t].name;
@@ -657,7 +660,10 @@ const dayDate=q=>new Date(new Date(PERIOD0+"T12:00:00").getTime()+q*864e5);
 const dayLabel=q=>dayDate(q).toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"});
 const CUR_WEEK=Math.max(0,WEEKS.findIndex(w=>CUR_PERIOD>=w.p[0]&&CUR_PERIOD<=w.p[1]));
 // league rosters: once you start the season they're stored and editable; before that they come from the draft picks
-function leagueRosters(){if(S.league)return S.league;const L={};for(let t=1;t<=S.teams;t++)L[t]=[];if(!MOCK())S.picks.forEach(x=>L[teamAt(x.o)].push(x.id));return L}
+// after the real draft every screen reads ESPN's rosters (the Rosters page's own data), never a saved copy or a mock draft
+let ESPN_LR=null,ESPN_LC=null;function espnLeague(){if(typeof LEAGUE==="undefined"||!LEAGUE||!LEAGUE.drafted||!LEAGUE.rosters)return null;
+  if(ESPN_LR!==LEAGUE.rosters){ESPN_LR=LEAGUE.rosters;ESPN_LC={};for(const t in LEAGUE.rosters)ESPN_LC[t]=LEAGUE.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e))}return ESPN_LC}
+function leagueRosters(){const E=espnLeague();if(E)return E;if(S.league)return S.league;const L={};for(let t=1;t<=S.teams;t++)L[t]=[];if(!MOCK())S.picks.forEach(x=>L[teamAt(x.o)].push(x.id));return L}
 const rosterOf=t=>(leagueRosters()[t]||[]).map(id=>players[id]).filter(Boolean);
 const myRoster=()=>rosterOf(S.slot);
 // injury fallout: regulars who are out right now, and the teammates the model expects to gain in his absence
