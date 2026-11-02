@@ -1,9 +1,12 @@
 // Layout stays put: the draft sidebar shows on every Draft Day tab and never in Season, and clicking tabs or making picks
 // moves nothing but content height. Usage: node tests/tabs.js [build/draft-room.html]
 const {chromium}=require('playwright');const fs=require('fs');const path=require('path');
-const openTab=async(pg,t)=>{if(await pg.$eval('#tab-'+t,e=>e.hasAttribute('data-more'))){await pg.click('#moreBtn');await pg.click('[data-moretab="'+t+'"]')}else await pg.click('#tab-'+t)};  // Trades, Rosters, Models and Method open from the More menu
+const openTab=async(pg,t)=>{if(await pg.$eval('#tab-'+t,e=>e.hasAttribute('data-more'))){await pg.click('#moreBtn');await pg.click('[data-moretab="'+t+'"]')}else await pg.click('#tab-'+t)};  // Rosters, Models and Method open from the More menu
 (async()=>{const b=await chromium.launch();const pg=await b.newPage({viewport:{width:1300,height:900}});const errs=[];pg.on('pageerror',e=>errs.push(e.message));
-await pg.setContent(fs.readFileSync(process.argv[2]||path.join(__dirname,'../build/draft-room.html'),'utf8'),{waitUntil:'load'});await pg.waitForTimeout(5000);
+// the draft half makes picks on the Big Board, so the league is set back to before its draft whatever today's data holds
+let html=fs.readFileSync(process.argv[2]||path.join(__dirname,'../build/draft-room.html'),'utf8');const L=JSON.parse(html.match(/const LEAGUE=(\{.*?\});\n/s)[1]);
+Object.assign(L,{drafted:false,inProgress:false,picks:[],rosters:null,ir:{},slots:{}});html=html.replace(/const LEAGUE=\{.*?\};\n/s,'const LEAGUE='+JSON.stringify(L)+';\n');
+await pg.setContent(html,{waitUntil:'load'});await pg.waitForTimeout(5000);
 let fail=0;const check=(ok,msg)=>{console.log((ok?'ok   ':'FAIL ')+msg);if(!ok)fail++};
 // everything that should hold still: header, dock, mode switch, tab bar and every visible tab, the column's left edge and width
 const frame=()=>pg.evaluate(()=>{const R=s=>{const e=document.querySelector(s);if(!e||e.hidden)return null;const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height].map(Math.round).join(',')};
