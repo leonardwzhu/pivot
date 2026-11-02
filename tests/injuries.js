@@ -13,13 +13,14 @@ const {chromium}=require('playwright');const path=require('path');
       rep=Object.values(LEAGUE.rosters).flat().map(e=>BY_ESPN.has(e)?players[BY_ESPN.get(e)]:null).find(p=>p&&p.inj&&(p.inj.status==="Out"||p.inj.status==="Day-To-Day"));
     return {h:h&&{e:h.espnId,name:h.name,retP:h.retP,tot:h.projTot},rep:rep&&{e:rep.espnId,name:rep.name,out:rep.out,dtd:rep.dtd}}});
   check(!!pick.h,`a healthy player to test with: ${pick.h&&pick.h.name}`);
-  const sync=st=>pg.evaluate(([h,rep,st])=>{const inj={[h]:st};if(rep)inj[rep]='ACTIVE';
+  const sync=st=>pg.evaluate(([h,rep,st])=>{const inj=Object.fromEntries(Object.values(LEAGUE.rosters).flat().map(e=>{const p=BY_ESPN.has(e)?players[BY_ESPN.get(e)]:null;return [e,p&&p.out?'OUT':p&&p.dtd?'DAY_TO_DAY':'ACTIVE']}));inj[h]=st;if(rep)inj[rep]='ACTIVE';
     const x={lg:LEAGUE.id,at:new Date().toISOString(),rosters:LEAGUE.rosters,slots:LEAGUE.slots,ir:LEAGUE.ir||{},rec:LEAGUE.rec,results:LEAGUE.results||[],live:null,dayPts:LEAGUE.dayPts,inj,curMatchup:LEAGUE.curMatchup,picks:[],drafted:true};
     const b0={rosters:LEAGUE.rosters,ir:LEAGUE.ir,slots:LEAGUE.slots,rec:LEAGUE.rec};S.lgLive=x;applyLive(x);save();return lgDiff(b0,x)},[pick.h.e,pick.rep&&pick.rep.e,st]);
   const ch=await sync('DAY_TO_DAY');
   const H=await pg.evaluate(e=>{const p=players[BY_ESPN.get(e)];return {dtd:p.dtd,out:p.out,retP:p.retP,tot:p.projTot}},pick.h.e);
   check(H.dtd&&!H.out,`${pick.h.name} is day-to-day after the sync`);
   check(H.retP>pick.h.retP&&H.tot<pick.h.tot,`his return date moves past his next game and his season total drops (${Math.round(pick.h.tot)} to ${Math.round(H.tot)})`);
+  check(!ch.some(c=>/is now healthy/.test(c)),`nobody else is reported as changed (${ch.filter(c=>/is now/.test(c)).length} injury lines)`);
   check(ch.some(c=>c.includes(pick.h.name)&&c.includes('day-to-day')),`the update panel says so: "${ch.find(c=>c.includes(pick.h.name))}"`);
   if(pick.rep){const R=await pg.evaluate(e=>{const p=players[BY_ESPN.get(e)];return {out:p.out,dtd:p.dtd}},pick.rep.e);
     check(R.out===pick.rep.out&&R.dtd===pick.rep.dtd,`${pick.rep.name} stays ${pick.rep.out?'out':'day-to-day'}: ESPN's injury report still lists him`)}

@@ -2596,8 +2596,9 @@ function leagueFromEspn(d){const slot=Object.fromEntries(d.settings.draftSetting
 // is out or day-to-day if either it or ESPN's injury report says so; the report itself only changes with a build. A change updates
 // the flags, his return date and games left, and the projections that follow from them. Free agents wait for the next build
 function injWord(p){return p.out?"out":p.dtd?"day-to-day":"healthy"}  // a declaration: a saved sync runs applyInj at load, above this line
+// (healthy players may carry no out/dtd flags at all, so flags compare as booleans)
 function applyInj(m){if(!m)return [];const ch=[];for(const e in m){if(!BY_ESPN.has(+e))continue;const p=players[BY_ESPN.get(+e)],st=m[e],ir=p.inj&&p.inj.status,out=INJ_OUT.includes(st)||ir==="Out",dtd=!out&&(INJ_DTD.includes(st)||ir==="Day-To-Day");  // the build's rule: either ESPN source flags him
-    if(out===p.out&&dtd===p.dtd)continue;const was=injWord(p);p.out=out;p.dtd=dtd;p.injSync=st;
+    if(out===!!p.out&&dtd===!!p.dtd)continue;const was=injWord(p);p.out=out;p.dtd=dtd;p.injSync=st;
     // a return date from the injury report still holds if he's out; otherwise the same rules as the build (day-to-day misses his next game)
     p.retP=returnPeriod({inj:out&&p.inj&&(p.inj.ret||p.inj.status==="Out")?p.inj:out?{status:"Out"}:null,st},p.team);
     p.daySet=new Set(p.days.filter(q=>q>=p.retP));p.avail=p.daySet.size;p.gamesOut=p.days.filter(q=>q<p.retP).length;p.poGames=p.days.filter(q=>q>=Math.max(p.retP,PO_START)&&q<=PO_END).length;
