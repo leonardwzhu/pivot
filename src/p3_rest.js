@@ -1756,7 +1756,7 @@ function outlookCard(T,tw){const W=WEEKS.map((w,i)=>({w,i})).filter(x=>x.w.p[1]>
     return {...x,v,a,o,ov,p:Math.min(.99,Math.max(.01,p)),part:x.w.p[0]<CUR_PERIOD}});
   const reg=pt.filter(x=>!x.w.po),po=pt.filter(x=>x.w.po),rec=HAS_LG()&&LEAGUE.rec&&LEAGUE.rec[S.slot]||[0,0,0],wins=rec[0]+rec[2]/2+reg.reduce((t,x)=>t+x.p,0),games=rec[0]+rec[1]+rec[2]+reg.length;
   const tough=[...reg].sort((a,b)=>a.p-b.p)[0],easy=[...reg].sort((a,b)=>b.p-a.p)[0],lab=x=>`Week ${x.w.i}`,dates=x=>`${gDate(x.w.s)}–${gDate(x.w.e)}`;
-  const Wd=Math.max(300,Math.min(1000,((document.querySelector("main>section")||{}).clientWidth||640)-34)),wide=Wd>=640,Ht=wide?250:210,L=4,R=4,Tp=wide?30:14,B=wide?36:22;
+  const Wd=Math.max(300,((document.querySelector("main>section")||{}).clientWidth||640)-34),wide=Wd>=640,Ht=wide?250:210,L=4,R=4,Tp=wide?30:14,B=wide?36:22;
   const n=pt.length,cw=(Wd-L-R)/n,bw=Math.max(5,Math.min(30,cw*.62)),top=Math.max(...pt.map(x=>Math.max(x.v,x.a)))*1.06,Y=v=>Tp+(1-v/top)*(Ht-Tp-B),X=k=>L+(k+.5)*cw;
   const col=x=>x.p>=.5?"var(--ok)":"var(--bad)",op=x=>(.3+.7*Math.min(1,Math.abs(x.p-.5)*2.4)).toFixed(2);
   let g="";
@@ -1773,7 +1773,7 @@ function outlookCard(T,tw){const W=WEEKS.map((w,i)=>({w,i})).filter(x=>x.w.p[1]>
   const st=(k,v,d)=>`<div><i>${k}</i><b>${v}</b><small>${d}</small></div>`;
   return `<div class="chart-card"><h4>Your season, week by week</h4><div class="eq">projected starter points each week, colored by your chance to win that matchup</div>
     <div class="olk">${st("Projected record",`${f0(wins)}–${f0(games-wins)}`,`${reg.length} weeks left in the regular season`)}${tough?st("Toughest matchup",lab(tough),`${pc(tough.p)} vs ${esc(teamShort(tough.o))}`):""}${easy?st("Easiest matchup",lab(easy),`${pc(easy.p)} vs ${esc(teamShort(easy.o))}`):""}${po.length?st("Playoff weeks",f0(mean(po.map(x=>x.v))),`a week · league average ${f0(mean(po.map(x=>x.a)))}`):""}</div>
-    <svg class="ol" viewBox="0 0 ${Wd} ${Ht}" style="max-width:${Wd}px" role="img" aria-label="Projected starter points and win chance for each remaining week">${g}</svg>
+    <svg class="ol" viewBox="0 0 ${Wd} ${Ht}" role="img" aria-label="Projected starter points and win chance for each remaining week">${g}</svg>
     <div class="lab-key"><span><i class="dot" style="background:var(--ok)"></i>likely win</span><span><i class="dot" style="background:var(--bad)"></i>likely loss</span><span>· deeper color = surer</span><span><i style="background:var(--ink);opacity:.55;height:2px"></i>league average</span>${wide?"<span>· win % on top, opponent below; playoff weeks against an average team</span>":"<span>· tap a week for details</span>"}</div>
     <p data-keep>${tough&&tough.p<.5?`${lab(tough)} (${dates(tough)}) is your toughest: ${pc(tough.p)} against ${esc(teamName(tough.o))}. `:""}Weeks with few NBA games (the NBA Cup knockouts in early December, the All-Star break in February) drop for every team, so the color, not the height, says whether you're favored.</p></div>`}
 // who's out and until when, on the calendar of matchup weeks: one bar per injured player from today to his expected return
