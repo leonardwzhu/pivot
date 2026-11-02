@@ -9,6 +9,8 @@ teams={slot[t['id']]:dict(id=t['id'],name=(t.get('name') or f"{t.get('location',
 dd=d.get('draftDetail',{})
 picks=[[p['overallPickNumber'],slot.get(p['teamId']),p['playerId']] for p in dd.get('picks',[]) if p.get('playerId',-1)>0]
 rosters={slot[t['id']]:[e['playerId'] for e in t.get('roster',{}).get('entries',[])] for t in d['teams'] if t['id'] in slot}
+# who sits in each team's IR slot (ESPN lineup slot 13)
+ir={slot[t['id']]:[e['playerId'] for e in t.get('roster',{}).get('entries',[]) if e.get('lineupSlotId')==13] for t in d['teams'] if t['id'] in slot}
 # opponent by matchup week: opp[week-1][slot] = opponent slot (regular season; playoff pairings are set later)
 opp={}
 for m in d.get('schedule',[]):
@@ -37,6 +39,6 @@ L=dict(id=d['id'],name=s.get('name'),size=s['size'],mySlot=slot.get(my_team),fet
   drafted=bool(dd.get('drafted')),inProgress=bool(dd.get('inProgress')),draftDate=ds.get('date'),secPerPick=ds.get('timePerSelection'),
   type=s['scoringSettings'].get('scoringType'),defaultScoring=sc==default,teams=teams,picks=picks,rosters=rosters if any(rosters.values()) else None,opp=opp,
   tradeDeadline=s.get('tradeSettings',{}).get('deadlineDate'),rec=rec,results=results,live=live,curMatchup=curMP,
-  po=po,acq=s.get('acquisitionSettings',{}).get('acquisitionType'),irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
+  po=po,ir={k:v for k,v in ir.items() if v},acq=s.get('acquisitionSettings',{}).get('acquisitionType'),irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
 open('work/p2_league.js','w',encoding='utf-8').write("// Your ESPN league, read from ESPN's public league API (synced daily)\nconst LEAGUE="+json.dumps(L,ensure_ascii=False,separators=(',',':'))+";\n")
 print('league',L['name'],'size',L['size'],'my slot',L['mySlot'],'drafted',L['drafted'],'picks',len(picks),'default scoring',L['defaultScoring'],'weeks with opponents',len(opp),'playoffs',po)
