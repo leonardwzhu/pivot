@@ -28,6 +28,10 @@ const {chromium}=require('playwright');const path=require('path');
   check(await pg.evaluate(n=>[...document.querySelectorAll('#view-today tr')].some(r=>r.innerText.includes(n)&&/23\.5 so far/i.test(r.innerText)),pick.h.name),'Tonight\'s lineup shows his points so far from ESPN');
   check(await pg.evaluate(()=>![...document.querySelectorAll('#view-today tr')].some(r=>/0\.0 so far/i.test(r.innerText))),'no "0.0 so far" for players who haven\'t scored');
   check(await pg.evaluate(n=>[...document.querySelectorAll('#view-today li')].some(l=>l.innerText.includes(n)&&/GTD/.test(l.innerText)),pick.h.name),'Today lists him as a game-time decision');
+  // late at night: tonight's box scores already saved still count as tonight's game, and a lineup ESPN gave for another day isn't
+  // shown as tonight's
+  check(await pg.evaluate(()=>myRoster().filter(p=>(SCHED[p.team]||[]).includes(CUR_PERIOD)&&!p.out).every(p=>{const g=nextGames(p,1,true)[0];return g&&g.q===CUR_PERIOD})),'every player with a game today has it in Tonight\'s lineup');
+  check(await pg.evaluate(()=>{const was=LEAGUE.slotsSp;LEAGUE.slotsSp=CUR_PERIOD+1;document.getElementById('tab-today').click();const t=document.querySelector('#view-today .chart-card').textContent;LEAGUE.slotsSp=was;return !/as set on ESPN/.test(t)}),'a lineup for another day falls back to Pivot\'s lineup');
   await pg.reload();await pg.waitForFunction(()=>typeof setMode==='function');await pg.waitForTimeout(800);
   check(await pg.evaluate(e=>{const p=players[BY_ESPN.get(e)];return p.dtd&&p.projTot>0},pick.h.e),'after a reload the saved sync still has him day-to-day, with projections');
   await sync('ACTIVE');check(await pg.evaluate(e=>{const p=players[BY_ESPN.get(e)];return !p.dtd&&!p.out&&p.retP===CUR_PERIOD},pick.h.e),'a later sync with him active clears it');

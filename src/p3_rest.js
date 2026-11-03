@@ -1288,8 +1288,9 @@ function defNow(){if(DEF_NOW)return DEF_NOW;const D={},dec=.5**(1/MP.h);Object.e
   players.forEach(p=>{const g=posGroup(p),pr=p.baseProj.fp;let s=0,w=0;SEASON_GAMES(p).slice().reverse().forEach(x=>{const b=(s+MP.K*pr)/(w+MP.K),o=x.opp.replace(/^@/,"");
     if(b>5&&D[o]){const v=D[o][g]=D[o][g]||[0,0,0];v[0]+=x.fp;v[1]+=b;v[2]++}s=s*dec+x.fp;w=w*dec+1})});return DEF_NOW=D}
 const defFactor=(opp,g)=>{const v=(defNow()[opp]||{})[g];return v&&v[1]?1+(v[0]/v[1]-1)*v[2]/(v[2]+MP.Kd):1};
-function nextGames(p,n=4){const S=SCHED[p.team]||[],O=SCHED_OPP[p.team]||{},last=(gamesOf(p)[0]||{}).date||"",base=formBase(p),g=posGroup(p);
-  return S.filter(q=>q>=CUR_PERIOD&&PDATE(q)>last).slice(0,n).map(q=>{const o=O[q]||"",opp=o.replace("@",""),home=!o.startsWith("@"),b2b=S.includes(q-1),f=defFactor(opp,g),
+// withToday keeps today's game after its box score is in (a refresh late at night), for Tonight's lineup
+function nextGames(p,n=4,withToday){const S=SCHED[p.team]||[],O=SCHED_OPP[p.team]||{},last=(gamesOf(p)[0]||{}).date||"",base=formBase(p),g=posGroup(p);
+  return S.filter(q=>q>=CUR_PERIOD&&(PDATE(q)>last||withToday&&q===CUR_PERIOD)).slice(0,n).map(q=>{const o=O[q]||"",opp=o.replace("@",""),home=!o.startsWith("@"),b2b=S.includes(q-1),f=defFactor(opp,g),
     date=PDATE(q),m=mateAdj(p,date,base),fp=(base+m.adj)*Math.max(.5,f)**MP.a*(home?1+MP.hm:1-MP.hm)*(b2b?1-MP.b2:1),out=isOut(p,date);
     return {q,date,out,o,opp,home,b2b,f,fp,lo:rangeOf(fp)[0],hi:rangeOf(fp)[1],base,mate:m,vs:(MATCHUP.VS[p.espnId]||{})[opp]}})}
 // the 80% range for a prediction, by level: bench players swing more than stars (MATCHUP.BQ, fit on game logs)
@@ -2190,7 +2191,7 @@ document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest
   if(b.dataset.scout){S.scoutT=+b.dataset.scout;save();renderScout();return}
   S.tTeam=+b.dataset.scoutTrade;S.tGive=[];S.tGet=[];save();$("tab-trades").click()});
 // ---- Today: what to do today, in one screen: tonight's lineup, news that touches your team, your matchup, one move ----
-function tonight(my){const d=PDATE(CUR_PERIOD),P=my.map(p=>{const g=nextGames(p,1)[0];return {p,g:g&&g.date===d?g:null}});
+function tonight(my){const d=PDATE(CUR_PERIOD),P=my.map(p=>{const g=nextGames(p,1,true)[0];return {p,g:g&&g.date===d?g:null}});
   const play=P.filter(x=>x.g&&!x.g.out).sort((a,b)=>b.g.fp-a.g.fp),slot=new Array(LINEUP.length).fill(-1);
   const aug=(i,seen)=>{for(let k=0;k<LINEUP.length;k++){if(seen[k]||!elig(play[i].p,k))continue;seen[k]=1;if(slot[k]<0||aug(slot[k],seen)){slot[k]=i;return true}}return false};
   play.forEach((_,i)=>aug(i,new Uint8Array(LINEUP.length)));const on=new Set(slot.filter(i=>i>=0));
@@ -2205,7 +2206,8 @@ function bestMove(my,w){const fa=freeAgents(),base=weekProj(my,w).pts,full=my.le
   return best&&best.g>=12?best:null}
 // tonight's lineup exactly as set on ESPN (slot by slot), with the starters who won't score flagged, then the moves to Pivot's best lineup
 const ESPN_SLOT_ORD=[0,1,2,3,4,5,6,11,12,13],ESPN_SLOT_LAB={0:"PG",1:"SG",2:"SF",3:"PF",4:"C",5:"G",6:"F",11:"UTIL",12:"Bench",13:"IR"};
-function espnTonight(my,T,row){const ES=HAS_LG()&&LEAGUE.slots&&LEAGUE.slots[S.slot];if(!ES||!my.some(p=>ES[p.espnId]!=null))return null;
+// ESPN's lineup only when it's for the day this page is about: another day's would put the wrong players in the wrong slots
+function espnTonight(my,T,row){const ES=HAS_LG()&&LEAGUE.slots&&(!LEAGUE.slotsSp||LEAGUE.slotsSp===CUR_PERIOD)&&LEAGUE.slots[S.slot];if(!ES||!my.some(p=>ES[p.espnId]!=null))return null;
   const G=new Map([...T.starters,...T.bench,...T.out,...T.idle].map(x=>[x.p,x.g])),sl=p=>ES[p.espnId]??12,starts=p=>sl(p)<12,best=new Set(T.starters.map(x=>x.p));
   const R=[...my].sort((a,b)=>ESPN_SLOT_ORD.indexOf(sl(a))-ESPN_SLOT_ORD.indexOf(sl(b))||(G.get(b)?G.get(b).fp:0)-(G.get(a)?G.get(a).fp:0));
   const pts=L=>L.reduce((t,p)=>{const g=G.get(p);return t+(g&&!g.out?g.fp:0)},0),cur=my.filter(starts),gain=pts([...best])-pts(cur);
@@ -2585,16 +2587,20 @@ if(MOCK()&&S.mock.styles)setRoomPicks();
 // refresh on demand through the Claude Code Remote connector, which refetches injuries, stats and the schedule and republishes
 // today's scoring period in US Eastern time (PERIOD0 is day 0): ESPN keeps a lineup per day and otherwise returns yesterday's
 const ESPN_TODAY=()=>{const d=new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));return Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.parse(PERIOD0+"T00:00:00Z"))/864e5)};
-const ESPN_LG=id=>`https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/2027/segments/0/leagues/${id}?view=mSettings&view=mTeam&view=mRoster&view=mMatchup&view=mMatchupScore&view=mDraftDetail&scoringPeriodId=${ESPN_TODAY()}`;
+const ESPN_LG=(id,sp)=>`https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/2027/segments/0/leagues/${id}?view=mSettings&view=mTeam&view=mRoster&view=mMatchup&view=mMatchupScore&view=mDraftDetail&scoringPeriodId=${sp}`;
+// ESPN's day, not the calendar's: after midnight Eastern ESPN stays on the night's day (late games still running) until it rolls
+// over in the morning, and a later day's lineup is only ESPN's default. Ask for the calendar day; if ESPN isn't there yet, ask again
+async function fetchLeague(id){const get=async sp=>{const r=await fetch(ESPN_LG(id,sp),{cache:"no-store"});if(!r.ok)throw new Error("ESPN answered "+r.status);return r.json()};
+  const want=ESPN_TODAY();let d=await get(want);const at=(d.status||{}).latestScoringPeriod;if(at&&at<want)d=await get(at);return d}
 const FULL_REFRESH={server:"Claude Code Remote",tool:"fire_trigger",trigger:"trig_01V934DfCrKgydEc5Xp8FrXD"};
 function leagueFromEspn(d){const slot=Object.fromEntries(d.settings.draftSettings.pickOrder.map((t,i)=>[t,i+1])),ros={},ir={},rec={},results=[],curMP=(d.status||{}).currentMatchupPeriod;let live=null;
-  const slots={},inj={},dp={},today=ESPN_TODAY();d.teams.forEach(t=>{const s=slot[t.id];if(!s)return;const E=(t.roster&&t.roster.entries)||[];E.forEach(e=>{const pe=e.playerPoolEntry||{},pl=pe.player||{};if(pl.injuryStatus)inj[e.playerId]=pl.injuryStatus;const st=(pl.stats||[]).find(x=>x.scoringPeriodId===today&&x.statSourceId===0&&x.statSplitTypeId===5);if(st)dp[e.playerId]=+(st.appliedTotal||0).toFixed(1)});ros[s]=E.map(e=>e.playerId);slots[s]=Object.fromEntries(E.map(e=>[e.playerId,e.lineupSlotId]));const r=E.filter(e=>e.lineupSlotId===13).map(e=>e.playerId);if(r.length)ir[s]=r;
+  const slots={},inj={},dp={},today=d.scoringPeriodId;d.teams.forEach(t=>{const s=slot[t.id];if(!s)return;const E=(t.roster&&t.roster.entries)||[];E.forEach(e=>{const pe=e.playerPoolEntry||{},pl=pe.player||{};if(pl.injuryStatus)inj[e.playerId]=pl.injuryStatus;const st=(pl.stats||[]).find(x=>x.scoringPeriodId===today&&x.statSourceId===0&&x.statSplitTypeId===5);if(st)dp[e.playerId]=+(st.appliedTotal||0).toFixed(1)});ros[s]=E.map(e=>e.playerId);slots[s]=Object.fromEntries(E.map(e=>[e.playerId,e.lineupSlotId]));const r=E.filter(e=>e.lineupSlotId===13).map(e=>e.playerId);if(r.length)ir[s]=r;
     const o=(t.record||{}).overall||{};rec[s]=[o.wins||0,o.losses||0,o.ties||0,+(o.pointsFor||0).toFixed(1),+(o.pointsAgainst||0).toFixed(1)]});
   (d.schedule||[]).forEach(m=>{if(!m.home||!m.away)return;const h=slot[m.home.teamId],a=slot[m.away.teamId];if(!h||!a)return;const tp=x=>+((x.totalPointsLive??x.totalPoints)||0).toFixed(1),row=[m.matchupPeriodId,h,tp(m.home),a,tp(m.away),m.winner];  // totalPoints only counts finished days
     if(["HOME","AWAY","TIE"].includes(m.winner))results.push(row);else if(m.matchupPeriodId===curMP&&(row[2]||row[4]))(live=live||[]).push(row)});
   const dayPts={};(d.schedule||[]).forEach(m=>{if(m.matchupPeriodId!==curMP)return;[m.home,m.away].forEach(x=>{const s=x&&slot[x.teamId];if(s&&x.pointsByScoringPeriod)dayPts[s]=x.pointsByScoringPeriod})});
   const picks=((d.draftDetail||{}).picks||[]).filter(p=>p.playerId>0).map(p=>[p.overallPickNumber,slot[p.teamId],p.playerId]);
-  return {lg:d.id,at:new Date().toISOString(),rosters:Object.values(ros).some(x=>x.length)?ros:null,slots,ir,rec,results,live,dayPts,inj,dp:{sp:today,pts:dp},curMatchup:curMP,picks,drafted:!!(d.draftDetail||{}).drafted}}
+  return {lg:d.id,at:new Date().toISOString(),rosters:Object.values(ros).some(x=>x.length)?ros:null,slots,ir,rec,results,live,dayPts,inj,dp:{sp:today,pts:dp},slotsSp:today,curMatchup:curMP,picks,drafted:!!(d.draftDetail||{}).drafted}}
 // ESPN's fantasy injury status for rostered players, newer than the page's own (built a few times a day). As in the build, a player
 // is out or day-to-day if either it or ESPN's injury report says so; the report itself only changes with a build. A change updates
 // the flags, his return date and games left, and the projections that follow from them. Free agents wait for the next build
@@ -2607,7 +2613,7 @@ function applyInj(m){if(!m)return [];const ch=[];for(const e in m){if(!BY_ESPN.h
     p.daySet=new Set(p.days.filter(q=>q>=p.retP));p.avail=p.daySet.size;p.gamesOut=p.days.filter(q=>q<p.retP).length;p.poGames=p.days.filter(q=>q>=Math.max(p.retP,PO_START)&&q<=PO_END).length;
     if(p.proj){p.projGP=p.avail*p.rate;p.projTot=p.proj.fp*p.projGP}ch.push({p,was,now:injWord(p)})}  // at load applyMix sets these just after
   if(ch.length)INJ_V++;return ch}
-function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;LIVE_INJ=applyInj(x.inj);Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,rec:x.rec,results:x.results,live:x.live,dayPts:x.dayPts||LEAGUE.dayPts,dp:x.dp||LEAGUE.dp,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
+function applyLive(x){if(!x||typeof LEAGUE=="undefined"||!LEAGUE||x.lg!==LEAGUE.id)return false;LIVE_INJ=applyInj(x.inj);Object.assign(LEAGUE,{ir:x.ir,slots:x.slots||LEAGUE.slots,slotsSp:x.slots?x.slotsSp:LEAGUE.slotsSp,rec:x.rec,results:x.results,live:x.live,dayPts:x.dayPts||LEAGUE.dayPts,dp:x.dp||LEAGUE.dp,curMatchup:x.curMatchup,drafted:x.drafted||LEAGUE.drafted});
   if(x.picks&&x.picks.length){LEAGUE.picks=x.picks;if(!(S.mock&&S.mock.active))S.picks=x.picks.filter(p=>BY_ESPN.has(p[2])).sort((a,b)=>a[0]-b[0]).map(p=>({id:BY_ESPN.get(p[2]),mine:p[1]===S.slot,o:p[0]}))}
   if(x.rosters){LEAGUE.rosters=x.rosters;const L={};for(const t in x.rosters)L[t]=x.rosters[t].filter(e=>BY_ESPN.has(e)).map(e=>BY_ESPN.get(e));S.league=L}return true}
 // the update panel: the quick league sync (seconds, in this page) and the full refresh (about 2 minutes, a scheduled task that
@@ -2631,7 +2637,7 @@ function lgDiff(b,x){const out=[],me=S.slot;if(!b||!x)return out;
   return out}
 async function quickSync(quiet){if(!HAS_LG()||FETCH_OFF||UPD.q.st==="run")return;UPD.q={st:"run"};updRender();
   const b=JSON.parse(JSON.stringify({rosters:LEAGUE.rosters,ir:LEAGUE.ir,slots:LEAGUE.slots,rec:LEAGUE.rec}));
-  try{const r=await fetch(ESPN_LG(LEAGUE.id),{cache:"no-store"});if(!r.ok)throw new Error("ESPN answered "+r.status);const x=leagueFromEspn(await r.json());S.lgLive=x;applyLive(x);save();
+  try{const x=leagueFromEspn(await fetchLeague(LEAGUE.id));S.lgLive=x;applyLive(x);save();
     const ch=lgDiff(b,x);UPD.q={st:"ok",at:Date.now(),ch};$("updPop").hidden||updRender();
     // a background sync redraws only when something changed, and never under someone typing
     if(quiet&&(!ch.length||/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||""))){updRender();return}$("asof").textContent=`ESPN 2026-27 · league updated ${new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}`;

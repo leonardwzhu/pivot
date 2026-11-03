@@ -64,6 +64,6 @@ L=dict(id=d['id'],name=s.get('name'),size=s['size'],mySlot=slot.get(my_team),fet
   drafted=bool(dd.get('drafted')),inProgress=bool(dd.get('inProgress')),draftDate=ds.get('date'),secPerPick=ds.get('timePerSelection'),
   type=s['scoringSettings'].get('scoringType'),defaultScoring=sc==default,teams=teams,picks=picks,rosters=rosters if any(rosters.values()) else None,opp=opp,
   tradeDeadline=s.get('tradeSettings',{}).get('deadlineDate'),rec=rec,results=results,live=live,curMatchup=curMP,
-  po=po,ir={k:v for k,v in ir.items() if v},slots=slots,acq=s.get('acquisitionSettings',{}).get('acquisitionType'),days=days,dayP=dayP,dayPts=dayPts,dp=dict(sp=sp,pts=dp),irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
+  po=po,ir={k:v for k,v in ir.items() if v},slots=slots,acq=s.get('acquisitionSettings',{}).get('acquisitionType'),days=days,dayP=dayP,dayPts=dayPts,dp=dict(sp=sp,pts=dp),slotsSp=sp,irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
 open('work/p2_league.js','w',encoding='utf-8').write("// Your ESPN league, read from ESPN's public league API (synced daily)\nconst LEAGUE="+json.dumps(L,ensure_ascii=False,separators=(',',':'))+";\n")
 print('league',L['name'],'size',L['size'],'my slot',L['mySlot'],'drafted',L['drafted'],'picks',len(picks),'default scoring',L['defaultScoring'],'weeks with opponents',len(opp),'playoffs',po)

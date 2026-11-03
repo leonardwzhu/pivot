@@ -58,6 +58,9 @@ else use_last p2_espn.js "ESPN"; STATUS+=("ESPN: last good"); fi
 if [ "$MODE" != injuries ]; then
 # 4a) Your league: teams, draft order, picks, rosters and matchups (public league, no login)
 c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup&view=mMatchupScore&scoringPeriodId=$TODAY_SP" work/league.json)
+# after midnight ESPN stays on the night's day (late games still running) until it rolls over: use its day, not the calendar's
+if [ "$c" = 200 ]; then L=$(python3 -c "import json;print(json.load(open('work/league.json')).get('status',{}).get('latestScoringPeriod') or 0)" 2>/dev/null)
+  if [ "${L:-0}" -gt 0 ] && [ "$L" -lt "$TODAY_SP" ]; then TODAY_SP=$L; c=$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mSettings&view=mTeam&view=mDraftDetail&view=mRoster&view=mMatchup&view=mMatchupScore&scoringPeriodId=$TODAY_SP" work/league.json); fi; fi
 # each finished day's lineups and points, for the weekly recap and the win-chance chart: fetched once a day and saved in last/days.json
 if [ "$c" = 200 ]; then for q in $(python3 -P tools/build_days.py need "$TODAY_SP"); do sleep 2
   [ "$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mRoster&scoringPeriodId=$q" "work/day_$q.json")" = 200 ] || rm -f "work/day_$q.json"; done
