@@ -10,6 +10,13 @@ dd=d.get('draftDetail',{})
 picks=[[p['overallPickNumber'],slot.get(p['teamId']),p['playerId']] for p in dd.get('picks',[]) if p.get('playerId',-1)>0]
 rosters={slot[t['id']]:[e['playerId'] for e in t.get('roster',{}).get('entries',[])] for t in d['teams'] if t['id'] in slot}
 # each player's ESPN lineup slot, as set on ESPN today (0 PG ... 11 UTIL, 12 bench, 13 IR)
+# each rostered player's points today (the league is fetched for today's scoring period), shown beside tonight's expected points
+sp=d.get('scoringPeriodId');dp={}
+for t in d['teams']:
+    for e in t.get('roster',{}).get('entries',[]):
+        # the day's own stat line (split type 5 is one scoring period); appliedStatTotal runs across days
+        x=next((x for x in ((e.get('playerPoolEntry') or {}).get('player') or {}).get('stats',[]) if x.get('scoringPeriodId')==sp and x.get('statSourceId')==0 and x.get('statSplitTypeId')==5),None)
+        if x:dp[str(e['playerId'])]=round(x.get('appliedTotal',0),1)
 slots={slot[t['id']]:{str(e['playerId']):e.get('lineupSlotId') for e in t.get('roster',{}).get('entries',[])} for t in d['teams'] if t['id'] in slot}
 # who sits in each team's IR slot (ESPN lineup slot 13)
 ir={slot[t['id']]:[e['playerId'] for e in t.get('roster',{}).get('entries',[]) if e.get('lineupSlotId')==13] for t in d['teams'] if t['id'] in slot}
@@ -29,7 +36,8 @@ for m in d.get('schedule',[]):
     if 'home' not in m or 'away' not in m:continue
     h,a=slot.get(m['home']['teamId']),slot.get(m['away']['teamId'])
     if not(h and a):continue
-    row=[m['matchupPeriodId'],h,round(m['home'].get('totalPoints',0),1),a,round(m['away'].get('totalPoints',0),1),m.get('winner')]
+    tp=lambda x:round(x.get('totalPointsLive') if x.get('totalPointsLive') is not None else x.get('totalPoints',0),1)  # totalPoints only counts finished days
+    row=[m['matchupPeriodId'],h,tp(m['home']),a,tp(m['away']),m.get('winner')]
     if m.get('winner') in('HOME','AWAY','TIE'):results.append(row)
     elif m['matchupPeriodId']==curMP and (row[2] or row[4]):live=live or [];live.append(row)
 # playoffs: how many teams make it, and how many rounds of how many weeks (ESPN default: top 4, two rounds of two weeks)
@@ -56,6 +64,6 @@ L=dict(id=d['id'],name=s.get('name'),size=s['size'],mySlot=slot.get(my_team),fet
   drafted=bool(dd.get('drafted')),inProgress=bool(dd.get('inProgress')),draftDate=ds.get('date'),secPerPick=ds.get('timePerSelection'),
   type=s['scoringSettings'].get('scoringType'),defaultScoring=sc==default,teams=teams,picks=picks,rosters=rosters if any(rosters.values()) else None,opp=opp,
   tradeDeadline=s.get('tradeSettings',{}).get('deadlineDate'),rec=rec,results=results,live=live,curMatchup=curMP,
-  po=po,ir={k:v for k,v in ir.items() if v},slots=slots,acq=s.get('acquisitionSettings',{}).get('acquisitionType'),days=days,dayP=dayP,dayPts=dayPts,irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
+  po=po,ir={k:v for k,v in ir.items() if v},slots=slots,acq=s.get('acquisitionSettings',{}).get('acquisitionType'),days=days,dayP=dayP,dayPts=dayPts,dp=dict(sp=sp,pts=dp),irSlots=s['rosterSettings']['lineupSlotCounts'].get('13',0),benchSlots=s['rosterSettings']['lineupSlotCounts'].get('12',0))
 open('work/p2_league.js','w',encoding='utf-8').write("// Your ESPN league, read from ESPN's public league API (synced daily)\nconst LEAGUE="+json.dumps(L,ensure_ascii=False,separators=(',',':'))+";\n")
 print('league',L['name'],'size',L['size'],'my slot',L['mySlot'],'drafted',L['drafted'],'picks',len(picks),'default scoring',L['defaultScoring'],'weeks with opponents',len(opp),'playoffs',po)
