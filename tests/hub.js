@@ -36,6 +36,18 @@ await pg.click('#tab-waivers');await pg.waitForTimeout(400);
 const pk=await pg.evaluate(()=>{const v=document.getElementById('view-waivers'),C=[...v.querySelectorAll('.pk-vs')].map(t=>t.closest('.tcard'));return {n:C.length,why:C.every(c=>c.querySelector('.pk-why').textContent.length>60),rows:C.every(c=>c.querySelectorAll('.pk-vs tbody tr').length===7),
   verdict:C.every(c=>/Worth the move|This week only|Watch/.test(c.querySelector('.pk-net').textContent)),kinds:new Set(C.map(c=>c.querySelector('.tcard-h .need-chip').textContent)).size,calls:v.querySelectorAll('.call').length}});
 check(pk.n>=3&&pk.kinds===pk.n&&pk.why&&pk.rows&&pk.verdict,`Pickup picks: ${pk.n} kinds of pickup, each with reasons, a side-by-side against the drop and a verdict`);check(pk.calls<=1,`one orange "call" on Waivers at most (${pk.calls})`);
+await pg.click('#tab-signals');await pg.waitForTimeout(400);
+const sgn=await pg.evaluate(()=>{const v=document.getElementById('view-signals'),C=[...v.querySelectorAll('.lab-card')];document.querySelector('[data-labtbl="luck"]').click();
+  const T=Object.keys(LEAGUE.teams).map(Number),slotOf=Object.fromEntries(T.map(t=>[LEAGUE.teams[t].id,t])),adds=SIG.tx.flatMap(x=>x[3].filter(i=>i[1]==='A').map(i=>[i[0],slotOf[x[1]]])),last=new Map(adds),
+    match=[...last].filter(([e])=>BY_ESPN.has(e)).map(([e,t])=>ownerOf(players[BY_ESPN.get(e)])===t);
+  const lk=players.filter(p=>shotLuck(p)).map(p=>shotLuck(p).fp);
+  return {cards:C.length,svg:C.filter(c=>c.querySelector('svg')).length,tbl:!document.querySelector('#lab-luck .lab-table').hidden,tiles:v.querySelectorAll('.kpi').length,
+    luckMid:Math.abs(lk.reduce((a,b)=>a+b,0)/lk.length),match:match.filter(Boolean).length/Math.max(1,match.length),ramp:SIG.ramp[0][1]<SIG.ramp[5][1]}});
+check(sgn.cards===7&&sgn.svg===7&&sgn.tbl&&sgn.tiles>=4,`Signals tab draws seven charts with table views (${sgn.cards} cards, ${sgn.tiles} tiles)`);
+check(sgn.luckMid<1.5,`shooting luck is centred near zero across players (average ${sgn.luckMid.toFixed(2)} FP/G)`);check(sgn.ramp,'return ramp rises from the first game back');
+check(sgn.match>=.7,`league moves are credited to the right teams (${Math.round(sgn.match*100)}% of last adds still on the team that added them)`);
+await pg.evaluate(()=>{const p=[...players].filter(p=>shotLuck(p)).sort((a,b)=>Math.abs(shotLuck(b).fp)-Math.abs(shotLuck(a).fp))[0];openPlayer(p.id)});await pg.waitForTimeout(300);
+check(await pg.evaluate(()=>/Signals/.test(document.getElementById('drawer').innerText)&&/Shooting (luck|slump)/.test(document.getElementById('drawer').innerText)),'profile shows a Signals section');await pg.keyboard.press('Escape');
 await pg.click('#guideBtn');await pg.waitForTimeout(200);check(await pg.evaluate(()=>!$("guide").hidden&&/Glossary/.test($("guide").innerText)&&/Season FP/.test($("guide").innerText)),'the Guide opens with the glossary');await pg.keyboard.press('Escape');
 await pg.click('#tab-lab');await pg.waitForTimeout(300);
 const lab=await pg.evaluate(()=>{const cards=document.querySelectorAll('#view-lab .lab-card').length;document.querySelector('[data-labtbl="over"]').click();const t=!document.querySelector('#lab-over .lab-table').hidden&&document.querySelector('#lab-over .lab-chart').hidden;return {cards,t,svg:document.querySelectorAll('#view-lab svg circle').length}});

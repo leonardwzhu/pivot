@@ -1490,6 +1490,7 @@ function openPlayer(id){
   ${tab==="overview"?`
   <div class="dr-sec"><h3>Insights</h3>${(()=>{const I=insightsOf(p);return I.length?`<ul class="heads">${I.map(x=>`<li class="${x.k}">${x.t}</li>`).join("")}</ul>`:'<p class="empty">Nothing stands out: his recent games, minutes and schedule are in line with his projection.</p>'})()}</div>
   ${S.mode==="season"?`<div class="dr-sec"><h3>Season by season</h3>${seriesChart(p)}<p class="empty">Line: his last three seasons. Dark dot: 2026-27 so far. Hollow: the rest-of-season projection, with its 80% range shaded.</p></div>`:""}
+  ${signalsSection(p)}
   <div class="dr-sec"><h3>Recent games</h3>${recentSection(p)}</div>
   <div class="dr-sec"><h3>Schedule</h3>${scheduleSection(p)}</div>
   <div class="dr-sec"><h3>Teammates</h3>${matesSection(p)}</div>
@@ -2186,7 +2187,7 @@ function renderReview(){const v=$("view-review");
   v.innerHTML=h;countUp(v)}
 // save the draft-day numbers soon after the draft even if the page is never opened, so they're from draft day
 setTimeout(()=>{if(draftDone()&&!snapOf())SNAP_P=SNAP_P||takeDraftSnap().finally(()=>{SNAP_P=null})},6000);
-const TABS=["board","today","team","lab","ana","players","season","scout","waivers","trades","rosters","models","news","insights","mock","review","how"];
+const TABS=["board","today","team","lab","signals","ana","players","season","scout","waivers","trades","rosters","models","news","insights","mock","review","how"];
 $("tab-insights").addEventListener("click",()=>renderInsights());
 $("tab-review").addEventListener("click",renderReview);
 $("tab-scout").addEventListener("click",renderScout);
@@ -2475,6 +2476,118 @@ function labView(){const D=dayRanks(),top=players.filter(p=>seasonRank(p)<=220&&
   return h+`</div>`}
 function renderLab(){$("view-lab").innerHTML=labView()}
 $("tab-lab").addEventListener("click",renderLab);
+// ---- Signals: what the box scores say before projections catch up (data: tools/build_signals.py). Each reader returns null
+// when a player has too little to go on, so every view degrades to "not enough games yet" rather than a guess
+const HAS_SIG=()=>typeof SIG!=="undefined"&&!!SIG&&!!SIG.P,sigOf=p=>HAS_SIG()&&SIG.P[p.espnId]||null,lastN=p=>esc(p.name.split(" ").filter(w=>!/^(Jr\.?|Sr\.?|II|III|IV)$/.test(w)).slice(-1)[0]);
+let SIG_LG=null;
+const sigLg=()=>SIG_LG||(SIG_LG=(()=>{let a=[0,0,0,0];Object.values(SIG.P).forEach(v=>{if(v.r)a=a.map((x,i)=>x+v.r[i])});return {b2b:a[1]/Math.max(1,a[0]),oth:a[3]/Math.max(1,a[2])}})());
+// rest: single games he sat with the games either side played, on back-to-back legs vs other nights; 12 legs of league weight
+function restOf(p){const s=sigOf(p);if(!s||!s.r||s.r[0]<4)return null;const L=sigLg(),[bo,bs,oo,os]=s.r;return {b2b:(bs+12*L.b2b)/(bo+12),oth:(os+30*L.oth)/(oo+30),bo,bs,oo,os}}
+// shooting luck: his true rate for 2s, 3s and free throws is his last two seasons plus this one, pulled toward the league with
+// 150 / 250 / 100 attempts of weight (threes take the most to settle). Luck = FP per game from makes above or below that rate
+function shotLuck(p){const s=sigOf(p);if(!s||!s.n||s.n[9]<5)return null;const n=s.n,q=s.p||[0,0,0,0,0,0],lg=SIG.lg;
+  const T=[[n[0]-n[2],n[1]-n[3],q[0]-q[2],q[1]-q[3],lg[0],150,2*SC.pts+SC.fgm,"2-pointers"],[n[2],n[3],q[2],q[3],lg[1],250,3*SC.pts+SC.tpm+SC.fgm,"3-pointers"],[n[4],n[5],q[4],q[5],lg[2],100,SC.pts+SC.ftm,"free throws"]];
+  const parts=T.map(([a,m,pa,pm,l,k,w,lab])=>{const r=(pm+m+k*l)/(pa+a+k);return {lab,a,m,pct:a?m/a:null,r,fp:(m-a*r)*w/n[9]}});return {fp:parts.reduce((t,x)=>t+x.fp,0),parts,gp:n[9]}}
+// role: usage per 36 minutes (shots, free-throw trips, turnovers) and starts, this season, last 5 games and last season
+const use36=v=>v&&v[6]>0?(v[0]+.44*v[4]+v[7])*36/v[6]:null;
+function roleOf(p){const s=sigOf(p);if(!s||!s.n||s.n[9]<5)return null;const u=use36(s.n),u5=use36(s.n5),ul=s.l&&s.l[9]>=15?use36(s.l):null;
+  return {u,u5,ul,d:u5-u,min:s.n[6]/s.n[9],min5:s.n5[6]/s.n5[9],gs:s.n[8],gp:s.n[9],gs5:s.n5[8],gp5:s.n5[9],g:s.g||[]}}
+// return ramp: games played since an absence of 5+ team games (from his season log and his team's schedule)
+function rampOf(p){const L=typeof SLOG!=="undefined"&&SLOG&&SLOG[p.espnId],S=SCHED[p.team]||[];if(!L||L.length<2||!SIG.ramp.length)return null;const pl=new Set(L.map(x=>x[0]));
+  for(let j=L.length-1,k=1;j>=1&&k<=8;j--,k++){const gap=S.filter(q=>q>L[j-1][0]&&q<L[j][0]&&!pl.has(q)).length;if(gap>=5){const pre=L.slice(Math.max(0,j-10),j),m0=mean(pre.map(x=>x[2]));
+    const nx=SIG.ramp.find(r=>r[0]===k+1);return {k,gap,m0,last:L.slice(j).map(x=>x[2]),next:nx?nx[1]:1}}}return null}
+// blowouts: each team's rating is its average scoring margin, pulled toward even with 10 games; the final margin spreads
+// SIG.sd points around the difference; a regular's FP shrinks in lopsided games by the history in SIG.blow
+const netOf=t=>{const v=SIG.net[t];return v?v[1]/(v[0]+10):0},ncdf=z=>{const t=1/(1+.2316419*Math.abs(z)),d=.3989423*Math.exp(-z*z/2),p=d*t*(.3193815+t*(-.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return z>0?1-p:p};
+function blowOf(home,away){const m=netOf(home)-netOf(away)+2.5,sd=SIG.sd,P=a=>ncdf((a-m)/sd)-ncdf((-a-m)/sd),p20=1-P(20);let f=0;
+  SIG.blow.forEach(([lo,hi,mr,fr])=>{const w=hi>=99?1-P(lo):P(hi)-P(lo);f+=w*fr});return {m,p20,f}}
+const sigOwn=p=>{const s=sigOf(p);return s&&s.o?{own:s.o[0],chg:s.o[1]}:null};
+const ownTag=p=>{const o=MOCK()||!draftDone()?undefined:ownerOf(p);return o==null?'<span class="need-chip ok" style="font-size:10px;padding:1px 6px">FA</span>':o===S.slot?'<span class="need-chip" style="font-size:10px;padding:1px 6px">Yours</span>':""};
+const sigPool=()=>players.filter(p=>(seasonRank(p)<=200||(!MOCK()&&draftDone()&&ownerOf(p)!=null))&&sigOf(p));
+// horizontal diverging bars around zero: blue left (below), red right (above), name and value labels outside the bar
+function divBars(R,{fmt,lo,hi}){const W=560,rh=26,m={l:150,r:44,t:6,b:24},H=m.t+m.b+R.length*rh,mx=Math.max(.5,...R.map(r=>Math.abs(r.v))),X=sx([-mx,mx],[m.l+44,W-m.r]);
+  let g=`<line class="ax" x1="${X(0)}" x2="${X(0)}" y1="${m.t}" y2="${H-m.b}"/><text x="${X(-mx)}" y="${H-6}">◀ ${lo}</text><text x="${X(mx)}" y="${H-6}" text-anchor="end">${hi} ▶</text>`;
+  R.forEach((r,i)=>{const y=m.t+i*rh,x0=X(0),x1=X(r.v),w=Math.max(2,Math.abs(x1-x0)),col=r.v<0?"--dv-lo":"--dv-hi";
+    g+=`<g data-tip="${esc(r.tip)}" data-open="${r.p.id}" style="cursor:pointer"><rect x="0" y="${y}" width="${W}" height="${rh}" fill="transparent"/><text class="lbl" x="${m.l-8}" y="${y+rh/2+4}" text-anchor="end">${esc(r.p.name)}</text>
+      <rect x="${Math.min(x0,x1)}" y="${y+6}" width="${w}" height="${rh-12}" rx="3" style="fill:var(${col})"/><text x="${r.v<0?Math.min(x0,x1)-5:Math.max(x0,x1)+5}" y="${y+rh/2+4}" text-anchor="${r.v<0?"end":"start"}" style="fill:var(--ink)">${fmt(r.v)}</text></g>`});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(lo)} to ${esc(hi)}">${g}</svg>`}
+// plain horizontal bars from zero (one hue), for shares and counts
+function hBars(R,{fmt,max,col="--s1"}){const W=560,rh=26,m={l:150,r:60,t:4,b:4},H=m.t+m.b+R.length*rh,mx=max||Math.max(1e-6,...R.map(r=>r.v)),X=sx([0,mx],[m.l,W-m.r]);let g="";
+  R.forEach((r,i)=>{const y=m.t+i*rh;g+=`<g data-tip="${esc(r.tip)}"${r.p?` data-open="${r.p.id}" style="cursor:pointer"`:""}><rect x="0" y="${y}" width="${W}" height="${rh}" fill="transparent"/><text class="lbl" x="${m.l-8}" y="${y+rh/2+4}" text-anchor="end">${r.name}</text>
+    <rect x="${m.l}" y="${y+6}" width="${Math.max(2,X(r.v)-m.l)}" height="${rh-12}" rx="3" style="fill:var(${r.col||col})"/><text x="${X(r.v)+5}" y="${y+rh/2+4}" style="fill:var(--ink)">${fmt(r.v)}</text></g>`});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="bar chart">${g}</svg>`}
+function signalsView(){if(!HAS_SIG())return `<div class="chart-card"><p class="empty">Signals arrive with the next data refresh.</p></div>`;
+  const pool=sigPool(),wk=Math.max(0,CUR_WEEK),days=weekDays(wk).filter(q=>q>=CUR_PERIOD),sg=v=>(v>=0?"+":"−")+f1(Math.abs(v));let h="";
+  // 1. shooting luck
+  const L=pool.map(p=>({p,l:shotLuck(p)})).filter(x=>x.l&&x.l.gp>=5).sort((a,b)=>b.l.fp-a.l.fp),Lr=[...L.slice(0,8),...L.slice(-8)].filter((x,i,a)=>a.indexOf(x)===i);
+  const ltip=x=>`${x.p.name}: ${sg(x.l.fp)} FP/G from shooting. `+x.l.parts.filter(t=>t.a>=5).map(t=>`${t.lab} ${pc(t.pct)} vs his usual ${pc(t.r)}`).join(", ");
+  // 2. role
+  const Rl=pool.map(p=>({p,r:roleOf(p)})).filter(x=>x.r&&x.r.gp>=6&&x.r.min5>=12),up=[...Rl].sort((a,b)=>b.r.d-a.r.d).slice(0,7),dn=[...Rl].sort((a,b)=>a.r.d-b.r.d).slice(0,5);
+  // 3. rest
+  const Rs=pool.map(p=>({p,r:restOf(p)})).filter(x=>x.r&&x.r.bo>=8).sort((a,b)=>b.r.b2b-a.r.b2b),lg=sigLg();
+  const b2bWk=pool.filter(p=>{const r=restOf(p);return r&&r.b2b>=.12&&(SCHED[p.team]||[]).some(q=>days.includes(q)&&(SCHED[p.team].includes(q-1)||SCHED[p.team].includes(q+1)))&&!p.out}).sort((a,b)=>restOf(b).b2b-restOf(a).b2b).slice(0,8);
+  // 4. ramp
+  const back=players.filter(p=>seasonRank(p)<=250).map(p=>({p,r:rampOf(p)})).filter(x=>x.r).sort((a,b)=>a.r.k-b.r.k).slice(0,8),soon=players.filter(p=>p.out&&seasonRank(p)<=150&&p.retP&&p.retP-CUR_PERIOD<=10&&p.retP>=CUR_PERIOD).sort((a,b)=>a.retP-b.retP).slice(0,6);
+  // 5. blowouts this week
+  const seen=new Set(),G=[];Object.keys(SCHED).forEach(t=>{const O=SCHED_OPP[t]||{};(SCHED[t]||[]).filter(q=>days.includes(q)).forEach(q=>{const o=O[q]||"";if(!o||o[0]==="@")return;const a=o.replace("@",""),k=q+t+a;if(seen.has(k))return;seen.add(k);G.push({q,h:t,a,...blowOf(t,a)})})});
+  G.sort((x,y)=>y.p20-x.p20);
+  // 6. ESPN adds
+  const O=players.filter(p=>sigOwn(p)&&sigOwn(p).own>=1).map(p=>({p,o:sigOwn(p)})).sort((a,b)=>b.o.chg-a.o.chg),Oup=O.slice(0,10),Odn=[...O].sort((a,b)=>a.o.chg-b.o.chg).slice(0,5);
+  // tiles
+  const top1=L[0],bot1=L[L.length-1],ru=up[0],hot=Oup[0],bw=G[0];
+  h+=`<div class="kpis">${top1?kpT("Luckiest shooter",esc(top1.p.name),`${sg(top1.l.fp)} FP/G from shooting above his usual`):""}${bot1?kpT("Unluckiest shooter",esc(bot1.p.name),`${sg(bot1.l.fp)} FP/G: buy-low material`):""}${ru?kpT("Biggest role jump",esc(ru.p.name),`usage ${f1(ru.r.u)} → ${f1(ru.r.u5)} per 36 min, last 5 games`):""}${hot?kpT("Most added on ESPN",esc(hot.p.name),`roster share ${sg(hot.o.chg)} points to ${f0(hot.o.own)}%`):""}${bw?kpT("Likeliest blowout",`${bw.a} @ ${bw.h}`,`${pc(bw.p20)} chance of a 20+ point margin, ${dayLabel(bw.q)}`):""}</div><div class="lab-grid">`;
+  h+=labCard("luck","Shooting luck",`FP per game each player has gained (red, right) or lost (blue, left) from making shots at a different rate than his true rate: his last two seasons plus this one, weighted toward the league average until he has enough attempts. Shooting luck fades, so red is a sell-high sign and blue a buy-low sign. Top 200 and rostered players, 5+ games.`,
+    divBars(Lr.map(x=>({p:x.p,v:x.l.fp,tip:ltip(x)})),{fmt:sg,lo:"unlucky",hi:"lucky"}),
+    labTable(["Player","Luck FP/G","2-pt %","usual","3-pt %","usual","FT %","usual"],L.map(x=>[esc(x.p.name),sg(x.l.fp),...x.l.parts.flatMap(t=>[t.a?pc(t.pct):"–",pc(t.r)])])));
+  {const W=560,rh=30,m={l:150,r:16,t:22,b:34},R=[...up,...dn],H=m.t+m.b+R.length*rh,all=R.flatMap(x=>[x.r.u,x.r.u5]),x0=Math.floor(Math.min(...all)/2)*2,x1=Math.ceil(Math.max(...all)/2)*2,X=sx([x0,x1],[m.l,W-m.r]);
+    let g=`<text x="${m.l}" y="12">○ this season</text><text x="${m.l+100}" y="12">● last 5 games</text>`;ticks(x0,x1,5).forEach(t=>g+=`<line class="gr" x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${H-m.b}"/><text x="${X(t)}" y="${H-m.b+14}" text-anchor="middle">${t}</text>`);g+=`<text x="${(m.l+W-m.r)/2}" y="${H-2}" text-anchor="middle">Usage per 36 minutes</text>`;
+    R.forEach((x,i)=>{const y=m.t+i*rh+rh/2,a=X(x.r.u),b=X(x.r.u5),col=x.r.d>=0?"--dv-hi":"--dv-lo";
+      g+=`<g data-tip="${esc(`${x.p.name}: usage ${f1(x.r.u)} per 36 this season, ${f1(x.r.u5)} in his last 5 (${f1(x.r.min5)} min, started ${x.r.gs5} of ${x.r.gp5})${x.r.ul!=null?`; ${f1(x.r.ul)} last season`:""}`)}" data-open="${x.p.id}" style="cursor:pointer"><rect x="0" y="${y-rh/2}" width="${W}" height="${rh}" fill="transparent"/>
+        <text class="lbl" x="${m.l-8}" y="${y+4}" text-anchor="end">${esc(x.p.name)}</text><line x1="${a}" x2="${b}" y1="${y}" y2="${y}" style="stroke:var(${col})" stroke-width="2"/><circle cx="${a}" cy="${y}" r="5" style="fill:var(--panel);stroke:var(--muted)" stroke-width="1.5"/><circle cx="${b}" cy="${y}" r="5.5" style="fill:var(${col});stroke:var(--panel);stroke-width:2"/></g>`});
+    h+=labCard("role","Role changes",`Usage per 36 minutes: shots, free-throw trips and turnovers, the plays that run through him. Hollow dot is this season, solid dot his last 5 games; red means a bigger role, blue a smaller one. Usage moves before a projection does, so a jump here is the earliest sign of a new role.`,
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Usage this season and last 5 games">${g}</svg>`,labTable(["Player","Usage/36","Last 5","Change","Min, last 5","Starts, last 5"],[...Rl].sort((a,b)=>b.r.d-a.r.d).map(x=>[esc(x.p.name),f1(x.r.u),f1(x.r.u5),sg(x.r.d),f1(x.r.min5),`${x.r.gs5}/${x.r.gp5}`])))}
+  h+=labCard("rest","Rest risk",`How often each regular sat a single game with the games either side played: on one leg of a back-to-back (bar) against other nights (tick). League-wide it's ${pc(lg.b2b)} on back-to-backs and ${pc(lg.oth)} otherwise. Two seasons plus this one, pulled toward the league with 12 legs of weight.`+(b2bWk.length?` <b>This week's back-to-backs with real sit risk:</b> ${b2bWk.map(p=>`${pBtn(p)} ${pc(restOf(p).b2b)}`).join(", ")}.`:""),
+    (()=>{const R=Rs.slice(0,14),W=560,rh=26,m={l:150,r:56,t:4,b:22},H=m.t+m.b+R.length*rh,mx=Math.max(.2,...R.map(x=>x.r.b2b)),X=sx([0,mx],[m.l,W-m.r]);let g=`<line class="ref" x1="${X(lg.b2b)}" x2="${X(lg.b2b)}" y1="${m.t}" y2="${H-m.b}"/><text x="${X(lg.b2b)}" y="${H-6}" text-anchor="middle">league</text>`;
+      R.forEach((x,i)=>{const y=m.t+i*rh;g+=`<g data-tip="${esc(`${x.p.name}: sat ${x.r.bs} of ${x.r.bo} back-to-back legs, ${x.r.os} of ${x.r.oo} other games; estimate ${pc(x.r.b2b)} vs ${pc(x.r.oth)}`)}" data-open="${x.p.id}" style="cursor:pointer"><rect x="0" y="${y}" width="${W}" height="${rh}" fill="transparent"/>
+        <text class="lbl" x="${m.l-8}" y="${y+rh/2+4}" text-anchor="end">${esc(x.p.name)}</text><rect x="${m.l}" y="${y+6}" width="${Math.max(2,X(x.r.b2b)-m.l)}" height="${rh-12}" rx="3" style="fill:var(--s2)"/><line x1="${X(x.r.oth)}" x2="${X(x.r.oth)}" y1="${y+3}" y2="${y+rh-3}" style="stroke:var(--ink)" stroke-width="2"/><text x="${X(x.r.b2b)+5}" y="${y+rh/2+4}" style="fill:var(--ink)">${pc(x.r.b2b)}</text></g>`});
+      return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sit rate on back-to-backs">${g}</svg>`})(),
+    labTable(["Player","Back-to-back legs","Sat","Other games","Sat","Estimate b2b","Estimate other"],Rs.map(x=>[esc(x.p.name),x.r.bo,x.r.bs,x.r.oo,x.r.os,pc(x.r.b2b),pc(x.r.oth)])),`<div class="lab-key"><span><i class="dot" style="background:var(--s2);border-radius:2px"></i>back-to-back legs</span><span><i style="width:2px;height:12px;background:var(--ink);display:inline-block;margin-right:5px"></i>other games</span></div>`);
+  {const R=SIG.ramp,W=560,H=250,m={l:44,r:16,t:14,b:36},X=sx([1,8],[m.l,W-m.r]),Y=sx([.7,1.05],[H-m.b,m.t]);let g="";
+    [.7,.8,.9,1].forEach(t=>g+=`<line class="gr" x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${m.l-6}" y="${Y(t)+4}" text-anchor="end">${Math.round(t*100)}%</text>`);
+    R.forEach(r=>g+=`<text x="${X(r[0])}" y="${H-m.b+16}" text-anchor="middle">${r[0]}</text>`);g+=`<text x="${(m.l+W-m.r)/2}" y="${H-4}" text-anchor="middle">Game back</text><line class="ref" x1="${m.l}" x2="${W-m.r}" y1="${Y(1)}" y2="${Y(1)}"/>`;
+    [[1,"--s1","minutes"],[2,"--s2","fantasy points"]].forEach(([i,c,l])=>{g+=`<path d="${R.map((r,j)=>(j?"L":"M")+X(r[0]).toFixed(1)+" "+Y(r[i]).toFixed(1)).join(" ")}" fill="none" style="stroke:var(${c})" stroke-width="2"/>`;R.forEach(r=>g+=`<g data-tip="Game ${r[0]} back: ${pc(r[1])} of his usual minutes, ${pc(r[2])} of his usual FP (${r[3]} returns)"><circle cx="${X(r[0])}" cy="${Y(r[i])}" r="10" fill="transparent"/><circle cx="${X(r[0])}" cy="${Y(r[i])}" r="4" style="fill:var(${c});stroke:var(--panel);stroke-width:2"/></g>`)});
+    const list=back.length||soon.length?`<ul class="heads" style="margin-top:8px">${back.map(x=>`<li>${pBtn(x.p)} ${ownTag(x.p)} is ${x.r.k} game${x.r.k>1?"s":""} back from ${x.r.gap} out: ${x.r.last.map(v=>v).join(", ")} min against ${f0(x.r.m0)} before. ${mean(x.r.last)>=x.r.m0*.97?"Already at full minutes.":`Next game: about ${f0(x.r.m0*x.r.next)} min.`}</li>`).join("")}${soon.map(p=>`<li>${pBtn(p)} ${ownTag(p)} is due back around ${dayLabel(p.retP)}: expect about ${pc(SIG.ramp[0][1])} of his usual minutes in his first game.</li>`).join("")}</ul>`:"";
+    h+=labCard("ramp","Back from injury",`How players ease back after missing 5 or more games, from two seasons of returns: share of their usual minutes (blue) and fantasy points (amber) in each game back. Most of the gap closes by the fourth game.`+list,
+      `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Minutes and fantasy points by game back from injury">${g}</svg>`,labTable(["Game back","Minutes","Fantasy points","Returns"],R.map(r=>[r[0],pc(r[1]),pc(r[2]),r[3]])),`<div class="lab-key"><span><i class="dot" style="background:var(--s1)"></i>minutes</span><span><i class="dot" style="background:var(--s2)"></i>fantasy points</span></div>`)}
+  h+=labCard("blow","Blowout watch",`This week's games by the chance the final margin reaches 20, from each team's scoring margin this season. In a 25+ point game a regular plays about ${pc(1-SIG.blow[SIG.blow.length-1][2])} fewer minutes and scores about ${pc(1-SIG.blow[SIG.blow.length-1][3])} fewer FP; in close games he plays a little more.`,
+    hBars(G.slice(0,12).map(x=>({name:`${x.a} @ ${x.h} · ${dayLabel(x.q).split(",")[0]}`,v:x.p20,tip:`${x.a} @ ${x.h}, ${dayLabel(x.q)}: ${x.m>=0?x.h:x.a} by about ${f0(Math.abs(x.m))}; ${pc(x.p20)} chance of a 20+ margin; regulars' FP ×${x.f.toFixed(2)}`})),{fmt:pc,col:"--s3"}),
+    labTable(["Game","Day","Favorite","Margin","20+ chance","Regulars' FP"],G.map(x=>[`${x.a} @ ${x.h}`,dayLabel(x.q),x.m>=0?x.h:x.a,f1(Math.abs(x.m)),pc(x.p20),"×"+x.f.toFixed(2)])));
+  h+=labCard("adds","Trending on ESPN",`Change in each player's roster share across all ESPN leagues over the last few days. A sharp rise is the market reacting to a new role or an injury, often before projections do. FA marks players free in your league.`,
+    hBars(Oup.map(x=>({p:x.p,name:`${esc(x.p.name)}`,v:x.o.chg,tip:`${x.p.name}: ${sg(x.o.chg)} points, now on ${f1(x.o.own)}% of ESPN rosters${ownerOf(x.p)==null?" · free agent in your league":""}`,col:ownerOf(x.p)==null?"--s1":"--grid"})),{fmt:v=>"+"+f1(v)})+
+    `<p class="empty" style="margin-top:4px">Bright bars are free agents in your league. Most dropped: ${Odn.map(x=>`${pBtn(x.p)} ${sg(x.o.chg)}`).join(", ")}.</p>`,
+    labTable(["Player","Change","Rostered","In your league"],O.slice(0,40).map(x=>[esc(x.p.name),sg(x.o.chg),f1(x.o.own)+"%",ownerOf(x.p)==null?"free agent":esc((LEAGUE.teams[ownerOf(x.p)]||{}).name||teamName(ownerOf(x.p)))])));
+  h+=leagueMovesCard()+`</div>`;return h}
+function leagueMovesCard(){if(!HAS_LG()||!SIG.tx)return "";const T=Object.keys(LEAGUE.teams).map(Number),pl=e=>{const i=BY_ESPN.get(e);return i!=null?players[i]:null};
+  // transactions name ESPN team ids; Pivot keys teams by draft slot
+  const slotOf=Object.fromEntries(T.map(t=>[LEAGUE.teams[t].id,t])),nm=t=>esc((LEAGUE.teams[t]||{}).name||teamName(t));
+  const lu={},mv={};T.forEach(t=>{lu[t]=0;mv[t]=0});Object.values(SIG.lu||{}).forEach(o=>Object.entries(o).forEach(([e,n])=>{const t=slotOf[e];if(t!=null)lu[t]+=n}));SIG.tx.forEach(x=>{const t=slotOf[x[1]];if(t!=null)mv[t]+=x[3].filter(i=>i[1]==="A").length});
+  const R=[...T].sort((a,b)=>lu[b]-lu[a]),days=Object.keys(SIG.lu||{}).length||1,last=[...SIG.tx].reverse().slice(0,10);
+  const feed=last.map(x=>{const d=new Date(x[0]).toLocaleDateString(undefined,{month:"short",day:"numeric"}),it=x[3].map(i=>{const p=pl(i[0]);return p?`${i[1]==="A"?"added":i[1]==="D"?"dropped":"traded for"} ${pBtn(p)}`:""}).filter(Boolean).join(", ");return it?`<li><span class="mut">${d}</span> <b>${nm(slotOf[x[1]])}</b> ${it}${x[2]==="W"?' <span class="mut">(waivers)</span>':""}</li>`:""}).join("");
+  return labCard("moves","League activity",`How each team in your league manages: lineup changes per day this season (bar) and pickups. Managers who rarely touch their lineup leave points on the bench, which shows up in the weekly matchups.`,
+    hBars(R.map(t=>({name:nm(t).slice(0,22),v:lu[t]/days,tip:`${(LEAGUE.teams[t]||{}).name}: ${lu[t]} lineup changes in ${days} days, ${mv[t]} pickup${mv[t]===1?"":"s"}`,col:t===S.slot?"--s2":"--s1"})),{fmt:v=>f1(v)+"/day"})+(feed?`<h5 class="sig-h">Latest moves</h5><ul class="heads">${feed}</ul>`:""),
+    labTable(["Team","Lineup changes","Per day","Pickups"],R.map(t=>[nm(t),lu[t],f1(lu[t]/days),mv[t]])),`<div class="lab-key"><span><i class="dot" style="background:var(--s2)"></i>your team</span><span><i class="dot" style="background:var(--s1)"></i>everyone else</span></div>`)}
+function renderSignals(){$("view-signals").innerHTML=signalsView()}
+$("tab-signals").addEventListener("click",renderSignals);
+// the player profile's Signals section: one line per signal that has something to say
+function signalsSection(p){if(!HAS_SIG()||!sigOf(p))return "";const L=shotLuck(p),R=roleOf(p),Rs=restOf(p),Rp=rampOf(p),o=sigOwn(p),li=[],sg=v=>(v>=0?"+":"−")+f1(Math.abs(v));
+  if(L&&Math.abs(L.fp)>=1)li.push(`<li class="${L.fp>0?"warn":"good"}"><b>Shooting ${L.fp>0?"luck":"slump"}:</b> ${sg(L.fp)} FP/G from shooting ${L.fp>0?"above":"below"} his true rate (${L.parts.filter(t=>t.a>=5).map(t=>`${t.lab} ${pc(t.pct)} vs ${pc(t.r)}`).join(", ")}). Expect it to ${L.fp>0?"cool off":"bounce back"}.</li>`);
+  if(R&&Math.abs(R.d)>=2)li.push(`<li class="${R.d>0?"good":"warn"}"><b>Role ${R.d>0?"growing":"shrinking"}:</b> usage ${f1(R.u5)} per 36 minutes over his last 5 games against ${f1(R.u)} this season${R.ul!=null?` and ${f1(R.ul)} last season`:""}; ${f1(R.min5)} minutes, started ${R.gs5} of ${R.gp5}.</li>`);
+  if(Rs&&Rs.b2b>=.12)li.push(`<li class="warn"><b>Rest risk:</b> sits about ${pc(Rs.b2b)} of back-to-back legs (sat ${Rs.bs} of ${Rs.bo}), against ${pc(sigLg().b2b)} for a typical regular.</li>`);
+  if(Rp)li.push(`<li><b>Easing back:</b> game ${Rp.k} since missing ${Rp.gap}; minutes ${Rp.last.join(", ")} against ${f0(Rp.m0)} before. ${mean(Rp.last)>=Rp.m0*.97?"Already at full minutes.":`Next game, about ${f0(Rp.m0*Rp.next)}.`}</li>`);
+  if(o&&Math.abs(o.chg)>=1)li.push(`<li><b>ESPN market:</b> roster share ${sg(o.chg)} points to ${f1(o.own)}% across all leagues.</li>`);
+  const sp=R&&R.g.length>=4?(()=>{const W=260,H=46,G=R.g,u=G.map(x=>x[1]>0?(x[2]+.44*x[3]+x[4])*36/x[1]:0),X=sx([0,G.length-1],[4,W-6]),lo=Math.min(...u),hi=Math.max(...u),Y=sx([lo,hi||lo+1],[H-6,6]);
+    return `<div class="mut" style="font-size:11px;margin-top:6px">Usage per 36, last ${G.length} games (● started)</div><svg viewBox="0 0 ${W} ${H}" style="width:260px;max-width:100%" aria-hidden="true"><path d="${u.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)).join(" ")}" fill="none" style="stroke:var(--s1)" stroke-width="2"/>${G.map((x,i)=>x[5]?`<circle cx="${X(i)}" cy="${Y(u[i])}" r="3" style="fill:var(--s1)"/>`:"").join("")}</svg>`})():"";
+  return li.length||sp?`<div class="dr-sec"><h3>Signals</h3>${li.length?`<ul class="heads">${li.join("")}</ul>`:'<p class="empty">Nothing unusual: shooting near his usual rates and a steady role.</p>'}${sp}</div>`:""}
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-labtbl]");if(!b)return;const c=$("lab-"+b.dataset.labtbl),t=c.querySelector(".lab-table"),ch=c.querySelector(".lab-chart");t.hidden=!t.hidden;ch.hidden=!t.hidden;b.textContent=t.hidden?"Table":"Chart"});
 // ---- what each tab is for, one line at the top, and the Guide (opened from "?" and once on a first visit)
 const INTRO={board:"Every draftable player, ranked. Press Draft for your picks and Taken for everyone else's; the Pick Advisor on the right recommends your next pick.",
@@ -2486,6 +2599,7 @@ const INTRO={board:"Every draftable player, ranked. Press Draft for your picks a
   season:"This week's head-to-head: projected scores, your chance to win, and who starts for you each day.",
   scout:"Any team in your league: their lineup, strengths and gaps, injuries, how they stack up against you, and where a trade might fit.",
   waivers:"Free agents worth adding, for this week or the rest of the season, and who gains when a regular is hurt.",
+  signals:"What the box scores say before projections catch up: shooting luck, role changes, rest risk, returns from injury, blowouts, ESPN adds and how your league manages.",
   lab:"The season as charts: who's beating his projection, roles and efficiency, positional scarcity, the biggest movers, the schedule and every defense. Each chart has a table view.",
   trades:"The Trade Finder suggests deals that help you and give the other manager a reason to say yes; or build your own and see what it does to both teams.",
   rosters:"Every team exactly as set on ESPN: today's starting lineup, the bench and injured reserve, with anything ESPN lets slide flagged.",
@@ -2501,7 +2615,7 @@ const GUIDE=`<div class="row-btns" style="justify-content:space-between;align-it
 <li><b>Draft day:</b> Pivot opens Draft Day on its own 12 hours before. Press <b>Draft</b> for your picks and <b>Taken</b> for others'. The <b>Pick Advisor</b> recommends each pick.</li>
 <li><b>Every day after:</b> open <b>Today</b>. It tells you who to start tonight, what changed for your players, how your matchup stands and whether a pickup is worth it.</li></ol>
 <h3>The tabs</h3><dl>
-<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Scout</dt><dd>${INTRO.scout}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd><dt>Lab</dt><dd>${INTRO.lab}</dd>
+<dt>Today</dt><dd>${INTRO.today}</dd><dt>My Team</dt><dd>${INTRO.team}</dd><dt>Players</dt><dd>${INTRO.players}</dd><dt>Matchup</dt><dd>${INTRO.season}</dd><dt>Scout</dt><dd>${INTRO.scout}</dd><dt>Waivers</dt><dd>${INTRO.waivers}</dd><dt>Lab</dt><dd>${INTRO.lab}</dd><dt>Signals</dt><dd>${INTRO.signals}</dd>
 <dt>Team Analyzer</dt><dd>${INTRO.ana}</dd><dt>News</dt><dd>${INTRO.news}</dd><dt>More</dt><dd>Trades, Rosters, Models (accuracy) and Method & Import.</dd>
 <dt>Draft Day</dt><dd>Big Board, Insights and Mock Draft, for the draft itself. Switch at the top left.</dd></dl>
 <h3>Reading the screens</h3><dl>

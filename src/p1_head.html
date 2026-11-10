@@ -370,6 +370,7 @@ svg.ol .col{transform-box:fill-box;transform-origin:bottom;transition:opacity .1
 .chart-card .pk-why{font-size:13px;line-height:1.55;margin:2px 0 8px;font-style:normal;color:var(--ink)}
 .pk-net{display:flex;gap:8px;align-items:baseline;margin-top:9px;font-size:12.5px;line-height:1.5}
 .pk-net .need-chip{flex:none}
+.lab-card .sig-h{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 4px;font-weight:600}
 .pk-vs{width:100%;border-collapse:collapse;font-size:12.5px}
 .pk-vs th{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:right;padding:4px 6px;border-bottom:1px solid var(--line);font-weight:600}
 .pk-vs th:first-child{text-align:left}
@@ -552,6 +553,7 @@ details.ngrp>summary h3::before{content:"▸";font-style:normal;font-size:13px;c
       <button role="tab" id="tab-scout" data-mode="season" aria-selected="false">Scout</button>
       <button role="tab" id="tab-waivers" data-mode="season" aria-selected="false">Waivers</button>
       <button role="tab" id="tab-lab" data-mode="season" aria-selected="false">Lab</button>
+      <button role="tab" id="tab-signals" data-mode="season" aria-selected="false">Signals</button>
       <button role="tab" id="tab-trades" data-mode="season" aria-selected="false">Trades</button>
       <button role="tab" id="tab-rosters" data-more="1" data-mode="season" aria-selected="false">Rosters</button>
       <span class="tab-gap" aria-hidden="true"></span>
@@ -597,6 +599,7 @@ details.ngrp>summary h3::before{content:"▸";font-style:normal;font-size:13px;c
     <div id="view-trades" hidden class="models"></div>
     <div id="view-rosters" hidden class="models"></div>
     <div id="view-lab" hidden class="models"></div>
+    <div id="view-signals" hidden class="models"></div>
     <div id="view-ana" hidden class="models"></div>
     <div id="view-models" hidden class="models"></div>
     <div id="view-news" hidden><div class="news" id="newsList"></div></div>

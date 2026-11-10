@@ -20,7 +20,7 @@ TODAY_SP=$(python3 -c "import datetime,zoneinfo;print((datetime.datetime.now(zon
 fetch(){ curl -sS -m 90 -A "$UA" "${@:3}" -o "$2" -w "%{http_code}" "$1" 2>/dev/null || echo 000; }
 use_last(){ cp "last/$1" "work/$1"; echo "WARN $2: using last good $1"; }
 STATUS=();MODE=${1:-daily}
-assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js static/p2_draftsnap.js src/p3_model.js src/p3_rest.js > build/draft-room.html
+assemble(){ cat src/p1_head.html "$1/p2_data.js" "$1/p2_espn.js" "$1/p2_fp.js" "$1/p2_sched.js" "$1/p2_league.js" "$1/p2_games.js" "$1/p2_mates.js" "$1/p2_signals.js" "$1/p2_preds.js" "$1/p2_build.js" static/p2_draft.js static/p2_fame.js static/p2_ctx.js static/p2_matchup.js static/p2_draftsnap.js src/p3_model.js src/p3_rest.js > build/draft-room.html
   # GitHub Pages serves the page as is, so index.html gets the same skeleton claude.ai wraps it in: charset, viewport, safe-area
   # padding and the rule that keeps [hidden] hidden, which the page relies on. The head is left open so the page's own title and
   # icon land in it (browsers ignore an icon in the body), with PNG icons for Safari and phone home screens next to it
@@ -78,12 +78,17 @@ if [ "$c" = 200 ] && python3 -P tools/build_games.py; then STATUS+=("recent game
 # 4d) Every game this season (one request), for teammate splits: who does what when a regular sits
 c=$(fetch "$ESPN/segments/0/leaguedefaults/3?view=kona_player_info" work/season_logs.json -H 'X-Fantasy-Filter: {"players":{"limit":650,"sortDraftRanks":{"sortPriority":100,"sortAsc":true,"value":"STANDARD"},"filterStatsForTopScoringPeriodIds":{"value":200,"additionalValue":["002027"]}}}')
 if [ "$c" = 200 ] && python3 -P tools/build_mates.py; then STATUS+=("teammates: fresh"); else [ -f last/p2_mates.js ] || echo "const MATES={};" > last/p2_mates.js; use_last p2_mates.js "teammates"; STATUS+=("teammates: last good"); fi
+# 4e) Signals: rest record, return ramp, blowouts, shooting, role and ESPN adds from the files above, plus your league's adds, drops
+# and trades (public, one request per day: past days once, the last three again since waivers clear late)
+for q in $(python3 -P tools/build_signals.py txneed "$TODAY_SP" 2>/dev/null); do sleep 1.5
+  [ "$(fetch "$ESPN/segments/0/leagues/$LEAGUE_ID?view=mTransactions2&scoringPeriodId=$q" "work/tx_$q.json")" = 200 ] || rm -f "work/tx_$q.json"; done
+if [ "$c" = 200 ] && python3 -P tools/build_signals.py; then STATUS+=("signals: fresh"); else [ -f last/p2_signals.js ] || echo "const SIG=null;" > last/p2_signals.js; use_last p2_signals.js "signals"; STATUS+=("signals: last good"); fi
 [ -f last/p2_preds.js ] || echo "const PREDS=null;" > last/p2_preds.js; cp last/p2_preds.js work/p2_preds.js
 
 # 5) FantasyPros expert consensus (robots.txt asks for 5 seconds between requests); its ranks don't change overnight
 if [ "$MODE" = daily ]; then c=$(fetch "https://www.fantasypros.com/nba/rankings/overall.php" work/fp.html)
 if [ "$c" = 200 ] && python3 -P tools/build_fp.py; then STATUS+=("FantasyPros: fresh"); else use_last p2_fp.js "FantasyPros"; STATUS+=("FantasyPros: last good"); fi; else keep_last p2_fp.js; fi
-else keep_last p2_fp.js p2_sched.js p2_league.js p2_games.js p2_mates.js p2_preds.js; fi
+else keep_last p2_fp.js p2_sched.js p2_league.js p2_games.js p2_mates.js p2_signals.js p2_preds.js; fi
 printf '%s\n' "${STATUS[@]}" | python3 -P tools/build_status.py "$MODE" work
 
 
@@ -94,7 +99,7 @@ if node tools/smoke_test.js "$(pwd)/build/draft-room.html"; then
   # scores; then rebuild with the new summary
   if [ "$MODE" != injuries ]; then if node tools/log_preds.js "$(pwd)/build/draft-room.html" last/preds_log.json $([ "$MODE" = night ] && echo --score-only) && assemble work && node tools/smoke_test.js "$(pwd)/build/draft-room.html" >/dev/null; then cp work/preds_log.json last/; STATUS+=("scorecard: updated")
   else echo "WARN scorecard: not updated today"; cp last/p2_preds.js work/p2_preds.js; assemble work; STATUS+=("scorecard: last good"); fi; fi
-  cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js work/p2_mates.js work/p2_preds.js work/p2_build.js work/sources.json last/ 2>/dev/null; cp work/contracts.json work/days.json last/ 2>/dev/null
+  cp work/p2_data.js work/p2_espn.js work/p2_fp.js work/p2_sched.js work/p2_league.js work/p2_games.js work/p2_mates.js work/p2_signals.js work/p2_preds.js work/p2_build.js work/sources.json last/ 2>/dev/null; cp work/contracts.json work/days.json last/ 2>/dev/null
   echo "BUILD OK: ${STATUS[*]}"
   [ "$MODE" = injuries ] && node tools/digest.js "$(pwd)/build/draft-room.html"
   exit 0
