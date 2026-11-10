@@ -44,10 +44,10 @@ const sgn=await pg.evaluate(()=>{const v=document.getElementById('view-signals')
   return {cards:C.length,svg:C.filter(c=>c.querySelector('svg')).length,tbl:!document.querySelector('#lab-luck .lab-table').hidden,tiles:v.querySelectorAll('.kpi').length,
     luckMid:Math.abs(lk.reduce((a,b)=>a+b,0)/lk.length),match:match.filter(Boolean).length/Math.max(1,match.length),ramp:SIG.ramp[0][1]<SIG.ramp[5][1]}});
 check(sgn.cards===7&&sgn.svg===7&&sgn.tbl&&sgn.tiles>=4,`Signals tab draws seven charts with table views (${sgn.cards} cards, ${sgn.tiles} tiles)`);
-check(sgn.luckMid<1.5,`shooting luck is centred near zero across players (average ${sgn.luckMid.toFixed(2)} FP/G)`);check(sgn.ramp,'return ramp rises from the first game back');
+check(sgn.luckMid<1.5,`shooting pivots are centred near zero across players (average ${sgn.luckMid.toFixed(2)} FP/G)`);check(sgn.ramp,'return ramp rises from the first game back');
 check(sgn.match>=.7,`league moves are credited to the right teams (${Math.round(sgn.match*100)}% of last adds still on the team that added them)`);
 await pg.evaluate(()=>{const p=[...players].filter(p=>shotLuck(p)).sort((a,b)=>Math.abs(shotLuck(b).fp)-Math.abs(shotLuck(a).fp))[0];openPlayer(p.id)});await pg.waitForTimeout(300);
-check(await pg.evaluate(()=>/Signals/.test(document.getElementById('drawer').innerText)&&/Shooting (luck|slump)/.test(document.getElementById('drawer').innerText)),'profile shows a Signals section');await pg.keyboard.press('Escape');
+check(await pg.evaluate(()=>/Signals/.test(document.getElementById('drawer').innerText)&&/Shooting pivot (up|down)/.test(document.getElementById('drawer').innerText)),'profile shows a Signals section');await pg.keyboard.press('Escape');
 await pg.click('#guideBtn');await pg.waitForTimeout(200);check(await pg.evaluate(()=>!$("guide").hidden&&/Glossary/.test($("guide").innerText)&&/Season FP/.test($("guide").innerText)),'the Guide opens with the glossary');await pg.keyboard.press('Escape');
 await pg.click('#tab-lab');await pg.waitForTimeout(300);
 const lab=await pg.evaluate(()=>{const cards=document.querySelectorAll('#view-lab .lab-card').length;document.querySelector('[data-labtbl="over"]').click();const t=!document.querySelector('#lab-over .lab-table').hidden&&document.querySelector('#lab-over .lab-chart').hidden;return {cards,t,svg:document.querySelectorAll('#view-lab svg circle').length}});

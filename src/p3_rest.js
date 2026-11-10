@@ -2483,8 +2483,8 @@ let SIG_LG=null;
 const sigLg=()=>SIG_LG||(SIG_LG=(()=>{let a=[0,0,0,0];Object.values(SIG.P).forEach(v=>{if(v.r)a=a.map((x,i)=>x+v.r[i])});return {b2b:a[1]/Math.max(1,a[0]),oth:a[3]/Math.max(1,a[2])}})());
 // rest: single games he sat with the games either side played, on back-to-back legs vs other nights; 12 legs of league weight
 function restOf(p){const s=sigOf(p);if(!s||!s.r||s.r[0]<4)return null;const L=sigLg(),[bo,bs,oo,os]=s.r;return {b2b:(bs+12*L.b2b)/(bo+12),oth:(os+30*L.oth)/(oo+30),bo,bs,oo,os}}
-// shooting luck: his true rate for 2s, 3s and free throws is his last two seasons plus this one, pulled toward the league with
-// 150 / 250 / 100 attempts of weight (threes take the most to settle). Luck = FP per game from makes above or below that rate
+// shooting pivots: his true rate for 2s, 3s and free throws is his last two seasons plus this one, pulled toward the league with
+// 150 / 250 / 100 attempts of weight (threes take the most to settle). The pivot = FP per game from makes above or below that rate
 function shotLuck(p){const s=sigOf(p);if(!s||!s.n||s.n[9]<5)return null;const n=s.n,q=s.p||[0,0,0,0,0,0],lg=SIG.lg;
   const T=[[n[0]-n[2],n[1]-n[3],q[0]-q[2],q[1]-q[3],lg[0],150,2*SC.pts+SC.fgm,"2-pointers"],[n[2],n[3],q[2],q[3],lg[1],250,3*SC.pts+SC.tpm+SC.fgm,"3-pointers"],[n[4],n[5],q[4],q[5],lg[2],100,SC.pts+SC.ftm,"free throws"]];
   const parts=T.map(([a,m,pa,pm,l,k,w,lab])=>{const r=(pm+m+k*l)/(pa+a+k);return {lab,a,m,pct:a?m/a:null,r,fp:(m-a*r)*w/n[9]}});return {fp:parts.reduce((t,x)=>t+x.fp,0),parts,gp:n[9]}}
@@ -2518,9 +2518,9 @@ function hBars(R,{fmt,max,col="--s1"}){const W=560,rh=26,m={l:150,r:60,t:4,b:4},
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="bar chart">${g}</svg>`}
 function signalsView(){if(!HAS_SIG())return `<div class="chart-card"><p class="empty">Signals arrive with the next data refresh.</p></div>`;
   const pool=sigPool(),wk=Math.max(0,CUR_WEEK),days=weekDays(wk).filter(q=>q>=CUR_PERIOD),sg=v=>(v>=0?"+":"−")+f1(Math.abs(v));let h="";
-  // 1. shooting luck
+  // 1. shooting pivots
   const L=pool.map(p=>({p,l:shotLuck(p)})).filter(x=>x.l&&x.l.gp>=5).sort((a,b)=>b.l.fp-a.l.fp),Lr=[...L.slice(0,8),...L.slice(-8)].filter((x,i,a)=>a.indexOf(x)===i);
-  const ltip=x=>`${x.p.name}: ${sg(x.l.fp)} FP/G from shooting. `+x.l.parts.filter(t=>t.a>=5).map(t=>`${t.lab} ${pc(t.pct)} vs his usual ${pc(t.r)}`).join(", ");
+  const ltip=x=>`${x.p.name}: ${sg(x.l.fp)} FP/G from shooting ${x.l.fp>=0?"hot":"cold"}. `+x.l.parts.filter(t=>t.a>=5).map(t=>`${t.lab} ${pc(t.pct)} vs his usual ${pc(t.r)}`).join(", ");
   // 2. role
   const Rl=pool.map(p=>({p,r:roleOf(p)})).filter(x=>x.r&&x.r.gp>=6&&x.r.min5>=12),up=[...Rl].sort((a,b)=>b.r.d-a.r.d).slice(0,7),dn=[...Rl].sort((a,b)=>a.r.d-b.r.d).slice(0,5);
   // 3. rest
@@ -2535,10 +2535,10 @@ function signalsView(){if(!HAS_SIG())return `<div class="chart-card"><p class="e
   const O=players.filter(p=>sigOwn(p)&&sigOwn(p).own>=1).map(p=>({p,o:sigOwn(p)})).sort((a,b)=>b.o.chg-a.o.chg),Oup=O.slice(0,10),Odn=[...O].sort((a,b)=>a.o.chg-b.o.chg).slice(0,5);
   // tiles
   const top1=L[0],bot1=L[L.length-1],ru=up[0],hot=Oup[0],bw=G[0];
-  h+=`<div class="kpis">${top1?kpT("Luckiest shooter",esc(top1.p.name),`${sg(top1.l.fp)} FP/G from shooting above his usual`):""}${bot1?kpT("Unluckiest shooter",esc(bot1.p.name),`${sg(bot1.l.fp)} FP/G: buy-low material`):""}${ru?kpT("Biggest role jump",esc(ru.p.name),`usage ${f1(ru.r.u)} → ${f1(ru.r.u5)} per 36 min, last 5 games`):""}${hot?kpT("Most added on ESPN",esc(hot.p.name),`roster share ${sg(hot.o.chg)} points to ${f0(hot.o.own)}%`):""}${bw?kpT("Likeliest blowout",`${bw.a} @ ${bw.h}`,`${pc(bw.p20)} chance of a 20+ point margin, ${dayLabel(bw.q)}`):""}</div><div class="lab-grid">`;
-  h+=labCard("luck","Shooting luck",`FP per game each player has gained (red, right) or lost (blue, left) from making shots at a different rate than his true rate: his last two seasons plus this one, weighted toward the league average until he has enough attempts. Shooting luck fades, so red is a sell-high sign and blue a buy-low sign. Top 200 and rostered players, 5+ games.`,
-    divBars(Lr.map(x=>({p:x.p,v:x.l.fp,tip:ltip(x)})),{fmt:sg,lo:"unlucky",hi:"lucky"}),
-    labTable(["Player","Luck FP/G","2-pt %","usual","3-pt %","usual","FT %","usual"],L.map(x=>[esc(x.p.name),sg(x.l.fp),...x.l.parts.flatMap(t=>[t.a?pc(t.pct):"–",pc(t.r)])])));
+  h+=`<div class="kpis">${top1?kpT("Due to pivot down",esc(top1.p.name),`${sg(top1.l.fp)} FP/G from shooting above his usual: sell high`):""}${bot1?kpT("Due to pivot up",esc(bot1.p.name),`${sg(bot1.l.fp)} FP/G from shooting below his usual: buy low`):""}${ru?kpT("Biggest role jump",esc(ru.p.name),`usage ${f1(ru.r.u)} → ${f1(ru.r.u5)} per 36 min, last 5 games`):""}${hot?kpT("Most added on ESPN",esc(hot.p.name),`roster share ${sg(hot.o.chg)} points to ${f0(hot.o.own)}%`):""}${bw?kpT("Likeliest blowout",`${bw.a} @ ${bw.h}`,`${pc(bw.p20)} chance of a 20+ point margin, ${dayLabel(bw.q)}`):""}</div><div class="lab-grid">`;
+  h+=labCard("luck","Shooting pivots",`FP per game each player has gained (red, right) or lost (blue, left) from making shots at a different rate than his true rate: his last two seasons plus this one, weighted toward the league average until he has enough attempts. Hot and cold shooting stretches fade, so these players are due to pivot back toward their usual: red is a sell-high sign and blue a buy-low sign. Top 200 and rostered players, 5+ games.`,
+    divBars(Lr.map(x=>({p:x.p,v:x.l.fp,tip:ltip(x)})),{fmt:sg,lo:"running cold",hi:"running hot"}),
+    labTable(["Player","Hot/cold FP/G","2-pt %","usual","3-pt %","usual","FT %","usual"],L.map(x=>[esc(x.p.name),sg(x.l.fp),...x.l.parts.flatMap(t=>[t.a?pc(t.pct):"–",pc(t.r)])])));
   {const W=560,rh=30,m={l:150,r:16,t:22,b:34},R=[...up,...dn],H=m.t+m.b+R.length*rh,all=R.flatMap(x=>[x.r.u,x.r.u5]),x0=Math.floor(Math.min(...all)/2)*2,x1=Math.ceil(Math.max(...all)/2)*2,X=sx([x0,x1],[m.l,W-m.r]);
     let g=`<text x="${m.l}" y="12">○ this season</text><text x="${m.l+100}" y="12">● last 5 games</text>`;ticks(x0,x1,5).forEach(t=>g+=`<line class="gr" x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${H-m.b}"/><text x="${X(t)}" y="${H-m.b+14}" text-anchor="middle">${t}</text>`);g+=`<text x="${(m.l+W-m.r)/2}" y="${H-2}" text-anchor="middle">Usage per 36 minutes</text>`;
     R.forEach((x,i)=>{const y=m.t+i*rh+rh/2,a=X(x.r.u),b=X(x.r.u5),col=x.r.d>=0?"--dv-hi":"--dv-lo";
@@ -2580,7 +2580,7 @@ function renderSignals(){$("view-signals").innerHTML=signalsView()}
 $("tab-signals").addEventListener("click",renderSignals);
 // the player profile's Signals section: one line per signal that has something to say
 function signalsSection(p){if(!HAS_SIG()||!sigOf(p))return "";const L=shotLuck(p),R=roleOf(p),Rs=restOf(p),Rp=rampOf(p),o=sigOwn(p),li=[],sg=v=>(v>=0?"+":"−")+f1(Math.abs(v));
-  if(L&&Math.abs(L.fp)>=1)li.push(`<li class="${L.fp>0?"warn":"good"}"><b>Shooting ${L.fp>0?"luck":"slump"}:</b> ${sg(L.fp)} FP/G from shooting ${L.fp>0?"above":"below"} his true rate (${L.parts.filter(t=>t.a>=5).map(t=>`${t.lab} ${pc(t.pct)} vs ${pc(t.r)}`).join(", ")}). Expect it to ${L.fp>0?"cool off":"bounce back"}.</li>`);
+  if(L&&Math.abs(L.fp)>=1)li.push(`<li class="${L.fp>0?"warn":"good"}"><b>Shooting pivot ${L.fp>0?"down":"up"}:</b> ${sg(L.fp)} FP/G from shooting ${L.fp>0?"above":"below"} his true rate (${L.parts.filter(t=>t.a>=5).map(t=>`${t.lab} ${pc(t.pct)} vs ${pc(t.r)}`).join(", ")}). Expect it to ${L.fp>0?"cool off":"bounce back"}.</li>`);
   if(R&&Math.abs(R.d)>=2)li.push(`<li class="${R.d>0?"good":"warn"}"><b>Role ${R.d>0?"growing":"shrinking"}:</b> usage ${f1(R.u5)} per 36 minutes over his last 5 games against ${f1(R.u)} this season${R.ul!=null?` and ${f1(R.ul)} last season`:""}; ${f1(R.min5)} minutes, started ${R.gs5} of ${R.gp5}.</li>`);
   if(Rs&&Rs.b2b>=.12)li.push(`<li class="warn"><b>Rest risk:</b> sits about ${pc(Rs.b2b)} of back-to-back legs (sat ${Rs.bs} of ${Rs.bo}), against ${pc(sigLg().b2b)} for a typical regular.</li>`);
   if(Rp)li.push(`<li><b>Easing back:</b> game ${Rp.k} since missing ${Rp.gap}; minutes ${Rp.last.join(", ")} against ${f0(Rp.m0)} before. ${mean(Rp.last)>=Rp.m0*.97?"Already at full minutes.":`Next game, about ${f0(Rp.m0*Rp.next)}.`}</li>`);
@@ -2599,7 +2599,7 @@ const INTRO={board:"Every draftable player, ranked. Press Draft for your picks a
   season:"This week's head-to-head: projected scores, your chance to win, and who starts for you each day.",
   scout:"Any team in your league: their lineup, strengths and gaps, injuries, how they stack up against you, and where a trade might fit.",
   waivers:"Free agents worth adding, for this week or the rest of the season, and who gains when a regular is hurt.",
-  signals:"What the box scores say before projections catch up: shooting luck, role changes, rest risk, returns from injury, blowouts, ESPN adds and how your league manages.",
+  signals:"What the box scores say before projections catch up: shooting pivots, role changes, rest risk, returns from injury, blowouts, ESPN adds and how your league manages.",
   lab:"The season as charts: who's beating his projection, roles and efficiency, positional scarcity, the biggest movers, the schedule and every defense. Each chart has a table view.",
   trades:"The Trade Finder suggests deals that help you and give the other manager a reason to say yes; or build your own and see what it does to both teams.",
   rosters:"Every team exactly as set on ESPN: today's starting lineup, the bench and injured reserve, with anything ESPN lets slide flagged.",
