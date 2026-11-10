@@ -19,7 +19,8 @@ const r=await pg.evaluate(([log,scoreOnly])=>{const today=PDATE(CUR_PERIOD),keep
     ASOF=null;FB.clear();DEF_NOW=null}
   if(!scoreOnly)players.filter(keep).forEach(p=>{const g=nextGames(p,1)[0];if(g&&!g.out&&g.date===today&&!have.has(today+"|"+p.espnId))add.push(row(p,g))});
   const rows=log.concat(add),byE=new Map(players.map(p=>[String(p.espnId),p]));
-  rows.forEach(x=>{if(x[7]!=null)return;const p=byE.get(String(x[1]));const G=p&&gamesOf(p).find(g=>g.date===x[0]);if(G)x[7]=G.dnp?-1:rd(G.fp)});
+  // re-score every row whose game ESPN still lists: a run during a late game records a partial box score, and the next run corrects it
+  rows.forEach(x=>{const p=byE.get(String(x[1]));const G=p&&gamesOf(p).find(g=>g.date===x[0]);if(G)x[7]=G.dnp?-1:rd(G.fp)});
   const names={};rows.forEach(x=>{const p=byE.get(String(x[1]));if(p)names[x[1]]=p.name});
   return {rows:rows.filter(x=>x[7]!=null||x[0]>=PDATE(CUR_PERIOD-14)),names,weeks:WEEKS.map(w=>[w.i,w.s,w.e]),today,added:add.length}},[log,scoreOnly]);
 await b.close();if(errs.length)throw new Error(errs.join('; '));
