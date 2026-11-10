@@ -44,6 +44,7 @@ const sgn=await pg.evaluate(()=>{const v=document.getElementById('view-signals')
   return {cards:C.length,svg:C.filter(c=>c.querySelector('svg')).length,tbl:!document.querySelector('#lab-luck .lab-table').hidden,tiles:v.querySelectorAll('.kpi').length,
     luckMid:Math.abs(lk.reduce((a,b)=>a+b,0)/lk.length),match:match.filter(Boolean).length/Math.max(1,match.length),ramp:SIG.ramp[0][1]<SIG.ramp[5][1]}});
 check(sgn.cards===7&&sgn.svg===7&&sgn.tbl&&sgn.tiles>=4,`Signals tab draws seven charts with table views (${sgn.cards} cards, ${sgn.tiles} tiles)`);
+check(await pg.evaluate(()=>players.every(p=>{const c=pivotCall(p);return !c||c.k!=='sell'||(c.r>20&&c.r-c.m>=15)})&&players.filter(p=>{const c=pivotCall(p);return c&&c.r<=20}).every(p=>pivotCall(p).k!=='sell')),'never says sell high on a top-20 player, only when his average outranks Pivot by 15+');
 check(sgn.luckMid<1.5,`shooting pivots are centred near zero across players (average ${sgn.luckMid.toFixed(2)} FP/G)`);check(sgn.ramp,'return ramp rises from the first game back');
 check(sgn.match>=.7,`league moves are credited to the right teams (${Math.round(sgn.match*100)}% of last adds still on the team that added them)`);
 await pg.evaluate(()=>{const p=[...players].filter(p=>shotLuck(p)).sort((a,b)=>Math.abs(shotLuck(b).fp)-Math.abs(shotLuck(a).fp))[0];openPlayer(p.id)});await pg.waitForTimeout(300);
