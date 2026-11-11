@@ -30,7 +30,10 @@ const sum=G=>({n:G.length,mae:rd(G.reduce((a,x)=>a+Math.abs(x[7]-x[2]),0)/G.leng
 const weeks=[["Before Week 1","",""]].concat(r.weeks).map(([i,s,e],k)=>{const G=S.filter(x=>k?x[0]>=s&&x[0]<=e:x[0]<r.weeks[0][1]);return G.length?{w:i,...sum(G)}:null}).filter(Boolean);
 const bins=[[0,15],[15,25],[25,35],[35,45],[45,99]].map(([lo,hi])=>{const G=S.filter(x=>x[2]>=lo&&x[2]<hi);return G.length?[lo,hi,G.length,rd(G.reduce((a,x)=>a+x[2],0)/G.length),rd(G.reduce((a,x)=>a+x[7],0)/G.length)]:null}).filter(Boolean);
 const lastD=S.map(x=>x[0]).sort().pop(),misses=S.filter(x=>x[0]===lastD).sort((a,b)=>Math.abs(b[7]-b[2])-Math.abs(a[7]-a[2])).slice(0,6).map(x=>[x[1],r.names[x[1]]||"",x[2],x[7],x[3],x[4]]);
-const out=S.length?{...sum(S),live:S.filter(x=>!x[8]).length,since:S.map(x=>x[0]).sort()[0],lastD,weeks,bins,misses,pending:r.rows.filter(x=>x[7]==null).length}:{n:0,pending:r.rows.filter(x=>x[7]==null).length};
+// drift check: the last 7 days of live predictions on their own. A lean of 2+ FP over 150+ games is far outside chance (about 0.9 FP)
+const d7=new Date(Date.parse(r.today)-7*864e5).toISOString().slice(0,10),S7=S.filter(x=>!x[8]&&x[0]>=d7),recent=S7.length?{n:S7.length,bias:sum(S7).bias,mae:sum(S7).mae,avg:sum(S7).avg}:null;
+const out=S.length?{...sum(S),recent,live:S.filter(x=>!x[8]).length,since:S.map(x=>x[0]).sort()[0],lastD,weeks,bins,misses,pending:r.rows.filter(x=>x[7]==null).length}:{n:0,pending:r.rows.filter(x=>x[7]==null).length};
 fs.writeFileSync(path.join(root,'work/preds_log.json'),JSON.stringify({rows:r.rows}));
 fs.writeFileSync(path.join(root,'work/p2_preds.js'),"// Prediction scorecard (tools/log_preds.js): every next-game prediction logged before tip-off and scored once ESPN records the game\nconst PREDS="+JSON.stringify(out)+";\n");
+if(recent&&recent.n>=150&&Math.abs(recent.bias)>=2)console.log(`WARN scorecard drift: the last 7 days lean ${recent.bias} FP over ${recent.n} games`);
 console.log(`scorecard: logged ${r.added} today, ${out.n} scored (${out.live||0} live), average miss ${out.mae} vs season average ${out.avg}, 80% range caught ${out.cover}`)})().catch(e=>{console.error(e.message);process.exit(1)});

@@ -23,15 +23,16 @@ function fixture(cur){const i=html.indexOf('const LEAGUE='),j=html.indexOf(';\n'
     await pg.route('**/lm-api-reads.fantasy.espn.com/**',r=>r.abort());await pg.goto('file://'+fixture(cur));await pg.waitForFunction(()=>typeof setMode==='function');await pg.waitForTimeout(800);await pg.evaluate(()=>setMode('season'));return pg};
   // Friday of week 3: four days played
   let pg=await open(18,1100);const M=await pg.evaluate(()=>{const o=leagueOpp(CUR_WEEK),A=myRoster(),B=rosterOf(o),m=matchupSim(A,B,CUR_WEEK),m0=matchupSim(A,B,CUR_WEEK,600,{bank:[0,0]}),P=winPath(CUR_WEEK,S.slot,o);
-    return {bank:weekBank(CUR_WEEK),p:m.p,p0:m0.p,n:P.n,last:P.pts[P.n].p,start:P.pts[0].p}});
+    const m1=matchupSim(A,B,CUR_WEEK,600,{days:weekDaysAll(CUR_WEEK),bank:[0,0]});
+    return {bank:weekBank(CUR_WEEK),p:m.p,p0:m0.p,n:P.n,last:P.pts[P.n].p,start:P.pts[0].p,sa:m1.a,sb:m1.b}});
   check(M.bank[0]>0&&M.bank[1]>0,`points already scored count: ${M.bank.map(Math.round).join('–')}`);
   check(Math.abs(M.p-M.p0)>.05,`the win chance changes with them (${Math.round(M.p0*100)}% without, ${Math.round(M.p*100)}% with)`);
   check(M.n===4&&M.last===M.p,'the chart has the four days played and ends at the headline chance');
-  check(M.start>.02&&M.start<.98,`the replayed start of the week is a real chance (${Math.round(M.start*100)}%), not an empty week`);
-  await pg.click('#tab-season');await pg.waitForTimeout(500);check(await pg.evaluate(()=>document.querySelectorAll('#view-season svg.wpc circle').length===5),'Matchup draws the win-chance chart');
+  check(M.start>0&&M.sa>500&&M.sb>500,`the replayed start of the week simulates a full week for both sides (${Math.round(M.sa)}–${Math.round(M.sb)}, ${Math.round(M.start*100)}%), not an empty one`);
+  await pg.evaluate(()=>document.getElementById('tab-season').click());await pg.waitForTimeout(500);check(await pg.evaluate(()=>document.querySelectorAll('#view-season svg.wpc circle').length===5),'Matchup draws the win-chance chart');
   check(!pg.errs.length,'mid-week: no page errors '+pg.errs.join(' | '));
   // the Monday after, on desktop and phone
-  for(const w of [1100,390]){pg=await open(21,w);await pg.click('#tab-today');await pg.waitForTimeout(500);
+  for(const w of [1100,390]){pg=await open(21,w);await pg.evaluate(()=>document.getElementById('tab-today').click());await pg.waitForTimeout(500);
     check(await pg.evaluate(()=>/^Last week/.test(document.querySelector('#view-today .chart-card h4').textContent)),`${w}px: Today opens with last week's recap`);
     await pg.click('text=Full recap');await pg.waitForTimeout(800);
     const R=await pg.evaluate(()=>({h:document.querySelector('#view-season h4').textContent,hs:[...document.querySelectorAll('#view-season h5')].map(x=>x.textContent),pts:document.querySelectorAll('#view-season svg.wpc circle').length,
@@ -43,14 +44,14 @@ function fixture(cur){const i=html.indexOf('const LEAGUE='),j=html.indexOf(';\n'
     check(!pg.errs.length,`${w}px: no page errors `+pg.errs.join(' | '))}
   // the luck meter on My Team: a note before any week is finished; after it, every team, all-play records that add up, and luck
   // that sums to zero across the league (each matchup hands out one win)
-  pg=await open(18,1100);await pg.click('#tab-team');await pg.waitForTimeout(800);
+  pg=await open(18,1100);await pg.evaluate(()=>document.getElementById('tab-team').click());await pg.waitForTimeout(800);
   check(await pg.evaluate(()=>[...document.querySelectorAll('#view-team .chart-card')].some(c=>/^Luck meter/.test(c.querySelector('h4')?.textContent||'')&&/Starts once/.test(c.textContent))),'before a finished week, the luck meter says when it starts');
-  for(const w of [1100,390]){pg=await open(21,w);await pg.click('#tab-team');await pg.waitForTimeout(800);
+  for(const w of [1100,390]){pg=await open(21,w);await pg.evaluate(()=>document.getElementById('tab-team').click());await pg.waitForTimeout(800);
     const K=await pg.evaluate(()=>{const c=[...document.querySelectorAll('#view-team .chart-card')].find(c=>/^Luck meter/.test(c.querySelector('h4')?.textContent||'')),L=luckOf(),n=L.rows.length;
       return {rows:c?c.querySelectorAll('tbody tr').length:0,sum:L.rows.reduce((s,r)=>s+r.luck,0),ap:L.rows.every(r=>r.aw+r.al+r.ad===n-1),wins:L.rows.reduce((s,r)=>s+r.w,0),n,me:c?c.querySelector('p').textContent:'',sw:document.documentElement.scrollWidth}});
     check(K.rows===K.n&&K.wins===K.n/2,`${w}px: luck meter lists all ${K.n} teams after week 3 (${K.wins} wins handed out)`);
     check(K.ap&&Math.abs(K.sum)<1e-9,`${w}px: each all-play record covers every other team and luck sums to zero`);
     check(/^You're \d+-\d+/.test(K.me),`${w}px: your line: "${K.me.slice(0,90)}…"`);check(K.sw<=w,`${w}px: no sideways scroll`);
-    await pg.click('#tab-scout');await pg.waitForTimeout(800);check(await pg.evaluate(()=>/all-play \d+-\d+/.test(document.querySelector('#view-scout .kpis').innerText)),`${w}px: Scout shows the team's all-play record`);
+    await pg.evaluate(()=>document.getElementById('tab-scout').click());await pg.waitForTimeout(800);check(await pg.evaluate(()=>/all-play \d+-\d+/.test(document.querySelector('#view-scout .kpis').innerText)),`${w}px: Scout shows the team's all-play record`);
     check(!pg.errs.length,`${w}px: luck meter, no page errors `+pg.errs.join(' | '))}
   await b.close();process.exit(fail?1:0)})();

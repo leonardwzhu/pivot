@@ -42,7 +42,7 @@ function computeDisp(){players.forEach(p=>p.disp=S.rankBy==="model"?(S.scoring==
 const pickOf=id=>S.picks.find(x=>x.id===id);
 // your league's team names, by draft slot (blank = "Team N"); short form for tight spots like the draft grid
 const teamName=t=>{const n=((S.teamNames||{})[t]||"").trim();return n||`Team ${t}`};
-const teamShort=t=>{const n=((S.teamNames||{})[t]||"").trim();return n?(n.length>10?n.slice(0,9)+"…":n):"T"+t};
+const teamShort=t=>{const n=((S.teamNames||{})[t]||"").trim();return n?(n.length>10?n.slice(0,9).replace(/[\s.,'’-]+$/,"")+"…":n):"T"+t};
 const mine=()=>S.picks.filter(x=>x.mine).map(x=>players[x.id]);
 const snakeAt=o=>{const n=S.teams,r=Math.floor((o-1)/n),i=(o-1)%n;return r%2===0?i+1:n-i};
 // traded picks (Draft insights): overall pick -> the slot that owns it now. Kept per league size; a mock with another slot or size ignores them
@@ -1204,8 +1204,8 @@ function scheduleSection(p){const w0=Math.max(0,CUR_WEEK),ws=WEEKS.map((w,i)=>i)
 function nextSection(p){const N=nextGames(p,5),grp=GROUP_NAME[posGroup(p)];if(!N.length)return "";
   const vs=g=>g.vs?`${g.vs[1]>=100?"+":"−"}${Math.abs(g.vs[1]-100)}% <span class="mut">(${g.vs[0]}g)</span>`:'<span class="mut">—</span>';
   return `<h4 style="margin:14px 0 6px">Next games</h4><div style="overflow-x:auto"><table style="min-width:440px"><thead><tr><th>Date</th><th>Opp</th><th title="Form: the minutes he has played in his last few games × his points per minute this season (pulled toward his preseason rate)">Form</th><th title="Change from teammates who are out (or back) for that game, beyond what his recent form already includes">Teammates</th><th title="How this defense treats ${grp}: fantasy points allowed vs what those players usually score">Defense</th><th>Expected</th><th title="8 in 10 games land in this range">Range</th><th title="His games against this team over the last two seasons, vs what he was expected to score. Shown for reference only">Vs them</th></tr></thead>
-    <tbody>${N.map((g,i)=>`<tr><td>${gDate(g.date)}</td><td>${g.o}${g.b2b?' <span class="zneg" title="Second night of a back-to-back">b2b</span>':""}</td><td>${f1(g.base)}</td><td>${Math.abs(g.mate.adj)>=.3?`<span class="${g.mate.adj>0?"zpos":"zneg"}" title="${esc(g.mate.list.filter(m=>Math.abs(m.x)>=.3).map(m=>`${m.q.name} ${m.out?"out":"playing"}: ${m.x>0?"+":"−"}${f1(Math.abs(m.x))}`).join("; "))}">${g.mate.adj>0?"+":"−"}${f1(Math.abs(g.mate.adj))}</span>`:'<span class="mut">—</span>'}</td><td>${pctTag(g.f)}</td>${g.out?'<td colspan="2" class="zneg">expected out</td>':`<td>${i===N.findIndex(x=>!x.out)?`<b class="call">${f1(g.fp)}</b>`:`<b>${f1(g.fp)}</b>`}</td><td class="mut">${f0(g.lo)}–${f0(g.hi)}</td>`}<td>${vs(g)}</td></tr>`).join("")}</tbody></table></div>
-    <p class="empty">Expected = (form + teammates) × how this defense treats ${grp} × home court (±${Math.round(MP.hm*100)}%, @ = away) × back-to-back (b2b, −${Math.round(MP.b2*100)}%). Vs them is his record against that team over two seasons compared with what he was expected to score. It is shown but not used: across two seasons it didn't make predictions better, because a handful of games against one team is mostly noise.</p>`}
+    <tbody>${N.map((g,i)=>`<tr><td>${gDate(g.date)}</td><td>${g.o}${g.b2b?' <span class="zneg" title="Second night of a back-to-back">b2b</span>':""}${g.back?` <span class="zneg" title="First game back after missing ${g.back} of his team's games">1st back</span>`:""}</td><td>${f1(g.base)}</td><td>${Math.abs(g.mate.adj)>=.3?`<span class="${g.mate.adj>0?"zpos":"zneg"}" title="${esc(g.mate.list.filter(m=>Math.abs(m.x)>=.3).map(m=>`${m.q.name} ${m.out?"out":"playing"}: ${m.x>0?"+":"−"}${f1(Math.abs(m.x))}`).join("; "))}">${g.mate.adj>0?"+":"−"}${f1(Math.abs(g.mate.adj))}</span>`:'<span class="mut">—</span>'}</td><td>${pctTag(g.f)}</td>${g.out?'<td colspan="2" class="zneg">expected out</td>':`<td>${i===N.findIndex(x=>!x.out)?`<b class="call">${f1(g.fp)}</b>`:`<b>${f1(g.fp)}</b>`}</td><td class="mut">${f0(g.lo)}–${f0(g.hi)}</td>`}<td>${vs(g)}</td></tr>`).join("")}</tbody></table></div>
+    <p class="empty">Expected = (form + teammates) × how this defense treats ${grp} × home court (±${Math.round(MP.hm*100)}%, @ = away) × back-to-back (b2b, −${Math.round(MP.b2*100)}%)${MP.rb?` × first game back after missing 5 or more (−${Math.round(MP.rb*100)}%)`:""}. Vs them is his record against that team over two seasons compared with what he was expected to score. It is shown but not used: across two seasons it didn't make predictions better, because a handful of games against one team is mostly noise.</p>`}
 // with and without teammates: his own splits, and who gains when he sits
 function matesSection(p){const d=PDATE(CUR_PERIOD),me=mateAdj(p,d,formBase(p)).list.filter(m=>m.nO>=1||m.out).sort((a,b)=>b.dl-a.dl);
   const gain=players.filter(q=>q.team===p.team&&q!==p).map(q=>({q,m:mateAdj(q,d,formBase(q)).list.find(m=>m.q===p)})).filter(x=>x.m).sort((a,b)=>b.m.dl-a.m.dl).slice(0,6);
@@ -1330,9 +1330,14 @@ function defNow(){if(DEF_NOW)return DEF_NOW;const D={},dec=.5**(1/MP.h);Object.e
 const defFactor=(opp,g)=>{const v=(defNow()[opp]||{})[g];return v&&v[1]?1+(v[0]/v[1]-1)*v[2]/(v[2]+MP.Kd):1};
 // withToday keeps today's game after its box score is in (a refresh late at night), for Tonight's lineup
 function nextGames(p,n=4,withToday){const S=SCHED[p.team]||[],O=SCHED_OPP[p.team]||{},last=(gamesOf(p)[0]||{}).date||"",base=formBase(p),g=posGroup(p);
-  return S.filter(q=>q>=CUR_PERIOD&&(PDATE(q)>last||withToday&&q===CUR_PERIOD)).slice(0,n).map(q=>{const o=O[q]||"",opp=o.replace("@",""),home=!o.startsWith("@"),b2b=S.includes(q-1),f=defFactor(opp,g),
+  const N=S.filter(q=>q>=CUR_PERIOD&&(PDATE(q)>last||withToday&&q===CUR_PERIOD)).slice(0,n).map(q=>{const o=O[q]||"",opp=o.replace("@",""),home=!o.startsWith("@"),b2b=S.includes(q-1),f=defFactor(opp,g),
     date=PDATE(q),m=mateAdj(p,date,base),fp=(base+m.adj)*Math.max(.5,f)**MP.a*(home?1+MP.hm:1-MP.hm)*(b2b?1-MP.b2:1),out=isOut(p,date);
-    return {q,date,out,o,opp,home,b2b,f,fp,lo:rangeOf(fp)[0],hi:rangeOf(fp)[1],base,mate:m,vs:(MATCHUP.VS[p.espnId]||{})[opp]}})}
+    return {q,date,out,o,opp,home,b2b,f,fp,lo:rangeOf(fp)[0],hi:rangeOf(fp)[1],base,mate:m,vs:(MATCHUP.VS[p.espnId]||{})[opp]}});
+  // first game back: after missing 5+ of his team's games, his first one runs under his form (fewer minutes, some rust); the
+  // minutes model catches up from the second game on. MP.rb is fit in tools/build_matchup.py
+  const L=typeof SLOG!=="undefined"&&SLOG&&SLOG[p.espnId],g1=N.find(g=>!g.out);
+  if(MP.rb&&g1&&L&&L.length>=5){const lq=L[L.length-1][0],miss=S.filter(q=>q>lq&&q<g1.q).length;if(miss>=(MP.gap||5)){g1.back=miss;g1.fp*=1-MP.rb;[g1.lo,g1.hi]=rangeOf(g1.fp)}}
+  return N}
 // the 80% range for a prediction, by level: bench players swing more than stars (MATCHUP.BQ, fit on game logs)
 const rangeOf=fp=>{const B=MATCHUP.BQ&&MATCHUP.BQ.find(b=>b[0]<=fp&&fp<b[1]);return B?[fp*B[2],fp*B[3]]:[fp*MATCHUP.Q[0],fp*MATCHUP.Q[1]]};
 const pctTag=f=>{const d=Math.round((f-1)*100);return d?`<span class="${d>0?"zpos":"zneg"}">${d>0?"+":"−"}${Math.abs(d)}%</span>`:`<span class="mut">even</span>`};
@@ -1535,6 +1540,7 @@ function scorecardCard(){const P=typeof PREDS!=="undefined"?PREDS:null;
       ${kp("Better than season average",`<span class="call">${(win>=0?"":"−")+Math.abs(win)}%</span>`,"smaller average miss on the same games")}
       ${kp("Inside the 80% range",pc0(P.cover),"should be close to 80%: much lower means the ranges are too narrow")}
       ${kp("Bias",(P.bias>=0?"+":"−")+f1(Math.abs(P.bias))+" FP","actual minus predicted, on average: near zero means no lean")}</div>
+      ${(R=>!R||R.n<150?"":Math.abs(R.bias)>=2?`<ul class="heads" style="margin-top:8px"><li class="warn"><b>Drift alert:</b> over the last 7 days predictions have run ${f1(Math.abs(R.bias))} FP too ${R.bias<0?"high":"low"} across ${R.n} games, more than chance explains. Treat next-game numbers with that in mind until it settles.</li></ul>`:`<p class="empty" style="margin-top:8px">Last 7 days: ${R.n} games, average miss ${f1(R.mae)} FP (season average ${f1(R.avg)}), lean ${R.bias>=0?"+":"−"}${f1(Math.abs(R.bias))} FP. No drift.</p>`)(P.recent)}
     <div class="chart-grid" style="margin:0">
       <div><h4 style="margin:0 0 6px;font-size:15px">Calibration</h4><table><thead><tr><th class="l">Predicted</th><th>Games</th><th>Avg predicted</th><th>Avg actual</th></tr></thead><tbody>${P.bins.map(([lo,hi,n,pr,ac])=>`<tr><td class="l">${hi>90?lo+"+":lo+"–"+hi} FP</td><td>${n}</td><td>${f1(pr)}</td><td><b>${f1(ac)}</b> ${cpos(ac-pr)}</td></tr>`).join("")}</tbody></table>
         <p class="empty">If the model is honest, each row's actual average lands near its predicted average.</p></div>
@@ -1560,9 +1566,9 @@ function renderModels(){
   </div>
   <div class="chart-grid">
     ${scorecardCard()}
-    <div class="chart-card"><h4>Next-game model</h4><div class="eq">expected FP = (recent minutes × points per minute + teammates out) × defense vs his position${MP.a!==1?"^"+MP.a:""} × home (±${Math.round(MP.hm*100)}%) × back-to-back (−${Math.round(MP.b2*100)}%)</div>
+    <div class="chart-card"><h4>Next-game model</h4><div class="eq">expected FP = (recent minutes × points per minute + teammates out) × defense vs his position${MP.a!==1?"^"+MP.a:""} × home (±${Math.round(MP.hm*100)}%) × back-to-back (−${Math.round(MP.b2*100)}%)${MP.rb?` × first game back from 5+ missed (−${Math.round(MP.rb*100)}%)`:""}</div>
       <div style="overflow-x:auto"><table><thead><tr><th style="text-align:left">Predicting each game from</th><th title="First month of 2025-26, Oct 21 to Nov 19">Early season</th><th title="Feb to Apr 2026. Weights were chosen on late Nov to Jan games only">Holdout</th></tr></thead><tbody>${MATCHUP.BT.map((r,i)=>`<tr><td style="text-align:left">${r[0]}</td><td>${f1(r[1])}</td><td>${i===MATCHUP.BT.length-2?"<b>"+f1(r[2])+"</b>":f1(r[2])}</td></tr>`).join("")}</tbody></table></div>
-      <p>Average miss in fantasy points per game, tested walk-forward on ${MATCHUP.N.toLocaleString()} games: each prediction only uses games before it. Weighting recent games beats a plain season average. Accounting for teammates who sit is the next biggest gain, then the opponent's defense. A player's own record against that team didn't help when choosing weights, so it gets none. One game is noisy whatever you do, and how noisy depends on the player: ${MATCHUP.BQ?MATCHUP.BQ.map(b=>`${b[1]>900?b[0]+"+":b[0]+"–"+b[1]} FP predictions land within ${Math.round(b[2]*100)}–${Math.round(b[3]*100)}%`).join(", "):""} of the prediction 8 times in 10, so each player's range is set by his level.${MATCHUP.BQC?` On the holdout, the share of games inside the range by level was ${MATCHUP.BQC.map(c=>Math.round(c[1]*100)+"%").join(", ")} (aiming for 80%).`:""}</p></div>
+      <p>Average miss in fantasy points per game, tested walk-forward on ${MATCHUP.N.toLocaleString()} games: each prediction only uses games before it. Weighting recent games beats a plain season average. Accounting for teammates who sit is the next biggest gain, then the opponent's defense. A player's first game back after missing five or more runs about 15% under his form, so it is cut; rest days, tired legs and blowout risk were tested and didn't help. A player's own record against that team didn't help when choosing weights, so it gets none. One game is noisy whatever you do, and how noisy depends on the player: ${MATCHUP.BQ?MATCHUP.BQ.map(b=>`${b[1]>900?b[0]+"+":b[0]+"–"+b[1]} FP predictions land within ${Math.round(b[2]*100)}–${Math.round(b[3]*100)}%`).join(", "):""} of the prediction 8 times in 10, so each player's range is set by his level.${MATCHUP.BQC?` On the holdout, the share of games inside the range by level was ${MATCHUP.BQC.map(c=>Math.round(c[1]*100)+"%").join(", ")} (aiming for 80%).`:""}</p></div>
     <div class="chart-card"><h4>Year-over-year stability</h4><div class="eq">FP/G 2025-26 = ${P.stab.a.toFixed(1)} + ${P.stab.b.toFixed(2)} × FP/G 2024-25 · R² ${P.stab.r2.toFixed(2)}</div>
       ${scatter({pts:st.map(d=>({x:d.x,y:d.y,tip:`${d.p.name}: ${f1(d.x)} → ${f1(d.y)}`})),fit:P.stab,diag:true,xl:"FP/G 2024-25",yl:"FP/G 2025-26"})}
       <p>A slope below 1 means extreme seasons drift back toward the middle. This slope sets how hard every projection is pulled toward the pool average. The dashed line marks "no change."</p></div>
@@ -2589,8 +2595,8 @@ function leagueMovesCard(){if(!HAS_LG()||!SIG.tx)return "";const T=Object.keys(L
   const R=[...T].sort((a,b)=>lu[b]-lu[a]),days=Object.keys(SIG.lu||{}).length||1,last=[...SIG.tx].reverse().slice(0,10);
   const feed=last.map(x=>{const d=new Date(x[0]).toLocaleDateString(undefined,{month:"short",day:"numeric"}),it=x[3].map(i=>{const p=pl(i[0]);return p?`${i[1]==="A"?"added":i[1]==="D"?"dropped":"traded for"} ${pBtn(p)}`:""}).filter(Boolean).join(", ");return it?`<li><span class="mut">${d}</span> <b>${nm(slotOf[x[1]])}</b> ${it}${x[2]==="W"?' <span class="mut">(waivers)</span>':""}</li>`:""}).join("");
   return labCard("moves","League activity",`How each team in your league manages: lineup changes per day this season (bar) and pickups. Managers who rarely touch their lineup leave points on the bench, which shows up in the weekly matchups.`,
-    hBars(R.map(t=>({name:nm(t).slice(0,22),v:lu[t]/days,tip:`${(LEAGUE.teams[t]||{}).name}: ${lu[t]} lineup changes in ${days} days, ${mv[t]} pickup${mv[t]===1?"":"s"}`,col:t===S.slot?"--s2":"--s1"})),{fmt:v=>f1(v)+"/day"})+(feed?`<h5 class="sig-h">Latest moves</h5><ul class="heads">${feed}</ul>`:""),
-    labTable(["Team","Lineup changes","Per day","Pickups"],R.map(t=>[nm(t),lu[t],f1(lu[t]/days),mv[t]])),`<div class="lab-key"><span><i class="dot" style="background:var(--s2)"></i>your team</span><span><i class="dot" style="background:var(--s1)"></i>everyone else</span></div>`)}
+    hBars(R.map(t=>({name:nm(t).slice(0,22),v:lu[t]/days,tip:`${(LEAGUE.teams[t]||{}).name}: ${lu[t]} lineup changes in ${days} days, ${mv[t]} pickup${mv[t]===1?"":"s"}`,col:t===S.slot?"--mine":"--s1"})),{fmt:v=>f1(v)+"/day"})+(feed?`<h5 class="sig-h">Latest moves</h5><ul class="heads">${feed}</ul>`:""),
+    labTable(["Team","Lineup changes","Per day","Pickups"],R.map(t=>[nm(t),lu[t],f1(lu[t]/days),mv[t]])),`<div class="lab-key"><span><i class="dot" style="background:var(--mine)"></i>your team</span><span><i class="dot" style="background:var(--s1)"></i>everyone else</span></div>`)}
 function renderSignals(){$("view-signals").innerHTML=signalsView()}
 $("tab-signals").addEventListener("click",renderSignals);
 // the player profile's Signals section: one line per signal that has something to say
@@ -2669,14 +2675,22 @@ const GUIDE=`<div class="row-btns" style="justify-content:space-between;align-it
   // a first visit opens it once (not for automated checks, which would have to dismiss it)
   if(!S.guideSeen&&!navigator.webdriver)setTimeout(open,600)})();
 // ---- More: the rarer tabs sit in a menu; the More button takes the selected style while one of them is open
-const MORE=["rosters","models","how"],moreMenu=$("moreMenu"),moreBtn=$("moreBtn"),curTab=()=>TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");
-const markMore=()=>moreBtn.classList.toggle("on",MORE.includes(curTab())),closeMore=()=>{moreMenu.hidden=true;moreBtn.setAttribute("aria-expanded","false")};
+// More holds Rosters, Models and Method always, plus any tab that doesn't fit the row (rightmost first), so nothing sits
+// off-screen on a phone, where the row has no scrollbar
+const tabRow=$("moreBtn").parentElement,MORE_=()=>[...tabRow.querySelectorAll("[role=tab][data-more]")].map(b=>b.id.slice(4)),moreMenu=$("moreMenu"),moreBtn=$("moreBtn"),curTab=()=>TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");
+const tabName=t=>$("tab-"+t).firstChild.textContent.trim();  // without the News count
+function fitTabs(){tabRow.querySelectorAll('[data-more="auto"]').forEach(b=>b.removeAttribute("data-more"));
+  const V=[...tabRow.querySelectorAll("[role=tab]:not([data-more])")].filter(b=>!b.hidden),over=()=>tabRow.scrollWidth>tabRow.clientWidth+1;
+  while(over()&&V.length>2)V.pop().setAttribute("data-more","auto");
+  markMore();while(over()&&V.length>2)V.pop().setAttribute("data-more","auto")}  // the button grows when it names the open tab
+// the button names the open tab only when no tab sits to its right (a phone); growing it would push those
+const markMore=()=>{const c=curTab(),on=MORE_().includes(c),l=moreBtn.firstElementChild,solo=![...tabRow.querySelectorAll(".tab-gap~[role=tab]:not([data-more])")].some(b=>!b.hidden),nm=on&&solo?tabName(c):"More";moreBtn.classList.toggle("on",on);l.textContent=nm;l.dataset.label=nm},closeMore=()=>{moreMenu.hidden=true;moreBtn.setAttribute("aria-expanded","false")};
 moreBtn.onclick=e=>{e.stopPropagation();if(!moreMenu.hidden)return closeMore();const c=curTab();
-  moreMenu.innerHTML=MORE.filter(t=>!$("tab-"+t).hidden).map(t=>`<button role="menuitem" data-moretab="${t}" aria-current="${t===c}">${esc($("tab-"+t).textContent.trim())}</button>`).join("");
+  moreMenu.innerHTML=MORE_().filter(t=>!$("tab-"+t).hidden).map(t=>`<button role="menuitem" data-moretab="${t}" aria-current="${t===c}">${esc(tabName(t))}${t==="news"&&$("newsCount").textContent?` <span class="mut">${esc($("newsCount").textContent)}</span>`:""}</button>`).join("");
   const r=moreBtn.getBoundingClientRect();moreMenu.style.top=r.bottom+4+"px";moreMenu.style.right=Math.max(8,innerWidth-r.right)+"px";moreMenu.hidden=false;moreBtn.setAttribute("aria-expanded","true")};
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-moretab]");if(b){closeMore();$("tab-"+b.dataset.moretab).click();return}if(!moreMenu.hidden&&!(e.target.closest&&e.target.closest("#moreMenu")))closeMore()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!moreMenu.hidden)closeMore()});addEventListener("resize",closeMore);
-TABS.forEach(t=>$("tab-"+t).addEventListener("click",markMore));
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!moreMenu.hidden)closeMore()});addEventListener("resize",()=>{closeMore();fitTabs()});if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitTabs);
+TABS.forEach(t=>$("tab-"+t).addEventListener("click",fitTabs));
 // ---- tidy by default: rail cards and profile sections fold and remember it; long method notes fold into "How this works"
 const FOLD_DEF={mix:1,ba:1,settings:1,Teammates:1,News:1};let FOLD={};try{FOLD=JSON.parse(localStorage.getItem("pivot.fold")||"{}")}catch(e){}
 const foldKey=el=>el.dataset.fold||((el.querySelector(":scope>h3")||{}).textContent||"").trim();
@@ -2710,6 +2724,7 @@ function setMode(m,{open=true}={}){S.mode=m;save();document.body.classList.toggl
   // the draft sidebar stays for all of Draft Day (shared tabs included) so the page width never changes within a mode
   $("rail").hidden=m!=="draft";document.querySelector("main").classList.toggle("solo",m!=="draft");
   if(m==="season")renderSeasonBar();
+  fitTabs();
   if(open){const cur=TABS.find(t=>$("tab-"+t).getAttribute("aria-selected")==="true");if(!cur||modeOf(cur)!==m)$("tab-"+(S.lastTab[m]||(m==="draft"?"board":"today"))).click()}}
 function renderSeasonBar(){const el=$("seasonBar");if(!el)return;const w=Math.max(0,CUR_WEEK),wk=WEEKS[w],opp=leagueOpp(w),my=myRoster(),O=opp?rosterOf(opp):[];
   const dates=`${new Date(wk.s+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}–${new Date(wk.e+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"})}`;

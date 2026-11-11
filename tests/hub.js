@@ -38,7 +38,7 @@ const pk=await pg.evaluate(()=>{const v=document.getElementById('view-waivers'),
 check(pk.n>=3&&pk.kinds===pk.n&&pk.why&&pk.rows&&pk.verdict,`Pickup picks: ${pk.n} kinds of pickup, each with reasons, a side-by-side against the drop and a verdict`);check(pk.calls<=1,`one orange "call" on Waivers at most (${pk.calls})`);
 await pg.click('#tab-signals');await pg.waitForTimeout(400);
 const sgn=await pg.evaluate(()=>{const v=document.getElementById('view-signals'),C=[...v.querySelectorAll('.lab-card')];document.querySelector('[data-labtbl="luck"]').click();
-  const T=Object.keys(LEAGUE.teams).map(Number),slotOf=Object.fromEntries(T.map(t=>[LEAGUE.teams[t].id,t])),adds=SIG.tx.flatMap(x=>x[3].filter(i=>i[1]==='A').map(i=>[i[0],slotOf[x[1]]])),last=new Map(adds),
+  const T=Object.keys(LEAGUE.teams).map(Number),slotOf=Object.fromEntries(T.map(t=>[LEAGUE.teams[t].id,t])),moves=SIG.tx.flatMap(x=>x[3].filter(i=>i[1]==='A'||i[1]==='D').map(i=>[i[0],i[1]==='A'?slotOf[x[1]]:null])),last=new Map(moves),  // each player's latest add or drop
     match=[...last].filter(([e])=>BY_ESPN.has(e)).map(([e,t])=>ownerOf(players[BY_ESPN.get(e)])===t);
   const lk=players.filter(p=>shotLuck(p)).map(p=>shotLuck(p).fp);
   return {cards:C.length,svg:C.filter(c=>c.querySelector('svg')).length,tbl:!document.querySelector('#lab-luck .lab-table').hidden,tiles:v.querySelectorAll('.kpi').length,
@@ -46,7 +46,7 @@ const sgn=await pg.evaluate(()=>{const v=document.getElementById('view-signals')
 check(sgn.cards===7&&sgn.svg===7&&sgn.tbl&&sgn.tiles>=4,`Signals tab draws seven charts with table views (${sgn.cards} cards, ${sgn.tiles} tiles)`);
 check(await pg.evaluate(()=>players.every(p=>{const c=pivotCall(p);return !c||c.k!=='sell'||(c.r>20&&c.r-c.m>=15)})&&players.filter(p=>{const c=pivotCall(p);return c&&c.r<=20}).every(p=>pivotCall(p).k!=='sell')),'never says sell high on a top-20 player, only when his average outranks Pivot by 15+');
 check(sgn.luckMid<1.5,`shooting pivots are centred near zero across players (average ${sgn.luckMid.toFixed(2)} FP/G)`);check(sgn.ramp,'return ramp rises from the first game back');
-check(sgn.match>=.7,`league moves are credited to the right teams (${Math.round(sgn.match*100)}% of last adds still on the team that added them)`);
+check(sgn.match>=.9,`league moves are credited to the right teams (${Math.round(sgn.match*100)}% of players sit where their latest add or drop left them)`);
 await pg.evaluate(()=>{const p=[...players].filter(p=>shotLuck(p)).sort((a,b)=>Math.abs(shotLuck(b).fp)-Math.abs(shotLuck(a).fp))[0];openPlayer(p.id)});await pg.waitForTimeout(300);
 check(await pg.evaluate(()=>/Signals/.test(document.getElementById('drawer').innerText)&&/Shooting pivot (up|down)/.test(document.getElementById('drawer').innerText)),'profile shows a Signals section');await pg.keyboard.press('Escape');
 await pg.click('#guideBtn');await pg.waitForTimeout(200);check(await pg.evaluate(()=>!$("guide").hidden&&/Glossary/.test($("guide").innerText)&&/Season FP/.test($("guide").innerText)),'the Guide opens with the glossary');await pg.keyboard.press('Escape');
@@ -54,4 +54,8 @@ await pg.click('#tab-lab');await pg.waitForTimeout(300);
 const lab=await pg.evaluate(()=>{const cards=document.querySelectorAll('#view-lab .lab-card').length;document.querySelector('[data-labtbl="over"]').click();const t=!document.querySelector('#lab-over .lab-table').hidden&&document.querySelector('#lab-over .lab-chart').hidden;return {cards,t,svg:document.querySelectorAll('#view-lab svg circle').length}});
 check(lab.cards===6&&lab.t&&lab.svg>100,`Lab draws six charts, each with a table view (${lab.cards} charts, ${lab.svg} dots)`);
 check(/updated /.test(await pg.evaluate(()=>document.getElementById('asof').textContent)),'header says when the data was updated');
+await pg.setViewportSize({width:390,height:800});await pg.waitForTimeout(300);
+const ft=await pg.evaluate(()=>{const R=tabRow.getBoundingClientRect(),vis=[...tabRow.querySelectorAll('[role=tab]:not([data-more])')].filter(b=>!b.hidden),all=TABS.filter(t=>!document.getElementById('tab-'+t).hidden);
+  return {in:vis.every(b=>b.getBoundingClientRect().right<=R.right+1),reach:all.every(t=>vis.some(b=>b.id==='tab-'+t)||MORE_().includes(t)),n:vis.length,more:MORE_().length}});
+check(ft.in&&ft.reach&&ft.n>=2,`phone: no tab sits off-screen; ${ft.n} in the row, the rest under More (${ft.more})`);await pg.setViewportSize({width:1280,height:900});
 check(!errs.length,'no page errors '+errs.join('; '));await b.close();process.exit(fail?1:0)})();
