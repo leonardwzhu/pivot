@@ -36,6 +36,15 @@ await pg.click('#tab-waivers');await pg.waitForTimeout(400);
 const pk=await pg.evaluate(()=>{const v=document.getElementById('view-waivers'),C=[...v.querySelectorAll('.pk-vs')].map(t=>t.closest('.tcard'));return {n:C.length,why:C.every(c=>c.querySelector('.pk-why').textContent.length>60),rows:C.every(c=>c.querySelectorAll('.pk-vs tbody tr').length===7),
   verdict:C.every(c=>/Worth the move|This week only|Watch/.test(c.querySelector('.pk-net').textContent)),kinds:new Set(C.map(c=>c.querySelector('.tcard-h .need-chip').textContent)).size,calls:v.querySelectorAll('.call').length}});
 check(pk.n>=3&&pk.kinds===pk.n&&pk.why&&pk.rows&&pk.verdict,`Pickup picks: ${pk.n} kinds of pickup, each with reasons, a side-by-side against the drop and a verdict`);check(pk.calls<=1,`one orange "call" on Waivers at most (${pk.calls})`);
+await pg.click('#tab-season');await pg.waitForTimeout(600);
+const mx=await pg.evaluate(()=>{const v=document.getElementById('view-season'),M=matchupSim(myRoster(),rosterOf(leagueOpp(CUR_WEEK)),CUR_WEEK),bars=[...v.querySelectorAll('svg[aria-label^="Simulated final margins"] rect[data-tip]')];
+  return {race:!!v.querySelector('svg[aria-label^="Cumulative points"] path'),bars:bars.length,share:bars.reduce((t,b)=>t+(+(/: (\d+)%/.exec(b.dataset.tip)||[0,0])[1]),0),bar:document.getElementById('seasonBar').innerText.includes(Math.round(M.p*100)+'%')}});
+check(mx.race&&mx.bars>=8&&mx.share>=90&&mx.share<=110,`Matchup draws the week as a race and the simulated margins (${mx.bars} bars covering ${mx.share}% of weeks)`);check(mx.bar,'the header win chance matches the Matchup tab');
+await openTab(pg,'models');await pg.waitForTimeout(400);
+const scc=await pg.evaluate(()=>({n:['cal','days','err','cover'].filter(k=>document.querySelector('#lab-'+k+' svg')).length,by:Object.keys(PREDS.by||{}).length}));
+check(scc.n===4&&scc.by>100,`scorecard draws four charts and keeps each player's record (${scc.by} players)`);
+await pg.evaluate(()=>openPlayer(players.find(p=>PREDS.by[p.espnId]&&PREDS.by[p.espnId].length>=3).id));await pg.waitForTimeout(300);
+check(await pg.evaluate(()=>/How Pivot did on him/.test(document.getElementById('drawer').innerText)),'profile shows predictions against results');await pg.keyboard.press('Escape');
 await pg.click('#tab-signals');await pg.waitForTimeout(400);
 const sgn=await pg.evaluate(()=>{const v=document.getElementById('view-signals'),C=[...v.querySelectorAll('.lab-card')];document.querySelector('[data-labtbl="luck"]').click();
   const T=Object.keys(LEAGUE.teams).map(Number),slotOf=Object.fromEntries(T.map(t=>[LEAGUE.teams[t].id,t])),moves=SIG.tx.flatMap(x=>x[3].filter(i=>i[1]==='A'||i[1]==='D').map(i=>[i[0],i[1]==='A'?slotOf[x[1]]:null])),last=new Map(moves),  // each player's latest add or drop

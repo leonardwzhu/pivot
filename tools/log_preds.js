@@ -32,7 +32,15 @@ const bins=[[0,15],[15,25],[25,35],[35,45],[45,99]].map(([lo,hi])=>{const G=S.fi
 const lastD=S.map(x=>x[0]).sort().pop(),misses=S.filter(x=>x[0]===lastD).sort((a,b)=>Math.abs(b[7]-b[2])-Math.abs(a[7]-a[2])).slice(0,6).map(x=>[x[1],r.names[x[1]]||"",x[2],x[7],x[3],x[4]]);
 // drift check: the last 7 days of live predictions on their own. A lean of 2+ FP over 150+ games is far outside chance (about 0.9 FP)
 const d7=new Date(Date.parse(r.today)-7*864e5).toISOString().slice(0,10),S7=S.filter(x=>!x[8]&&x[0]>=d7),recent=S7.length?{n:S7.length,bias:sum(S7).bias,mae:sum(S7).mae,avg:sum(S7).avg}:null;
-const out=S.length?{...sum(S),recent,live:S.filter(x=>!x[8]).length,since:S.map(x=>x[0]).sort()[0],lastD,weeks,bins,misses,pending:r.rows.filter(x=>x[7]==null).length}:{n:0,pending:r.rows.filter(x=>x[7]==null).length};
+// for the scorecard's charts: calibration in 5-FP steps [avg predicted, avg actual, games], each day's miss against the season-average
+// baseline [date, games, model, baseline], the spread of errors in 5-FP steps [from, games], and each player's last 8 live
+// predictions [date, predicted, low, high, actual] for his profile
+const grp=(G,k)=>{const m=new Map();G.forEach(x=>{const v=k(x);(m.get(v)||m.set(v,[]).get(v)).push(x)});return [...m].sort((a,b)=>a[0]<b[0]?-1:1)};
+const cal=grp(S,x=>Math.min(12,Math.floor(x[2]/5))).filter(([,G])=>G.length>=15).map(([,G])=>[rd(G.reduce((a,x)=>a+x[2],0)/G.length),rd(G.reduce((a,x)=>a+x[7],0)/G.length),G.length]);
+const days=grp(S,x=>x[0]).filter(([,G])=>G.length>=20).map(([d,G])=>[d,G.length,sum(G).mae,sum(G).avg]);
+const hist=grp(S,x=>Math.max(-10,Math.min(9,Math.floor((x[7]-x[2])/5)))).map(([k,G])=>[k*5,G.length]);
+const by={};grp(S.filter(x=>!x[8]),x=>String(x[1])).forEach(([e,G])=>by[e]=G.sort((a,b)=>a[0]<b[0]?-1:1).slice(-8).map(x=>[x[0].slice(5),x[2],x[3],x[4],x[7]]));
+const out=S.length?{...sum(S),recent,cal,days,hist,by,live:S.filter(x=>!x[8]).length,since:S.map(x=>x[0]).sort()[0],lastD,weeks,bins,misses,pending:r.rows.filter(x=>x[7]==null).length}:{n:0,pending:r.rows.filter(x=>x[7]==null).length};
 fs.writeFileSync(path.join(root,'work/preds_log.json'),JSON.stringify({rows:r.rows}));
 fs.writeFileSync(path.join(root,'work/p2_preds.js'),"// Prediction scorecard (tools/log_preds.js): every next-game prediction logged before tip-off and scored once ESPN records the game\nconst PREDS="+JSON.stringify(out)+";\n");
 if(recent&&recent.n>=150&&Math.abs(recent.bias)>=2)console.log(`WARN scorecard drift: the last 7 days lean ${recent.bias} FP over ${recent.n} games`);
