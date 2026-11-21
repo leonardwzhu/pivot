@@ -1,2 +1,2 @@
 // Build time and when each source was last fetched fresh (tools/build_status.py)
-const BUILD={"at":"2026-11-21T14:48Z","mode":"night","src":{"stats":"2026-11-20T19:17Z","contracts":"2026-11-20T19:17Z","league":"2026-11-21T14:48Z","schedule":"2026-11-21T14:48Z","recent games":"2026-11-21T14:48Z","teammates":"2026-11-21T14:48Z","FantasyPros":"2026-11-20T19:17Z","ESPN":"2026-11-21T14:48Z","signals":"2026-11-21T14:48Z"}};
+const BUILD={"at":"2026-11-21T18:15Z","mode":"daily","src":{"stats":"2026-11-21T18:15Z","contracts":"2026-11-21T18:15Z","league":"2026-11-21T18:15Z","schedule":"2026-11-21T18:15Z","recent games":"2026-11-21T18:15Z","teammates":"2026-11-21T18:15Z","FantasyPros":"2026-11-21T18:15Z","ESPN":"2026-11-21T18:15Z","signals":"2026-11-21T18:15Z"}};
